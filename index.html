@@ -891,7 +891,7 @@ Plassering=nøyaktig hvor i DBS dette legges inn.`;
 
 // ============ GMAIL INTEGRATION ============
 // Uses Google Apps Script as backend – no OAuth login needed!
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzCZ0MWWrii2LxJc7lPWO9zsDJvrjvZgK2ZOkGbTcdc0Hp0lFCpUXev4211L1qyxMtD/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw_SEkXEsWKpYk327M2Bwwz7I0mCPY92YKoNoZL6McwUfbDtsOwYFsTWWXV_GmQbgOe/exec';
 
 let selectedGmailAttachment = null;
 
@@ -901,7 +901,7 @@ async function fetchGmailEmails() {
   selectedGmailAttachment = null;
   document.getElementById('gmail-selected-info').style.display = 'none';
   try {
-    const res = await fetch(APPS_SCRIPT_URL + '?action=list');
+    const res = await fetch(APPS_SCRIPT_URL + '?action=list', {redirect: 'follow'});
     const emails = await res.json();
     if (!emails.length) {
       listEl.innerHTML = '<div class="gmail-no-emails">📭 Ingen e-poster med PDF-vedlegg funnet</div>';
@@ -947,14 +947,14 @@ async function selectGmailEmail(msg, el) {
     const pdfName = msg.pdfs && msg.pdfs[0] ? msg.pdfs[0].name : null;
     if (!pdfName) { infoEl.innerHTML = '<div style="color:#A32D2D;font-size:12px">Ingen PDF funnet.</div>'; return; }
 
-    const pdfRes = await fetch(`${APPS_SCRIPT_URL}?action=attachment&msgId=${msg.id}&attName=${encodeURIComponent(pdfName)}`);
+    const pdfRes = await fetch(`${APPS_SCRIPT_URL}?action=attachment&msgId=${msg.id}&attName=${encodeURIComponent(pdfName)}`, {redirect: 'follow'});
     const pdfData = await pdfRes.json();
 
     // Fetch images
     const imgFiles = [];
     const images = msg.images || [];
     for (const img of images.slice(0, 10)) {
-      const imgRes = await fetch(`${APPS_SCRIPT_URL}?action=attachment&msgId=${msg.id}&attName=${encodeURIComponent(img.name)}`);
+      const imgRes = await fetch(`${APPS_SCRIPT_URL}?action=attachment&msgId=${msg.id}&attName=${encodeURIComponent(img.name)}`, {redirect: 'follow'});
       const imgData = await imgRes.json();
       const safeMime = ['image/jpeg','image/png','image/gif','image/webp'].includes(imgData.type) ? imgData.type : 'image/jpeg';
       const blob = b64ToBlob(imgData.data, safeMime);
