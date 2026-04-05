@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="no">
 <head>
@@ -236,32 +235,10 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <!-- GMAIL PANEL -->
       <div class="panel" id="tab-gmail">
         <div class="card">
-          <div class="card-title">Koble til Gmail</div>
-          <div id="gmail-login-section">
-            <div class="gmail-login-box">
-              <div class="gmail-icon">📧</div>
-              <p>Koble AutoPell til din Gmail-konto.<br>Takster sendt til <strong><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="18796d6c77687d74746c79736b6c587f75797174367b7775">[email&#160;protected]</a></strong> hentes automatisk.</p>
-              <button class="btn-google" onclick="gmailLogin()">
-                <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.35-8.16 2.35-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
-                Logg inn med Google
-              </button>
-            </div>
-          </div>
-          <div id="gmail-logged-section" style="display:none">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-              <div style="font-size:12px;color:#3B6D11">✓ Innlogget som <span id="gmail-user-email" style="font-weight:600"></span></div>
-              <button class="btn" style="font-size:11px;padding:5px 10px" onclick="gmailLogout()">Logg ut</button>
-            </div>
-            <button class="btn btn-primary btn-full" onclick="fetchGmailEmails()" style="margin-bottom:12px">🔄 Hent siste takster fra Gmail</button>
-            <div id="gmail-emails-list"></div>
-            <div class="gmail-selected-info" id="gmail-selected-info">
-              📄 <span id="gmail-selected-text"></span> er klar til analyse.
-              <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
-                <button class="btn btn-primary" onclick="sendGmailToVeil()">📋 Send til Kontroll av takst</button>
-                <button class="btn btn-primary" onclick="sendGmailToPakk()">📦 Send til Pakkseddel-sjekk (som takst)</button>
-              </div>
-            </div>
-          </div>
+          <div class="card-title">Hent takster fra Gmail</div>
+          <button class="btn btn-primary btn-full" onclick="fetchGmailEmails()" style="margin-bottom:12px">🔄 Hent siste takster fra Gmail</button>
+          <div id="gmail-emails-list"></div>
+          <div id="gmail-selected-info" style="display:none;margin-top:8px"></div>
         </div>
         <div class="info-box" style="margin-top:0">
           💡 Send takster fra DBS til <strong><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="7b1a0e0f140b1e17170f1a10080f3b1c161a121755181416">[email&#160;protected]</a></strong> – de vises her automatisk. Klikk på en e-post for å laste inn taksten direkte i AutoPell.
@@ -913,195 +890,76 @@ Plassering=nøyaktig hvor i DBS dette legges inn.`;
 }
 
 // ============ GMAIL INTEGRATION ============
-const GMAIL_CLIENT_ID = 'https://script.google.com/macros/s/AKfycbyEqB0nVDZ6W0Vw4rk9syc5A2OyzSvwQ8YXEC5UtpHegE0gX4XlunAPAZEILApdSug2/exec';
-const GMAIL_SCOPES = 'https://www.googleapis.com/auth/gmail.readonly';
+// Uses Google Apps Script as backend – no OAuth login needed!
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyEqB0nVDZ6W0Vw4rk9syc5A2OyzSvwQ8YXEC5UtpHegE0gX4XlunAPAZEILApdSug2/exec';
 
-let gmailAccessToken = null;
 let selectedGmailAttachment = null;
 
-function gmailLogin() {
-  // Use implicit flow with redirect – works from local HTML files
-  // Store current page URL so we can parse the token on return
-  const redirectUri = location.href.split('#')[0].split('?')[0];
-  const authUrl = 'https://accounts.google.com/o/oauth2/v2/auth' +
-    '?client_id=' + encodeURIComponent(GMAIL_CLIENT_ID) +
-    '&redirect_uri=' + encodeURIComponent(redirectUri) +
-    '&response_type=token' +
-    '&scope=' + encodeURIComponent(GMAIL_SCOPES) +
-    '&prompt=select_account';
-  window.location.href = authUrl;
-}
-
-function checkGmailTokenInUrl() {
-  // Called on page load – checks if we just returned from Google OAuth
-  const hash = window.location.hash;
-  if (!hash) return;
-  const params = new URLSearchParams(hash.substring(1));
-  const token = params.get('access_token');
-  if (token) {
-    gmailAccessToken = token;
-    // Clean URL
-    history.replaceState(null, '', window.location.pathname + window.location.search);
-    fetchGmailUserInfo();
-    // Switch to gmail tab
-    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-    document.getElementById('tab-gmail').classList.add('active');
-    document.getElementById('topbar-title').textContent = 'Hent fra Gmail';
-    const navItems = document.querySelectorAll('.nav-item');
-    if (navItems[3]) navItems[3].classList.add('active');
-  }
-}
-
-async function fetchGmailUserInfo() {
-  try {
-    const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-      headers: { 'Authorization': 'Bearer ' + gmailAccessToken }
-    });
-    const info = await res.json();
-    document.getElementById('gmail-user-email').textContent = info.email || '';
-    document.getElementById('gmail-login-section').style.display = 'none';
-    document.getElementById('gmail-logged-section').style.display = 'block';
-    fetchGmailEmails();
-  } catch(e) { alert('Feil ved henting av brukerinfo'); }
-}
-
-function gmailLogout() {
-  gmailAccessToken = null;
-  selectedGmailAttachment = null;
-  document.getElementById('gmail-login-section').style.display = 'block';
-  document.getElementById('gmail-logged-section').style.display = 'none';
-  document.getElementById('gmail-emails-list').innerHTML = '';
-  document.getElementById('gmail-selected-info').style.display = 'none';
-}
-
 async function fetchGmailEmails() {
-  if (!gmailAccessToken) return;
   const listEl = document.getElementById('gmail-emails-list');
   listEl.innerHTML = '<div class="loading-box"><span class="spinner"></span>Henter e-poster...</div>';
   selectedGmailAttachment = null;
   document.getElementById('gmail-selected-info').style.display = 'none';
   try {
-    // Search for emails with PDF attachments, newest first
-    const searchRes = await fetch(
-      'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=15&q=has:attachment filename:pdf',
-      { headers: { 'Authorization': 'Bearer ' + gmailAccessToken } }
-    );
-    const searchData = await searchRes.json();
-    if (!searchData.messages || searchData.messages.length === 0) {
+    const res = await fetch(APPS_SCRIPT_URL + '?action=list');
+    const emails = await res.json();
+    if (!emails.length) {
       listEl.innerHTML = '<div class="gmail-no-emails">📭 Ingen e-poster med PDF-vedlegg funnet</div>';
       return;
     }
-    // Fetch details for each message
-    const details = await Promise.all(searchData.messages.slice(0, 10).map(async (msg) => {
-      const r = await fetch(
-        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`,
-        { headers: { 'Authorization': 'Bearer ' + gmailAccessToken } }
-      );
-      return r.json();
-    }));
-    renderGmailEmails(details);
+    renderGmailEmails(emails);
   } catch(e) {
     listEl.innerHTML = `<div class="result-item result-red"><div class="result-title">Feil</div><div class="result-sub">${e.message}</div></div>`;
   }
 }
 
-function renderGmailEmails(messages) {
+function renderGmailEmails(emails) {
   const listEl = document.getElementById('gmail-emails-list');
-  if (!messages.length) {
-    listEl.innerHTML = '<div class="gmail-no-emails">📭 Ingen e-poster funnet</div>';
-    return;
-  }
-  listEl.innerHTML = messages.map(msg => {
-    const headers = msg.payload?.headers || [];
-    const from = headers.find(h => h.name === 'From')?.value || 'Ukjent avsender';
-    const subject = headers.find(h => h.name === 'Subject')?.value || '(uten emne)';
-    const date = headers.find(h => h.name === 'Date')?.value || '';
-    const dateStr = date ? new Date(date).toLocaleDateString('nb-NO', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
-    // Count PDF parts
-    const pdfCount = countPdfAttachments(msg.payload);
-    const attachBadge = pdfCount > 0 ? `<div><span class="gmail-attachment">📎 ${pdfCount} PDF${pdfCount>1?'er':''}</span></div>` : '';
-    return `<div class="gmail-email-item" onclick="selectGmailEmail('${msg.id}', this)" data-msgid="${msg.id}">
-      <div class="gmail-sender">${escapeHtml(from.replace(/<.*>/, '').trim())}</div>
-      <div class="gmail-subject">${escapeHtml(subject)}</div>
+  listEl.innerHTML = emails.map(msg => {
+    const dateStr = msg.date ? new Date(msg.date).toLocaleDateString('nb-NO', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+    const pdfCount = msg.pdfs ? msg.pdfs.length : 0;
+    const imgCount = msg.images ? msg.images.length : 0;
+    const badges = [];
+    if (pdfCount > 0) badges.push(`<span class="gmail-attachment">📎 ${pdfCount} PDF${pdfCount>1?'er':''}</span>`);
+    if (imgCount > 0) badges.push(`<span class="gmail-attachment">📷 ${imgCount} bilde${imgCount>1?'r':''}</span>`);
+    return `<div class="gmail-email-item" onclick="selectGmailEmail(${JSON.stringify(msg)}, this)">
+      <div class="gmail-sender">${escapeHtml((msg.from||'').replace(/<.*>/,'').trim())}</div>
+      <div class="gmail-subject">${escapeHtml(msg.subject||'(uten emne)')}</div>
       <div class="gmail-date">${escapeHtml(dateStr)}</div>
-      ${attachBadge}
+      <div>${badges.join(' ')}</div>
     </div>`;
   }).join('');
 }
 
-function countPdfAttachments(payload) {
-  if (!payload) return 0;
-  let count = 0;
-  if (payload.mimeType === 'application/pdf' && payload.body?.attachmentId) count++;
-  if (payload.filename?.toLowerCase().endsWith('.pdf') && payload.body?.attachmentId) count++;
-  if (payload.parts) payload.parts.forEach(p => { count += countPdfAttachments(p); });
-  return count;
-}
-
-async function selectGmailEmail(msgId, el) {
+async function selectGmailEmail(msg, el) {
   document.querySelectorAll('.gmail-email-item').forEach(e => e.classList.remove('selected'));
   el.classList.add('selected');
   selectedGmailAttachment = null;
-  document.getElementById('gmail-selected-info').style.display = 'none';
   const infoEl = document.getElementById('gmail-selected-info');
   infoEl.innerHTML = '<div class="loading-box"><span class="spinner"></span>Henter vedlegg...</div>';
   infoEl.style.display = 'block';
 
   try {
-    const res = await fetch(
-      `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}?format=full`,
-      { headers: { 'Authorization': 'Bearer ' + gmailAccessToken } }
-    );
-    const msg = await res.json();
-
-    // Find PDF
-    const pdfs = findAttachmentsByType(msg.payload, ['application/pdf'], ['.pdf']);
-    if (!pdfs.length) { infoEl.innerHTML = '<div style="color:#A32D2D;font-size:12px">Fant ingen PDF-vedlegg i denne e-posten.</div>'; return; }
-
-    // Find images
-    const imgs = findAttachmentsByType(msg.payload,
-      ['image/jpeg','image/png','image/gif','image/webp','image/heic','image/heif','image/jpg'],
-      ['.jpg','.jpeg','.png','.gif','.webp','.heic','.heif']
-    );
-    console.log('PDF-vedlegg funnet:', pdfs.length, pdfs);
-    console.log('Bilder funnet:', imgs.length, imgs);
-    // Log ALL parts for debugging
-    function logAllParts(p, depth=0) {
-      if (!p) return;
-      console.log(' '.repeat(depth*2) + (p.mimeType||'?') + ' | ' + (p.filename||'ingen filnavn') + ' | attachmentId: ' + (p.body?.attachmentId||'nei'));
-      if (p.parts) p.parts.forEach(pp => logAllParts(pp, depth+1));
-    }
-    console.log('=== ALLE DELER I E-POSTEN ===');
-    logAllParts(msg.payload);
-
     // Fetch PDF
-    const pdf = pdfs[0];
-    const pdfRes = await fetch(
-      `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}/attachments/${pdf.attachmentId}`,
-      { headers: { 'Authorization': 'Bearer ' + gmailAccessToken } }
-    );
-    const pdfData = await pdfRes.json();
-    const pdfB64 = pdfData.data.replace(/-/g, '+').replace(/_/g, '/');
+    const pdfName = msg.pdfs && msg.pdfs[0] ? msg.pdfs[0].name : null;
+    if (!pdfName) { infoEl.innerHTML = '<div style="color:#A32D2D;font-size:12px">Ingen PDF funnet.</div>'; return; }
 
-    // Fetch images (max 10)
+    const pdfRes = await fetch(`${APPS_SCRIPT_URL}?action=attachment&msgId=${msg.id}&attName=${encodeURIComponent(pdfName)}`);
+    const pdfData = await pdfRes.json();
+
+    // Fetch images
     const imgFiles = [];
-    for (const img of imgs.slice(0, 10)) {
-      const imgRes = await fetch(
-        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}/attachments/${img.attachmentId}`,
-        { headers: { 'Authorization': 'Bearer ' + gmailAccessToken } }
-      );
+    const images = msg.images || [];
+    for (const img of images.slice(0, 10)) {
+      const imgRes = await fetch(`${APPS_SCRIPT_URL}?action=attachment&msgId=${msg.id}&attName=${encodeURIComponent(img.name)}`);
       const imgData = await imgRes.json();
-      const imgB64 = imgData.data.replace(/-/g, '+').replace(/_/g, '/');
-      const blob = b64ToBlob(imgB64, img.mimeType);
-      // Normalize mime type for Claude API compatibility
-      const safeMime = ['image/jpeg','image/png','image/gif','image/webp'].includes(img.mimeType) ? img.mimeType : 'image/jpeg';
-      imgFiles.push(new File([blob], img.filename || 'bilde.jpg', { type: safeMime }));
+      const safeMime = ['image/jpeg','image/png','image/gif','image/webp'].includes(imgData.type) ? imgData.type : 'image/jpeg';
+      const blob = b64ToBlob(imgData.data, safeMime);
+      imgFiles.push(new File([blob], img.name, { type: safeMime }));
     }
 
-    selectedGmailAttachment = { name: pdf.filename || 'takst.pdf', b64: pdfB64, mimeType: 'application/pdf', images: imgFiles };
-
-    const imgInfo = imgFiles.length > 0 ? ` + ${imgFiles.length} bilde${imgFiles.length > 1 ? 'r' : ''}` : '';
+    selectedGmailAttachment = { name: pdfData.name, b64: pdfData.data, mimeType: 'application/pdf', images: imgFiles };
+    const imgInfo = imgFiles.length > 0 ? ` + ${imgFiles.length} bilde${imgFiles.length>1?'r':''}` : '';
     infoEl.innerHTML = `
       <div style="font-size:12px;color:#173404;margin-bottom:10px">📄 <strong>${selectedGmailAttachment.name}</strong>${imgInfo} er klar til analyse.</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -1112,20 +970,7 @@ async function selectGmailEmail(msgId, el) {
     infoEl.style.border = '1px solid #C0DD97';
     infoEl.style.borderRadius = '7px';
     infoEl.style.padding = '10px 14px';
-
   } catch(e) { infoEl.innerHTML = `<div style="color:#A32D2D;font-size:12px">Feil: ${e.message}</div>`; }
-}
-
-function findAttachmentsByType(payload, mimeTypes, extensions, results=[]) {
-  if (!payload) return results;
-  const mime = payload.mimeType || '';
-  const fname = (payload.filename || '').toLowerCase();
-  const hasAttId = payload.body?.attachmentId;
-  if (hasAttId && (mimeTypes.includes(mime) || extensions.some(ext => fname.endsWith(ext)))) {
-    results.push({ attachmentId: payload.body.attachmentId, filename: payload.filename, mimeType: mime });
-  }
-  if (payload.parts) payload.parts.forEach(p => findAttachmentsByType(p, mimeTypes, extensions, results));
-  return results;
 }
 
 function b64ToBlob(b64, mimeType) {
@@ -1141,15 +986,12 @@ function sendGmailToVeil() {
   const file = new File([blob], selectedGmailAttachment.name, { type: 'application/pdf' });
   files['veil-takst'] = file;
   document.getElementById('veil-takst-chip').innerHTML = `<span class="file-chip">✓ ${file.name}</span>`;
-  // Load images into carImages
   if (selectedGmailAttachment.images && selectedGmailAttachment.images.length > 0) {
     carImages = selectedGmailAttachment.images.slice(0, 10);
     const container = document.getElementById('car-images-chips');
-    if (container) {
-      container.innerHTML = carImages.map((f,i) =>
-        `<div class="file-chip" style="cursor:pointer" onclick="removeCarImage(${i})">📷 ${f.name} ✕</div>`
-      ).join('');
-    }
+    if (container) container.innerHTML = carImages.map((f,i) =>
+      `<div class="file-chip" style="cursor:pointer" onclick="removeCarImage(${i})">📷 ${f.name} ✕</div>`
+    ).join('');
   }
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
@@ -1172,11 +1014,11 @@ function sendGmailToPakk() {
 }
 
 function escapeHtml(str) {
-  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return (str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 // ============ END GMAIL ============
 
-initKalibTags();updateApiStatus();checkGmailTokenInUrl();
+initKalibTags();updateApiStatus();
 const savedRegler=localStorage.getItem('ap_regler');if(savedRegler){const el=document.getElementById('mine-regler');if(el)el.value=savedRegler;}
 const innebygdeEl=document.getElementById('innebygde-regler');if(innebygdeEl)innebygdeEl.value=localStorage.getItem('ap_innebygde')||RULES_BUILTIN;
 if(!getApiKey())openModal();
