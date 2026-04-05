@@ -943,28 +943,20 @@ async function selectGmailEmail(msg, el) {
   infoEl.style.display = 'block';
 
   try {
-    // Fetch PDF
-    const pdfName = msg.pdfs && msg.pdfs[0] ? msg.pdfs[0].name : null;
-    if (!pdfName) { infoEl.innerHTML = '<div style="color:#A32D2D;font-size:12px">Ingen PDF funnet.</div>'; return; }
+    // Data er allerede inkludert fra listEmails – ingen ekstra fetch nødvendig
+    const pdfObj = msg.pdfs && msg.pdfs[0] ? msg.pdfs[0] : null;
+    if (!pdfObj || !pdfObj.data) throw new Error('Ingen PDF-data. Hent e-poster på nytt.');
 
-    const pdfRes = await fetch(`${APPS_SCRIPT_URL}?action=attachment&msgId=${msg.id}&attName=${encodeURIComponent(pdfName)}`, {redirect: 'follow'});
-    const pdfText = await pdfRes.text();
-    let pdfData;
-    try { pdfData = JSON.parse(pdfText); } catch(err) { throw new Error('Kunne ikke lese PDF-svar: ' + pdfText.substring(0, 100)); }
-    if (!pdfData.data) throw new Error('Ingen PDF-data i svar: ' + JSON.stringify(pdfData).substring(0, 100));
-
-    // Fetch images
     const imgFiles = [];
     const images = msg.images || [];
     for (const img of images.slice(0, 10)) {
-      const imgRes = await fetch(`${APPS_SCRIPT_URL}?action=attachment&msgId=${msg.id}&attName=${encodeURIComponent(img.name)}`, {redirect: 'follow'});
-      const imgData = await imgRes.json();
-      const safeMime = ['image/jpeg','image/png','image/gif','image/webp'].includes(imgData.type) ? imgData.type : 'image/jpeg';
-      const blob = b64ToBlob(imgData.data, safeMime);
+      if (!img.data) continue;
+      const safeMime = ['image/jpeg','image/png','image/gif','image/webp'].includes(img.type) ? img.type : 'image/jpeg';
+      const blob = b64ToBlob(img.data, safeMime);
       imgFiles.push(new File([blob], img.name, { type: safeMime }));
     }
 
-    selectedGmailAttachment = { name: pdfData.name || pdfName, b64: pdfData.data, mimeType: 'application/pdf', images: imgFiles };
+    selectedGmailAttachment = { name: pdfObj.name, b64: pdfObj.data, mimeType: 'application/pdf', images: imgFiles };
     const imgInfo = imgFiles.length > 0 ? ` + ${imgFiles.length} bilde${imgFiles.length>1?'r':''}` : '';
     infoEl.innerHTML = `
       <div style="font-size:12px;color:#173404;margin-bottom:10px">📄 <strong>${selectedGmailAttachment.name}</strong>${imgInfo} er klar til analyse.</div>
