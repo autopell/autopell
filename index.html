@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="no">
 <head>
@@ -783,7 +784,7 @@ async function runVeilSjekk(){
     // Convert car images to base64
     let carImgContent=[];
     if(carImages.length>0){
-      const carImgPromises=carImages.map(f=>toBase64(f).then(b64=>({type:'image',source:{type:'base64',media_type:f.type,data:b64}})));
+      const carImgPromises=carImages.map(f=>toBase64(f).then(b64=>({type:'image',source:{type:'base64',media_type:['image/jpeg','image/png','image/gif','image/webp'].includes(f.type)?f.type:'image/jpeg',data:b64}})));
       carImgContent=await Promise.all(carImgPromises);
     }
 
@@ -1060,9 +1061,19 @@ async function selectGmailEmail(msgId, el) {
 
     // Find images
     const imgs = findAttachmentsByType(msg.payload,
-      ['image/jpeg','image/png','image/gif','image/webp','image/heic','image/heif'],
+      ['image/jpeg','image/png','image/gif','image/webp','image/heic','image/heif','image/jpg'],
       ['.jpg','.jpeg','.png','.gif','.webp','.heic','.heif']
     );
+    console.log('PDF-vedlegg funnet:', pdfs.length, pdfs);
+    console.log('Bilder funnet:', imgs.length, imgs);
+    // Log ALL parts for debugging
+    function logAllParts(p, depth=0) {
+      if (!p) return;
+      console.log(' '.repeat(depth*2) + (p.mimeType||'?') + ' | ' + (p.filename||'ingen filnavn') + ' | attachmentId: ' + (p.body?.attachmentId||'nei'));
+      if (p.parts) p.parts.forEach(pp => logAllParts(pp, depth+1));
+    }
+    console.log('=== ALLE DELER I E-POSTEN ===');
+    logAllParts(msg.payload);
 
     // Fetch PDF
     const pdf = pdfs[0];
@@ -1083,7 +1094,9 @@ async function selectGmailEmail(msgId, el) {
       const imgData = await imgRes.json();
       const imgB64 = imgData.data.replace(/-/g, '+').replace(/_/g, '/');
       const blob = b64ToBlob(imgB64, img.mimeType);
-      imgFiles.push(new File([blob], img.filename || 'bilde.jpg', { type: img.mimeType }));
+      // Normalize mime type for Claude API compatibility
+      const safeMime = ['image/jpeg','image/png','image/gif','image/webp'].includes(img.mimeType) ? img.mimeType : 'image/jpeg';
+      imgFiles.push(new File([blob], img.filename || 'bilde.jpg', { type: safeMime }));
     }
 
     selectedGmailAttachment = { name: pdf.filename || 'takst.pdf', b64: pdfB64, mimeType: 'application/pdf', images: imgFiles };
