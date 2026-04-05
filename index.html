@@ -948,7 +948,10 @@ async function selectGmailEmail(msg, el) {
     if (!pdfName) { infoEl.innerHTML = '<div style="color:#A32D2D;font-size:12px">Ingen PDF funnet.</div>'; return; }
 
     const pdfRes = await fetch(`${APPS_SCRIPT_URL}?action=attachment&msgId=${msg.id}&attName=${encodeURIComponent(pdfName)}`, {redirect: 'follow'});
-    const pdfData = await pdfRes.json();
+    const pdfText = await pdfRes.text();
+    let pdfData;
+    try { pdfData = JSON.parse(pdfText); } catch(err) { throw new Error('Kunne ikke lese PDF-svar: ' + pdfText.substring(0, 100)); }
+    if (!pdfData.data) throw new Error('Ingen PDF-data i svar: ' + JSON.stringify(pdfData).substring(0, 100));
 
     // Fetch images
     const imgFiles = [];
@@ -961,7 +964,7 @@ async function selectGmailEmail(msg, el) {
       imgFiles.push(new File([blob], img.name, { type: safeMime }));
     }
 
-    selectedGmailAttachment = { name: pdfData.name, b64: pdfData.data, mimeType: 'application/pdf', images: imgFiles };
+    selectedGmailAttachment = { name: pdfData.name || pdfName, b64: pdfData.data, mimeType: 'application/pdf', images: imgFiles };
     const imgInfo = imgFiles.length > 0 ? ` + ${imgFiles.length} bilde${imgFiles.length>1?'r':''}` : '';
     infoEl.innerHTML = `
       <div style="font-size:12px;color:#173404;margin-bottom:10px">📄 <strong>${selectedGmailAttachment.name}</strong>${imgInfo} er klar til analyse.</div>
