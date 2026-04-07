@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v1.9.1</div>
+    <div class="version-badge">v1.9.2</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -370,6 +370,7 @@ Ved lakkering av støtfanger, sjekk alltid:
 - Tilknyttede smådeler (p-sensorer, lokk osv.) settes automatisk til 50% i DBS – FEIL
 - Beregn: smådelenes fulle tid × 50% = manglende perioder
 - Legg inn differansen i annet bilde: "for at resterende deler må lakkes 100%"
+DETTE MÅ ALLTID FLAGGES ved 50% støtfanger – ikke glem maskering og polere flikk!
 
 Plastrep støtfanger:
 - Sjekk plastspesifikasjonen: hvis "ut og innvendig skade" → 300kr sveisemateriall i annet bilde
@@ -798,12 +799,14 @@ Ikke foreslå generelle tillegg (diagnose, AC gass, hjulstilling osv.) med mindr
 - Klipssett unntatt ved støtfanger- og dørskift
 - Polering hvis allerede i taksten
 - HTT på selve hoveddelen (forskjerm, dør, støtfanger osv.)
+- HTT for dørhåndtak på forskjerm – håndtak tilhører døren, aldri forskjermen
 - Speil/speildeksel svart = ulakkert plast → ingen lakking, ingen HTT
 - Blinklys lakkes aldri
 - Parkeringssensorer → ingen kalibrering
 - Rep av felg eller andre poster som allerede er priset i taksten
 - Starttid lakk – legges automatisk inn av DBS når lakktype er valgt, skal ALDRI flagges
 - Grunnkonstant løs plastdel – legges automatisk inn av DBS, skal ALDRI flagges
+- Diagnose støtfanger hvis støtfanger IKKE er nevnt i taksten – aldri flagg diagnose uten at støtfanger faktisk er i taksten
 
 === VIKTIG OM HTT ===
 HTT gis KUN til løse deler som er montert PÅ en hoveddel (lister, håndtak, ladeluke osv.)
@@ -830,18 +833,56 @@ Les alle debiteringsfaktorer fra taksten (karosseri, lakk, plast – egne satser
 Bruk RIKTIG sats per tillegg. Perioder / 100 × sats = kroner.
 
 === INSTRUKSJON ===
-For hver del i taksten – sjekk kun relevante punkter:
-1. HTT: løse lakkerbare deler på DENNE delen? (15p, maks 4 per posisjon = 60p)
-   VIKTIG: Spesifiser alltid eksakt delnavn fra taksten. F.eks: "Mangler HTT 15p for spyledeksel V", ikke bare "mangler HTT".
-   Tell opp ALLE løse lakkerbare deler på hoveddelen fra taksten og sjekk hver enkelt separat.
-2. Tilstøtende flate: farge ikke svart og del lakkes?
-3. Rustbeskyttelse: ståldetalj som rettes/skiftes?
-4. Plastspesifikasjon: "ut og innvendig skade" → 300kr sveisemateriall?
-5. 50%-støtfanger: smådeler som feilaktig ble 50% – beregn korreksjon
-6. Kalibrering: kalibreringsdel skiftet? Lyskaster som krever koding?
-7. Diagnose: støtfanger demontert → 100p diagnosejobb? Fordør demontert → 50p airbag diagnose? (IKKE bakdør – har normalt ikke airbag)
-8. P-lister: demontert → klips i annet bilde?
-9. Spesialregler for merke kun hvis relevant
+VÆR SYSTEMATISK OG NØYE. Gå gjennom HVER DEL i taksten én om gangen.
+Følg ALLE regler strengt. Ikke flagg noe som ikke er direkte basert på taksten.
+
+For hver del i taksten – sjekk disse punktene:
+
+1. HTT-SJEKK (håndteringstillegg):
+   - Tell ALLE løse lakkerbare deler som tilhører DENNE hoveddelen i lakklisten
+   - Multipliser antall løse deler × 15p og sammenlign med HTT i taksten
+   - Flagg KUN hvis summene ikke stemmer – spesifiser eksakt delnavn
+   - ALDRI HTT på selve hoveddelen
+   - Dørhåndtak tilhører ALLTID døren – aldri forskjerm eller støtfanger
+   - Maks 60p (4 deler) per hoveddel
+
+2. TILSTØTENDE FLATE:
+   - Forskjerm skiftes: sjekk tilstøtende mot fordør og A-stolpe
+   - ALDRI tilstøtende mot panser ved forskjermskift
+   - Tilstøtende foreslås KUN mot deler som IKKE allerede lakkes i taksten
+
+3. RUSTBESKYTTELSE:
+   - Kun ståldetaljer som rettes eller skiftes – ALDRI på plast
+
+4. UB (understellsbehandling):
+   - 120kr ved skift eller retting av ståldeler
+   - DBS: Verksteddata → Materialforbruk/understellsbehandling
+   - ALDRI på plastdeler
+
+5. PLASTREPARASJON:
+   - "Plastrep inn/utv skade" → spør om sveisemateriell plastrep 300kr (gul)
+
+6. 50% STØTFANGER:
+   - Maskering av resterende 50%
+   - Polere flikk 20p
+   - Smådeler satt til 50% i DBS skal lakkes 100% – beregn differanse
+
+7. KALIBRERING:
+   - Kalibreringsdel skiftet? Lyskaster som krever koding?
+
+8. DIAGNOSE STØTFANGER:
+   - KUN hvis støtfanger faktisk er i taksten og demonteres
+   - ALDRI flagg hvis støtfanger ikke er nevnt i taksten
+   - Spørsmål (gul) – etter 2014: 100p, før 2014: 50p
+   - Debiteringsfaktor karosseri/mekanisk
+
+9. DEBITERINGSFAKTORER:
+   - Lakk: HTT, tilstøtende, polere flikk og alt lakkarbeid
+   - Karosseri/mekanisk: diagnose, kalibrering, karosseriarbeid
+
+10. P-LISTER: demontert → klips i annet bilde
+
+11. Spesialregler for merke kun hvis relevant
 
 Returner KUN gyldig JSON uten markdown:
 {
