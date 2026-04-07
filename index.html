@@ -907,18 +907,19 @@ For hver del i taksten – sjekk disse punktene:
 
 11. Spesialregler for merke kun hvis relevant
 
-Returner KUN gyldig JSON uten markdown:
+SVAR KUN MED GYLDIG JSON. INGEN ANNEN TEKST. IKKE SKRIV NOE FØR ELLER ETTER JSON-BLOKKEN.
+
 {
   "sammendrag": {
-    "perioder_funnet": <totalt perioder som kan legges til>,
-    "kroner_funnet": <estimert kroneverdi med riktige satser>,
-    "dbs_handlinger": ["konkret handling uten perioder eller beregninger – kun hva som skal gjøres i DBS"]
+    "perioder_funnet": 0,
+    "kroner_funnet": 0,
+    "dbs_handlinger": ["hva som skal gjøres i DBS uten perioder eller kroner"]
   },
   "resultater": [{"tittel":"...","melding":"[Taksten sier]: ... [Regel]: ...","farge":"rød|gul|lilla","plassering":"..."}]
 }
 rød=mangler påkrevd tillegg/feil, gul=anbefalt/sjekk, lilla=kalibrering/koding påkrevd.
 Plassering=nøyaktig hvor i DBS dette legges inn.
-VIKTIG for dbs_handlinger: Skriv KUN hva som skal gjøres – ingen perioder (p) eller beregninger i teksten.
+DBS-handlinger: KUN hva som skal gjøres, ingen perioder eller kroner.
 Eksempel riktig: "Legg til tilstøtende flate mot A-stolpe i lakkspesifikasjonen"
 Eksempel feil: "Legg til tilstøtende flate mot A-stolpe 18p i lakkspesifikasjonen"`;
 
