@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v1.9.2</div>
+    <div class="version-badge">v1.9.3</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -687,7 +687,7 @@ async function fileToContent(file){
 
 function showLoading(id,msg){const el=document.getElementById(id);if(el)el.innerHTML=`<div class="loading-box"><span class="spinner"></span>${msg}</div>`;}
 function renderResult(item){const colors={rød:'result-red',gul:'result-yellow',blå:'result-blue',grønn:'result-green',lilla:'result-purple'};const cls=colors[item.farge]||'result-blue';const loc=item.plassering?`<div class="result-location">📍 ${item.plassering}</div>`:'';return`<div class="result-item ${cls}"><div class="result-title">${item.tittel}</div><div class="result-sub">${item.melding}</div>${loc}</div>`;}
-async function callClaude(messages){const key=getApiKey();if(!key){openModal();throw new Error('Ingen API-nøkkel');}const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:4000,temperature:0.1,messages})});if(!res.ok){const err=await res.json().catch(()=>({}));throw new Error(err.error?.message||`HTTP ${res.status}`);}return res.json();}
+async function callClaude(messages){const key=getApiKey();if(!key){openModal();throw new Error('Ingen API-nøkkel');}const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:8000,temperature:0.1,messages})});if(!res.ok){const err=await res.json().catch(()=>({}));throw new Error(err.error?.message||`HTTP ${res.status}`);}return res.json();}
 function updateStats(r){document.getElementById('stat-missing').textContent=r.filter(x=>x.farge==='gul').length;document.getElementById('stat-price').textContent=r.filter(x=>x.farge==='rød').length;document.getElementById('stat-suggestions').textContent=r.filter(x=>x.farge==='blå'||x.farge==='grønn').length;document.getElementById('stats-row').style.display='grid';}
 
 function renderPakkResults(parsed) {
@@ -794,6 +794,12 @@ Les taksten og identifiser HVILKE DELER som faktisk er med i taksten.
 SJEKK KUN DISSE – ikke foreslå tillegg på deler som ikke er nevnt i taksten.
 Hvis en post allerede er priset i taksten – IKKE flagg den.
 Ikke foreslå generelle tillegg (diagnose, AC gass, hjulstilling osv.) med mindre de er direkte relevante for en del i taksten.
+
+=== LES ALLE REGLER GRUNDIG ===
+Ta god tid. Les hele taksten nøye fra topp til bunn.
+Les ALLE regler og sjekklister for HVER del i taksten.
+Dette er et påminnelsesprogram – det er viktig at du finner ALLE relevante tillegg.
+Gå gjennom sjekklisten for hver enkelt del systematisk.
 
 === KONSERVATIV ANALYSE ===
 - Kun flagg det du er 100% sikker på mangler basert på hva som faktisk står i taksten.
@@ -906,12 +912,15 @@ Returner KUN gyldig JSON uten markdown:
   "sammendrag": {
     "perioder_funnet": <totalt perioder som kan legges til>,
     "kroner_funnet": <estimert kroneverdi med riktige satser>,
-    "dbs_handlinger": ["konkret handling 1", "konkret handling 2"]
+    "dbs_handlinger": ["konkret handling uten perioder eller beregninger – kun hva som skal gjøres i DBS"]
   },
   "resultater": [{"tittel":"...","melding":"[Taksten sier]: ... [Regel]: ...","farge":"rød|gul|lilla","plassering":"..."}]
 }
 rød=mangler påkrevd tillegg/feil, gul=anbefalt/sjekk, lilla=kalibrering/koding påkrevd.
-Plassering=nøyaktig hvor i DBS dette legges inn.`;
+Plassering=nøyaktig hvor i DBS dette legges inn.
+VIKTIG for dbs_handlinger: Skriv KUN hva som skal gjøres – ingen perioder (p) eller beregninger i teksten.
+Eksempel riktig: "Legg til tilstøtende flate mot A-stolpe i lakkspesifikasjonen"
+Eksempel feil: "Legg til tilstøtende flate mot A-stolpe 18p i lakkspesifikasjonen"`;
 
     const data=await callClaude([{role:'user',content:[...takstContent,...carImgContent,{type:'text',text:prompt}]}]);
     const txt=data.content.map(c=>c.text||'').join('').trim().replace(/```json|```/g,'');
@@ -925,15 +934,14 @@ Plassering=nøyaktig hvor i DBS dette legges inn.`;
     // Sammendrag-boks
     if(r.length>0){
       html+=`<div class="summary-box">
-        <div class="summary-title">💰 Penger på bordet</div>
+        <div class="summary-title">📋 Forslag til tillegg</div>
+        <div style="font-size:11px;color:#666;margin-bottom:10px;font-style:italic">Dette er forslag til tillegg du kan ta med i denne taksten, men individuelle vurderinger må foretas.</div>
         <div class="summary-grid">
           <div class="summary-stat"><div class="summary-stat-num">${r.filter(x=>x.farge==='rød').length}</div><div class="summary-stat-label">Mangler</div></div>
           <div class="summary-stat"><div class="summary-stat-num">${r.filter(x=>x.farge==='gul').length}</div><div class="summary-stat-label">Sjekk</div></div>
           <div class="summary-stat"><div class="summary-stat-num">${r.filter(x=>x.farge==='lilla').length}</div><div class="summary-stat-label">Kalibrering</div></div>
         </div>`;
-      if(s.perioder_funnet||s.kroner_funnet){
-        html+=`<div class="summary-money">📈 Mulige tillegg: <strong>${s.perioder_funnet||0}p</strong>${s.kroner_funnet?` ≈ <strong>${s.kroner_funnet.toLocaleString('nb-NO')} kr</strong>`:''}</div>`;
-      }
+
       if(s.dbs_handlinger&&s.dbs_handlinger.length>0){
         html+=`<div class="dbs-list"><div class="dbs-list-title">🔧 Dette må gjøres i DBS</div>`;
         s.dbs_handlinger.forEach(d=>{html+=`<div class="dbs-item">• ${d}</div>`;});
