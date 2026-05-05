@@ -15,7 +15,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .logo-auto{font-size:26px;font-weight:800;color:#fff;letter-spacing:-1px}
 .logo-pell{font-size:26px;font-weight:800;color:#8B1A1A;letter-spacing:-1px}
 .logo-tagline{font-size:8.5px;color:rgba(255,255,255,0.35);letter-spacing:0.18em;text-transform:uppercase;margin-top:3px}
-.sidebar-nav{padding:12px 0;flex:1}
+.sidebar-nav{padg:12px 0;flex:1}
 .nav-item{display:flex;align-items:center;gap:10px;padding:10px 18px;font-size:13px;color:rgba(255,255,255,0.55);cursor:pointer;transition:all .15s;border-left:3px solid transparent}
 .nav-item:hover{color:rgba(255,255,255,0.85);background:rgba(255,255,255,0.05)}
 .nav-item.active{color:#fff;background:rgba(139,26,26,0.25);border-left-color:#8B1A1A}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v1.9.4</div>
+    <div class="version-badge">v1.9.5</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -299,7 +299,7 @@ ALDRI LAKKES:
 
 === TILSTØTENDE FLATE – SPESIFIKKE REGLER ===
 Tilstøtende flate gis KUN på disse tilfellene:
-- A-stolpe: tilstøtende KUN ved skifte (ny eller brukt) av forskjerm – ALDRI ved retting av forskjerm og ALDRI når fordør lakkes
+- A-stolpe: tilstøtende KUN ved SKIFT (N = ny) av forskjerm – ALDRI ved retting (G) av forskjerm og ALDRI når fordør lakkes
 - Dørhåndtak lakkes løst som HTT 15p – dette er tilstøtende, ingen separat post
 IKKE tilstøtende flate på andre HTT-deler som lister, ladeluke, hjulbuelister osv.
 
@@ -795,11 +795,18 @@ SJEKK KUN DISSE – ikke foreslå tillegg på deler som ikke er nevnt i taksten.
 Hvis en post allerede er priset i taksten – IKKE flagg den.
 Ikke foreslå generelle tillegg (diagnose, AC gass, hjulstilling osv.) med mindre de er direkte relevante for en del i taksten.
 
-=== LES ALLE REGLER GRUNDIG ===
-Ta god tid. Les hele taksten nøye fra topp til bunn.
-Les ALLE regler og sjekklister for HVER del i taksten.
-Dette er et påminnelsesprogram – det er viktig at du finner ALLE relevante tillegg.
-Gå gjennom sjekklisten for hver enkelt del systematisk.
+=== LES HELE TAKSTEN GRUNDIG FØRST ===
+STEG 1: Les hele taksten fra topp til bunn. Noter ALLE poster som allerede er i taksten.
+STEG 2: Les alle regler og sjekklister for HVER del.
+STEG 3: Sammenlign – foreslå KUN det som IKKE allerede er i taksten.
+
+ABSOLUTT REGEL: Hvis en post allerede finnes i taksten – ALDRI foreslå den.
+- Hvis "DØR X, HTT Yp" allerede er i lakklisten → ALDRI foreslå HTT for den delen
+- Hvis tilstøtende flate allerede er i lakklisten → ALDRI foreslå tilstøtende for den delen
+- Hvis diagnose/slette feilkoder allerede er i taksten → ALDRI foreslå diagnose
+- Hvis UB allerede er i taksten → ALDRI foreslå UB
+
+Dette er et påminnelsesprogram – finn ALLE relevante tillegg, men ALDRI noe som allerede er i taksten.
 
 === KONSERVATIV ANALYSE ===
 - Kun flagg det du er 100% sikker på mangler basert på hva som faktisk står i taksten.
@@ -820,9 +827,12 @@ Gå gjennom sjekklisten for hver enkelt del systematisk.
 
 === BILSPESIFIKKE REGLER ===
 - Nissan Leaf: ALDRI HTT håndtak – alltid krom, lakkes aldri
-- Tesla Model 3: ALDRI HTT håndtak – innfelte svarte håndtak, lakkes aldri
 - Nissan Ariya: lakkerte håndtak – HTT gjelder
+- Alle Tesla-modeller (Model 3, Y, S, X): ALDRI HTT håndtak – ingen Tesla har lakkerte håndtak
+- Tesla Model 3 og Y: ingen P-lister → aldri flagg klips
 - Mercedes etter 2007: ripefast klarlakk kan settes som lakktype 4 (kode 6770) – flagg som spørsmål (gul)
+- VW ID.Buzz: lakkerte håndtak – HTT gjelder
+- Svart bil: ALDRI tilstøtende flate
 
 === ALDRI FLAGG DISSE ===
 - Klips – lakkes aldri, skal aldri ha HTT
@@ -887,7 +897,9 @@ For hver del i taksten – sjekk disse punktene:
    - Kun ståldetaljer som rettes eller skiftes – ALDRI på plast
 
 4. UB (understellsbehandling):
-   - 120kr ved skift eller retting av ståldeler
+   - 120kr ved skift eller retting av ståldeler OG aluminiumsdeler
+   - Aluminium korroderer innvendig – UB gjelder likevel
+   - Ved FLERE ståldetaljer: ett samlet forslag, ikke per del
    - DBS: Verksteddata → Materialforbruk/understellsbehandling
    - ALDRI på plastdeler
 
@@ -917,6 +929,7 @@ For hver del i taksten – sjekk disse punktene:
 11. KANALSKIFT:
     - Alltid sveist/naglet/limt
     - Spør om arealavhengig tilstøtende mot A-stolpe, B-stolpe og bakskjerm (gul)
+    - Arealavhengig = pris beregnes basert på faktisk areal i DBS, ikke fast pris
 
 12. SPEILDEKSEL:
     - Hvis speildeksel skal demonteres fra hoveddelen → flagg tillegg (gul)
@@ -935,6 +948,8 @@ For hver del i taksten – sjekk disse punktene:
     - Skadeklasse 1 → flagg 50p rigging (gul)
 
 17. Spesialregler for merke kun hvis relevant
+
+BILDENE: Hvis bilder er lastet opp, bruk dem aktivt. Se etter skader, detaljer eller deler som er synlige på bildene men IKKE nevnt i taksten. Flagg disse som spørsmål (gul): "Bildene viser X – er dette tatt med i taksten?"
 
 SVAR KUN MED GYLDIG JSON. INGEN ANNEN TEKST. IKKE SKRIV NOE FØR ELLER ETTER JSON-BLOKKEN.
 
