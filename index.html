@@ -15,7 +15,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .logo-auto{font-size:26px;font-weight:800;color:#fff;letter-spacing:-1px}
 .logo-pell{font-size:26px;font-weight:800;color:#8B1A1A;letter-spacing:-1px}
 .logo-tagline{font-size:8.5px;color:rgba(255,255,255,0.35);letter-spacing:0.18em;text-transform:uppercase;margin-top:3px}
-.sidebar-nav{padg:12px 0;flex:1}
+.sidebar-nav{padding:12px 0;flex:1}
 .nav-item{display:flex;align-items:center;gap:10px;padding:10px 18px;font-size:13px;color:rgba(255,255,255,0.55);cursor:pointer;transition:all .15s;border-left:3px solid transparent}
 .nav-item:hover{color:rgba(255,255,255,0.85);background:rgba(255,255,255,0.05)}
 .nav-item.active{color:#fff;background:rgba(139,26,26,0.25);border-left-color:#8B1A1A}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v1.9.5</div>
+    <div class="version-badge">v1.9.7</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -289,6 +289,7 @@ HÅNDTERINGSTILLEGG (HTT):
 - Ikke HTT hvis maskering allerede er angitt for detaljen
 - Hvis taksten viser "DØR HTT" i annetbildet uten spesifikasjon = mest sannsynlig dørhåndtak (15p)
 - Ved lakkering av dør: HTT 15p for dørhåndtak KUN hvis håndtaket er lakkert (ikke krom eller svart ulakkert plast). Bruk bilkunnskap for å avgjøre. Legges i annetbildet.
+- KRITISK – LAKKERING vs POLERING: HTT skal ALDRI foreslås når en del kun poleres. HTT gjelder kun ved faktisk lakkering (kode N=ny eller G=retting med lakk). I lakkspesifikasjonen vises polering som egen post (f.eks. "DØR FREMRE V, polere") – dette utløser IKKE HTT for dørhåndtak eller andre detaljer på den delen. Sjekk om hoveddelen faktisk lakkes før du foreslår HTT.
 
 ALDRI LAKKES:
 - Blinklys
@@ -687,7 +688,7 @@ async function fileToContent(file){
 
 function showLoading(id,msg){const el=document.getElementById(id);if(el)el.innerHTML=`<div class="loading-box"><span class="spinner"></span>${msg}</div>`;}
 function renderResult(item){const colors={rød:'result-red',gul:'result-yellow',blå:'result-blue',grønn:'result-green',lilla:'result-purple'};const cls=colors[item.farge]||'result-blue';const loc=item.plassering?`<div class="result-location">📍 ${item.plassering}</div>`:'';return`<div class="result-item ${cls}"><div class="result-title">${item.tittel}</div><div class="result-sub">${item.melding}</div>${loc}</div>`;}
-async function callClaude(messages){const key=getApiKey();if(!key){openModal();throw new Error('Ingen API-nøkkel');}const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:8000,temperature:0.1,messages})});if(!res.ok){const err=await res.json().catch(()=>({}));throw new Error(err.error?.message||`HTTP ${res.status}`);}return res.json();}
+async function callClaude(messages){const key=getApiKey();if(!key){openModal();throw new Error('Ingen API-nøkkel');}const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:8000,temperature:0.1,messages})});if(!res.ok){const err=await res.json().catch(()=>({}));throw new Error(err.error?.message||`HTTP ${res.status}`);}return res.json();}
 function updateStats(r){document.getElementById('stat-missing').textContent=r.filter(x=>x.farge==='gul').length;document.getElementById('stat-price').textContent=r.filter(x=>x.farge==='rød').length;document.getElementById('stat-suggestions').textContent=r.filter(x=>x.farge==='blå'||x.farge==='grønn').length;document.getElementById('stats-row').style.display='grid';}
 
 function renderPakkResults(parsed) {
@@ -823,7 +824,9 @@ Dette er et påminnelsesprogram – finn ALLE relevante tillegg, men ALDRI noe s
 6. UB 120kr legges i DBS under Verksteddata → Materialforbruk/understellsbehandling – ikke i annetbildet.
 7. LES HELE TAKSTEN GRUNDIG FØR DU FORESLÅR NOE. Sjekk at det ikke allerede finnes i taksten. Aldri foreslå noe som allerede er der.
 8. Diagnose støtfanger – kun som spørsmål (gul) når støtfanger eksplisitt demonteres. Etter 2014: 100p, før 2014: 50p.
-9. Sveisemateriell plastrep 300kr – kun ved "Ut og innvendig skade" i plastspesifikasjon. ALDRI ved kun "Utvendig skade".
+9. Sveisemateriell plastrep 300kr – KUN hvis "Ut og innvendig skade" er eksplisitt huket av i plastspesifikasjonens Gruppe 1. ALDRI ved "Skrapeskade", "Utvendig skade" alene, eller hvis ingen underkategori er huket av. Hvis underkategori MANGLER → flagg det som rød mangel i stedet, IKKE foreslå 300kr.
+10. ALDRI foreslå UB på plastdeler. Støtfanger = plast. UB gjelder kun stål og aluminium.
+11. Plastrep Gruppe 1 uten huket av skadetype → flagges som rød mangel (takstmannen må velge skadeomfang for korrekt tidsberegning).
 
 === BILSPESIFIKKE REGLER ===
 - Nissan Leaf: ALDRI HTT håndtak – alltid krom, lakkes aldri
@@ -889,9 +892,11 @@ For hver del i taksten – sjekk disse punktene:
    - Maks 60p (4 deler) per hoveddel
 
 2. TILSTØTENDE FLATE:
-   - Forskjerm skiftes: sjekk tilstøtende mot fordør og A-stolpe
+   - KRITISK – KODE N vs G: Tilstøtende flate mot A-stolpe gis KUN ved skift (N = ny) av forskjerm. Ved retting (G) av forskjerm skal tilstøtende A-stolpe ALDRI foreslås. Sjekk kolonnen "Op.Type" eller "Skjøte" i lakkspesifikasjonen før du foreslår tilstøtende.
+   - Forskjerm SKIFTES (N): sjekk tilstøtende mot fordør og A-stolpe
+   - Forskjerm RETTES (G): INGEN tilstøtende A-stolpe, INGEN tilstøtende fordør automatisk
    - ALDRI tilstøtende mot panser ved forskjermskift
-   - Tilstøtende foreslås KUN mot deler som IKKE allerede lakkes i taksten
+   - Tilstøtende foreslås KUN mot deler som IKKE allerede lakkes/rettes/poleres i taksten
 
 3. RUSTBESKYTTELSE:
    - Kun ståldetaljer som rettes eller skiftes – ALDRI på plast
@@ -903,8 +908,16 @@ For hver del i taksten – sjekk disse punktene:
    - DBS: Verksteddata → Materialforbruk/understellsbehandling
    - ALDRI på plastdeler
 
-5. PLASTREPARASJON:
-   - "Plastrep inn/utv skade" → spør om sveisemateriell plastrep 300kr (gul)
+5. PLASTREPARASJON (VIKTIG – SJEKK NØYE):
+   a) SKADETYPE-KONTROLL (rød – mangel i takst):
+      - Ved plastreparasjon i Gruppe 1 ("Detaljer som krever lakk/struktur etter reparasjon"): SJEKK at én av de tre underkategoriene er huket av: Skrapeskade / Utvendig skade / Ut og innvendig skade.
+      - Hvis Gruppe 1 er valgt men INGEN underkategori er huket av → flagg som RØD: "Plastreparasjon [del]: Skadetype mangler i Gruppe 1. Velg Skrapeskade, Utvendig skade eller Ut og innvendig skade for korrekt tidsberegning."
+   b) SVEISEMATERIELL PLAST 300kr (gul – kun under spesifikt vilkår):
+      - Foreslås KUN hvis "Ut og innvendig skade" eksplisitt er huket av i plastspesifikasjonen.
+      - ALDRI ved "Skrapeskade" eller "Utvendig skade" alene.
+      - ALDRI hvis skadetype mangler (da skal i stedet 5a flagges).
+      - Føres i annetbildet.
+   c) UB PÅ PLAST: ALDRI. Støtfangere er plast. Sjekk regel 3 og 4 før du foreslår UB.
 
 6. 50% STØTFANGER:
    - Maskering av resterende 50%
