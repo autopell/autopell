@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v1.9.7</div>
+    <div class="version-badge">v1.9.8</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -289,7 +289,15 @@ HÅNDTERINGSTILLEGG (HTT):
 - Ikke HTT hvis maskering allerede er angitt for detaljen
 - Hvis taksten viser "DØR HTT" i annetbildet uten spesifikasjon = mest sannsynlig dørhåndtak (15p)
 - Ved lakkering av dør: HTT 15p for dørhåndtak KUN hvis håndtaket er lakkert (ikke krom eller svart ulakkert plast). Bruk bilkunnskap for å avgjøre. Legges i annetbildet.
-- KRITISK – LAKKERING vs POLERING: HTT skal ALDRI foreslås når en del kun poleres. HTT gjelder kun ved faktisk lakkering (kode N=ny eller G=retting med lakk). I lakkspesifikasjonen vises polering som egen post (f.eks. "DØR FREMRE V, polere") – dette utløser IKKE HTT for dørhåndtak eller andre detaljer på den delen. Sjekk om hoveddelen faktisk lakkes før du foreslår HTT.
+- KRITISK – LAKKERING vs POLERING: HTT skal ALDRI foreslås når en del kun poleres – verken som rød mangel ELLER som gul "vurder". Polering er IKKE lakkering og utløser INGEN HTT. HTT gjelder kun ved faktisk lakkering (kode N=ny eller G=retting med lakk). I lakkspesifikasjonen vises polering som egen post (f.eks. "DØR FREMRE V, polere") – dette utløser IKKE HTT for dørhåndtak eller andre detaljer på den delen. Hvis du vurderer å foreslå HTT på en del: sjekk FØRST om den del lakkes (N/G) eller bare poleres. Hvis den poleres → ikke foreslå HTT i det hele tatt, ikke engang som "vurder".
+- KRITISK – TILSTØTENDE FLATE vs FULL LAKK: HTT på detaljer som tilhører en del med kun TILSTØTENDE flate avhenger av HVOR overgangen ligger. Hovedregel: HTT foreslås kun ved full lakkering av delen. UNNTAK – sjekk hvor tilstøtende-overgangen ligger:
+  • Forskjerm skiftes → tilstøtende fordør: Overgangen ligger foran på døren (ved A-stolpe), langt fra dørhåndtaket. INGEN HTT dørhåndtak. Fargelakk halvveis innpå + klarlakk resten – håndtak ikke involvert.
+  • Bakdør skiftes → tilstøtende fordør: Overgangen ligger bak på fordøren, ved dørhåndtaket. HTT dørhåndtak fordør SKAL foreslås – håndtaket må av for å unngå fargeskifte rundt det.
+  • Fordør skiftes → tilstøtende bakdør: Overgangen ligger foran på bakdøren, ved bakdør-håndtaket. HTT dørhåndtak bakdør SKAL foreslås.
+  • Generell logikk: Tilstøtende mellom dører → HTT håndtak på den tilstøtende døren (overgang nær håndtak). Tilstøtende fra forskjerm/bakskjerm til dør → INGEN HTT håndtak (overgang langt fra håndtak).
+  Samme tankegang for andre HTT-detaljer: vurder om detaljen ligger i overgangsområdet eller ikke.
+- KRITISK – HEL-LAKKERING AV SYMMETRISKE DELER: Når en hel støtfanger (foran/bak) lakkes 100%, gjelder HTT for detaljer på BEGGE sider, ikke bare den skadede siden. Eksempel: Skade på V side, men hele støtfangeren skal lakkes (100%) → HTT spylerdyselokk lyskaster skal foreslås for BÅDE V og H side (15p + 15p = 30p), forutsatt at bilen har spylerdyser på begge sider. Samme prinsipp for andre symmetriske detaljer (parkeringssensorlokk, slepekrok-lokk, tåkelys-lokk osv.). Sjekk bilkunnskap for hva som finnes på begge sider av aktuell modell.
+- VIKTIG UNNTAK – 50% STØTFANGER: Hvis taksten viser "50% lakk støtfanger" (kun halve støtfangeren lakkes – f.eks. kun V side), skal HTT KUN foreslås for den siden som faktisk lakkes. ALDRI HTT på motsatt side ved 50%-lakkering. Sjekk lakkspesifikasjonen og lakkprosent før du foreslår symmetriske HTT.
 
 ALDRI LAKKES:
 - Blinklys
@@ -346,10 +354,11 @@ Skift av sveiset detalj: 9p | Skift av skrudd detalj: 3p | Rettet detalj: 3p
 Forskjerm er alltid skrudd detalj → 3p rustbeskyttelse ved skift (aldri 9p)
 ALDRI rustbeskyttelse på plast (støtfangere, speil, lister, griller)
 UB 120kr ved retting eller skift av ståldetaljer (panser, tak, bakskjerm, bakdør, fordør, forskjerm) – legges i DBS under Verksteddata → Materialforbruk/understellsbehandling. IKKE i annetbildet.
+KRITISK – UB ≠ INNVENDIG RUSTBESKYTTELSE: UB understellsbehandling (Verksteddata → Materialforbruk) og innvendig rustbeskyttelseslakkering (egen post i innvendig lakk-tabellen, f.eks. 25p) er TO FORSKJELLIGE POSTER. Begge skal være med ved skift av stål-/aluminiumdel. UB-forslag skal IKKE droppes bare fordi "innvendig rustbeskyttelse" allerede er i taksten – disse utelukker ikke hverandre. UB skal kun droppes hvis UB selv allerede er i Verksteddata → Materialforbruk.
 
 === DIAGNOSE OG KODING ===
 Ved demontering av støtfanger: diagnose for å slette feilkoder → 100p
-Ved demontering eller skift av fordør: diagnose for å slette airbag-feilkoder → 50p. Bakdør har normalt IKKE airbag – ikke flagg diagnose for bakdør med mindre taksten spesifikt nevner sidekollisjonspute i bakdør.
+Ved demontering eller skift av fordør: diagnose for å slette airbag-feilkoder → 50p. KRITISK – sjekk D/M-status før forslag: Diagnose airbag skal KUN foreslås hvis "D/M av Dør fremre [V/H]" er huket av i De/Mo-fanen i taksten (= komplett demontering av døren fra kjøretøyet). Hvis fordøren KUN har tilstøtende-post (f.eks. "H Fordør, under begrensning") eller kun lakkering uten D/M-avkrysning → IKKE foreslå diagnose airbag. Tilstøtende lakk krever ikke demontering av døren, og airbag kobles ikke fra. Bakdør har normalt IKKE airbag – ikke flagg diagnose for bakdør med mindre taksten spesifikt nevner sidekollisjonspute i bakdør.
 Ved skift av lyskaster (Bi-Xenon, adaptiv, LED): koding mot bilen påkrevd → diagnosejobb
 - Gjelder spesielt: gamle BMW, Mercedes, alle moderne LED-lykter
 
@@ -384,7 +393,7 @@ Kalibrering:
 - Kamera skiftet → kalibrering ca 400p
 - Parkeringssensorer → INGEN kalibrering
 - Filskiftesensorer (ytterst H/V i bakre støtfanger eller på bakplate) → 300p ved skift
-Klipssett: kun ved støtfanger- og dørskift
+Klipssett: KUN ved faktisk skift (N) eller demontering (D/M) av støtfanger eller dør. ALDRI ved tilstøtende lakk eller når delen kun har tilstøtende-post (f.eks. "H Fordør, under begrensning"). Sjekk Op.Type (N/G), De/Mo-fanen (D/M huket av) og om delen står som "under begrensning" før forslag.
 
 === TAK – RETTING OG LAKKERING ===
 Ved retting eller lakkering av tak, sjekk alltid:
@@ -853,6 +862,24 @@ Dette er et påminnelsesprogram – finn ALLE relevante tillegg, men ALDRI noe s
 - Grunnkonstant løs plastdel – legges automatisk inn av DBS, skal ALDRI flagges
 - Diagnose støtfanger hvis støtfanger IKKE er nevnt i taksten – aldri flagg diagnose uten at støtfanger faktisk er i taksten
 
+=== KRITISK – DEMONTERING vs TILSTØTENDE FLATE ===
+Mange tillegg krever FAKTISK demontering eller skift av en del – IKKE tilstøtende lakkering.
+Følgende tillegg krever skift (N) eller D/M huket av – og skal ALDRI foreslås når delen kun har tilstøtende-post:
+- Klips/klipssett (brytes ved demontering)
+- Diagnose airbag fordør (airbag kobles fra ved D/M av dør)
+- Diagnose feilkoder ved demontering av støtfanger
+- Innvendig rustbeskyttelse (kun ved skift av del)
+- Pakninger og festebraketter
+
+HVORDAN KJENNE IGJEN TILSTØTENDE-POST (= IKKE demontering):
+- Delen står med "under begrensning" i navnet (f.eks. "H Fordør, under begrensning")
+- Delen har lite areal sammenlignet med full lakk (typisk 60-100 dm² for dør)
+- "Tilstøtende fargeavhengig" eller "Tilstøtende arealavhengig" er huket av i utvendig lakk-tabellen
+- T (tilstøtende) i Op.Type-kolonnen i stedet for N eller G
+- D/M-fanen er IKKE huket av for delen
+
+Når en del kun har tilstøtende-post: behandle den som IKKE demontert. Foreslå KUN ting som faktisk gjelder lakkarbeidet – ikke ting som krever fysisk demontering.
+
 === VIKTIG OM HTT ===
 HTT gis KUN til løse deler som er montert PÅ en hoveddel (lister, håndtak, ladeluke osv.)
 IKKE HTT på selve hoveddelen. 100 perioder = 1 time. Kroner = (perioder/100) × riktig sats.
@@ -894,9 +921,14 @@ For hver del i taksten – sjekk disse punktene:
 2. TILSTØTENDE FLATE:
    - KRITISK – KODE N vs G: Tilstøtende flate mot A-stolpe gis KUN ved skift (N = ny) av forskjerm. Ved retting (G) av forskjerm skal tilstøtende A-stolpe ALDRI foreslås. Sjekk kolonnen "Op.Type" eller "Skjøte" i lakkspesifikasjonen før du foreslår tilstøtende.
    - Forskjerm SKIFTES (N): sjekk tilstøtende mot fordør og A-stolpe
-   - Forskjerm RETTES (G): INGEN tilstøtende A-stolpe, INGEN tilstøtende fordør automatisk
+   - Forskjerm RETTES (G): INGEN tilstøtende A-stolpe. Tilstøtende fordør KAN foreslås som GUL ("vurder") KUN hvis bilder viser at skaden er nær dørkanten – ALDRI som rød mangel. Hvis ingen bilder eller usikkert: ikke foreslå.
    - ALDRI tilstøtende mot panser ved forskjermskift
-   - Tilstøtende foreslås KUN mot deler som IKKE allerede lakkes/rettes/poleres i taksten
+   - KRITISK – SJEKK OM TILSTØTENDE ALLEREDE ER SATT OPP: Før du foreslår tilstøtende mot en del, sjekk hele lakkspesifikasjonen nøye for om delen allerede har en tilstøtende-post. Tegn på at tilstøtende ALLEREDE er på plass:
+     • Delen står oppført i lakkspesifikasjonen med "under begrensning" i navnet (f.eks. "H Fordør, under begrensning")
+     • Delen har et lite areal (typisk 60-100 dm²) sammenlignet med full lakk-areal
+     • Delen har T (tilstøtende) eller annen markering i Op.Type-kolonnen
+     • "Tilstøtende fargeavhengig" eller "Tilstøtende arealavhengig" er huket av i utvendig lakk-tabellen for delen
+   - Tilstøtende foreslås KUN mot deler som IKKE allerede lakkes/rettes/poleres OG som IKKE allerede har tilstøtende-post i taksten.
 
 3. RUSTBESKYTTELSE:
    - Kun ståldetaljer som rettes eller skiftes – ALDRI på plast
@@ -909,23 +941,61 @@ For hver del i taksten – sjekk disse punktene:
    - ALDRI på plastdeler
 
 5. PLASTREPARASJON (VIKTIG – SJEKK NØYE):
-   a) SKADETYPE-KONTROLL (rød – mangel i takst):
-      - Ved plastreparasjon i Gruppe 1 ("Detaljer som krever lakk/struktur etter reparasjon"): SJEKK at én av de tre underkategoriene er huket av: Skrapeskade / Utvendig skade / Ut og innvendig skade.
-      - Hvis Gruppe 1 er valgt men INGEN underkategori er huket av → flagg som RØD: "Plastreparasjon [del]: Skadetype mangler i Gruppe 1. Velg Skrapeskade, Utvendig skade eller Ut og innvendig skade for korrekt tidsberegning."
+   HVORDAN GJENKJENNE PLASTREPARASJON I TAKSTEN: Plastreparasjon er aktivert hvis EN ELLER FLERE av disse vises:
+   • "P" i Op.Type-kolonnen for støtfangeren (eller annen plastdel)
+   • Egen plastspesifikasjon-seksjon i taksten med "Reparert flate", "Tid", "Reparasjonskostnad" og "Reservedelspris"
+   • Tekst som "Plastrep", "Plastreparasjon" eller "Detaljer som krever lakk/struktur etter reparasjon" i taksten
+   • "Plast" og/eller "Plast,Løs" i lakkspesifikasjonen kombinert med plastrep-tid (f.eks. 135p, 156p)
+   Hvis ett eller flere av disse er til stede → plastreparasjon ER aktivert.
+
+   a) SKADETYPE-KONTROLL (rød – kun hvis faktisk mangler):
+      - Ved plastreparasjon i Gruppe 1 ("Detaljer som krever lakk/struktur etter reparasjon"): SJEKK om en av de tre underkategoriene er huket av: Skrapeskade / Utvendig skade / Ut og innvendig skade.
+      - I taksten vises valgt skadetype som tekstlinje under "Gruppe 1" – f.eks. "Utvendig skade" eller "Skrapeskade". Hvis du ser en slik tekstlinje → skadetype ER valgt, og du skal IKKE flagge mangel.
+      - Flagg KUN som RØD når INGEN av de tre skadetypene er synlig i taksten under plastspesifikasjonen. Da: "Plastreparasjon [del]: Skadetype mangler i Gruppe 1. Velg Skrapeskade, Utvendig skade eller Ut og innvendig skade for korrekt tidsberegning."
+      - VED USIKKERHET: IKKE FLAGG. "Sjekk om..." eller "Bekreft at..."-formuleringer er IKKE tillatt – flagg KUN når du klart kan se at skadetype mangler. Hvis taksten ikke viser plastspes-detaljene tydelig, dropp denne sjekken helt.
    b) SVEISEMATERIELL PLAST 300kr (gul – kun under spesifikt vilkår):
       - Foreslås KUN hvis "Ut og innvendig skade" eksplisitt er huket av i plastspesifikasjonen.
       - ALDRI ved "Skrapeskade" eller "Utvendig skade" alene.
       - ALDRI hvis skadetype mangler (da skal i stedet 5a flagges).
       - Føres i annetbildet.
    c) UB PÅ PLAST: ALDRI. Støtfangere er plast. Sjekk regel 3 og 4 før du foreslår UB.
+   d) GRUNNING FOR TOPPLAKK (alltid foreslås når plastreparasjon er aktivert):
+      - Hvis plastreparasjon er aktivert (se gjenkjennings-kriterier øverst i regel 5) → foreslå ALLTID som mangel: "Forslag: Legg til grunning for topplakk i annetbilde."
+      - HVORDAN SJEKKE: I plastreparasjon-vinduet finnes feltet "Grunning for topplakk" under "Kostnadssammenligning" – verdien står i dm². Hvis verdien er 0 eller blank → grunning er IKKE tatt med → flagg som mangel.
+      - Hvis verdien er satt (f.eks. 4 dm²) → grunning ER tatt med → IKKE flagg.
+      - Ordlyd EKSAKT: "Forslag: Legg til grunning for topplakk i annetbilde."
+      - Skal foreslås uansett størrelse på reparert flate, uansett gruppe og uansett skadetype – så lenge plastreparasjon er aktivert OG grunning-feltet står på 0.
+      - Ved ren lakkering av støtfanger UTEN plastreparasjon i taksten → IKKE foreslå grunning for topplakk.
+      - Hvis du ikke kan se plastrep-vinduet eller grunning-feltet eksplisitt: foreslå likevel som forsiktig påminnelse, siden grunning ofte glemmes.
+      - Ordlyd EKSAKT: "Forslag: Legg til grunning for topplakk i annetbilde."
 
-6. 50% STØTFANGER:
-   - Maskering av resterende 50%
-   - Polere flikk 20p
-   - Smådeler satt til 50% i DBS skal lakkes 100% – beregn differanse
+6. 50% STØTFANGER (gjelder KUN støtfanger foran/bak – ikke andre deler):
+   - SJEKK FRADRAG LAKK: Hvis kolonnen "Fradrag lakk → Delvis erstatning for utvendig flate (%)" er satt til en verdi (f.eks. 50%) for støtfanger foran eller bak → da skal maskering-boksen på samme linje i utvendig lakk-tabellen være huket av.
+   - HVORDAN LESE MASKERING-STATUS I TAKSTEN: I takstutskriften vises maskering på flere måter – sjekk alle:
+     • Egen kolonne "Maskering" i utvendig lakk-tabellen med ✅ eller tom firkant
+     • Linje i taksten som "1) Maskering av plast" under tiltak/sammendrag
+     • Tekst "Maskering" eller "Maskering av plast" i lakkspesifikasjonen
+   - Hvis maskering vises på NOEN av disse måtene → maskering ER på plass, IKKE flagg.
+   - HVIS fradrag er satt OG ingen tegn til maskering finnes i taksten → flagg som mangel: "Legg til maskering på støtfanger foran/bak (huk av maskering-boksen i utvendig lakk-tabellen)."
+   - VED USIKKERHET (kan ikke se klart om maskering er der eller ikke): IKKE flagg. Bedre å droppe forslaget enn å foreslå noe som allerede er der.
+   - IKKE bruk formuleringer som ikke er i denne regelen – hold deg til ordlyden over. Ikke finn på "fine line teip", "grill/nedre støtfanger" eller andre detaljer som ikke er regel-spesifikke.
+   - Maskering-regelen gjelder KUN støtfangere (foran/bak) – ikke andre deler med fradrag lakk.
+   - Polere flikk 20p: ALLTID ved 50%-lakkering av støtfanger – flagges som mangel uansett om maskering er huket av eller ikke. Sjekk om "polere flikk" eller "flikk" allerede står i taksten – hvis ja, ikke flagg.
+   - Smådeler satt til 50% i DBS skal lakkes 100% – beregn differanse.
+   - HTT-vurdering ved 50%: Hvis bilder er tilgjengelige, bruk bildene aktivt til å sjekke hvilke løse detaljer (spyledeksel, parkeringssensorlokk, slepekrok-deksel, tåkelyslokk osv.) som finnes på den siden som faktisk lakkes. ALDRI gjett ut fra bilmodell alene når bilder finnes.
+   - HTT-side ved 50%: KUN den siden som lakkes – ALDRI motsatt side.
 
 7. KALIBRERING:
-   - Kalibreringsdel skiftet? Lyskaster som krever koding?
+   - Kalibrering foreslås KUN ved faktisk SKIFT (N) av en kalibreringsdel.
+   - Kalibreringsdeler: frontkamera, radar (kollisjonsradar/p-radar i grill/støtfanger), filskiftesensor (ytterst i bakre støtfanger), adaptiv/LED-lyskaster.
+   - ALDRI foreslå kalibrering ved:
+     • Retting (G) av del som inneholder sensorer/radar
+     • Lakkering av sensorer/radar uten skift
+     • Tilstøtende lakk på del med sensorer
+     • Plastreparasjon av støtfanger uten skift av selve sensoren/radaren
+   - Parkeringssensorer (PDC): INGEN kalibrering, uansett.
+   - Sjekk Op.Type-kolonnen: kun N (Ny) på selve kalibreringsdelen utløser kalibrerings-forslag. Hvis sensoren bare står som T (tilstøtende) eller mangler N → IKKE foreslå kalibrering.
+   - Lyskaster Bi-Xenon/adaptiv/LED: koding ved skift (N).
 
 8. DIAGNOSE STØTFANGER:
    - KUN hvis støtfanger faktisk er i taksten og demonteres
