@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.0.3</div>
+    <div class="version-badge">v2.0.4</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -1199,6 +1199,14 @@ async function runVeilSjekk(){
   showLoading('veil-results','Konverterer og sjekker taksten...');
   try{
     const takstContent=await fileToContent(files['veil-takst']);
+    // Også parser direkte for post-filtrering
+    let parserData=null;
+    try{
+      if(files['veil-takst'].type==='application/pdf'){
+        const rawText=await pdfToText(files['veil-takst']);
+        parserData=parseTakst(rawText);
+      }
+    }catch(e){console.warn('Kunne ikke parse for post-filter:',e);}
     const savedRules=localStorage.getItem('ap_regler')||'';
 
     // Convert car images to base64
@@ -1503,6 +1511,101 @@ Eksempel feil: "Legg til tilstøtende flate mot A-stolpe 18p i lakkspesifikasjon
     const data=await callClaude([{role:'user',content:[...takstContent,...carImgContent,{type:'text',text:prompt}]}]);
     const txt=data.content.map(c=>c.text||'').join('').trim().replace(/```json|```/g,'');
     const parsed=JSON.parse(txt);
+
+    // ============================================================
+    // POST-FILTER: Fjern forslag som åpenbart er feil basert på parser-data
+    // ============================================================
+    if(parserData){
+      const tilstøtendeNavn=parserData.lakkspes
+        .filter(d=>d.optype==='T'||d.tilstøtende)
+        .map(d=>d.navn.toLowerCase());
+
+      // Sjekk om en del er KUN tilstøtende (ikke skiftet/rettet andre steder)
+      function erKunTilstøtende(delNavn){
+        const dnLower=delNavn.toLowerCase();
+        // Sjekk om denne delen finnes som N eller G uten "under/over begrensning"
+        const fullLakk=parserData.lakkspes.some(d=>{
+          if(d.tilstøtende||d.optype==='T')return false;
+          if(d.optype!=='N'&&d.optype!=='G')return false;
+          return d.navn.toLowerCase().includes(dnLower);
+        });
+        if(fullLakk)return false;
+        // Sjekk om det finnes en tilstøtende-post som matcher
+        return tilstøtendeNavn.some(n=>n.includes(dnLower));
+      }
+
+      function fjernForslag(tekst,grunn){
+        if(parsed.sammendrag&&Array.isArray(parsed.sammendrag.dbs_handlinger)){
+          const before=parsed.sammendrag.dbs_handlinger.length;
+          parsed.sammendrag.dbs_handlinger=parsed.sammendrag.dbs_handlinger.filter(d=>{
+            if(tekst.test(d.toLowerCase())){
+              console.log(`[POST-FILTER] Fjernet: "${d}" – ${grunn}`);
+              return false;
+            }
+            return true;
+          });
+        }
+        if(Array.isArray(parsed.resultater)){
+          parsed.resultater=parsed.resultater.filter(r=>{
+            const combinedText=((r.tittel||'')+' '+(r.melding||'')).toLowerCase();
+            if(tekst.test(combinedText)){
+              console.log(`[POST-FILTER] Fjernet resultat: "${r.tittel}" – ${grunn}`);
+              return false;
+            }
+            return true;
+          });
+        }
+      }
+
+      // 1. Diagnose airbag – fjern hvis fordøren er kun tilstøtende
+      if(erKunTilstøtende('fordør')||erKunTilstøtende('dør fremre')){
+        fjernForslag(/diagnose.*airbag|airbag.*feilkod/i,'fordør er kun tilstøtende, ikke D/M');
+      }
+
+      // 2. UB – fjern for deler som er kun tilstøtende
+      const ubMatch=parsed.sammendrag&&parsed.sammendrag.dbs_handlinger
+        ?parsed.sammendrag.dbs_handlinger.filter(d=>/UB|understellsbehandling/i.test(d))
+        :[];
+      ubMatch.forEach(ubLinje=>{
+        const lc=ubLinje.toLowerCase();
+        // Sjekk om UB-forslaget gjelder en del som kun er tilstøtende
+        ['v fordør','h fordør','v bakdør','h bakdør','v bakskjerm','h bakskjerm'].forEach(dn=>{
+          if(lc.includes(dn)&&erKunTilstøtende(dn)){
+            const escaped=ubLinje.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+            fjernForslag(new RegExp(escaped.toLowerCase().replace(/\s+/g,'\\s+')),`UB på tilstøtende del: ${dn}`);
+          }
+        });
+      });
+
+      // 3. UB hvis allerede ført
+      if(parserData.sammenstilling&&parserData.sammenstilling.ub_kr){
+        fjernForslag(/ub.*understellsbehandling|understellsbehandling.*verksteddata/i,'UB allerede ført med '+parserData.sammenstilling.ub_kr+' kr');
+      }
+
+      // 4. Polere flikk – fjern hvis allerede ført
+      const harPolereFlikk=parserData.lakkspes.some(d=>d.navn&&d.navn.toLowerCase().includes('polere flikk'))
+        ||parserData.lakkmateriell_annet.some(d=>d.navn.toLowerCase().includes('polere flikk'));
+      if(harPolereFlikk){
+        fjernForslag(/polere flikk/i,'polere flikk allerede ført');
+      }
+
+      // 5. Grunning topplakk – fjern hvis allerede ført
+      const harGrunningTopplakk=parserData.lakkmateriell_annet.some(d=>{
+        const n=(d.navn||'').toLowerCase();
+        return n.includes('grunning for topplakk')||n.includes('grunning topplakk')||(n.includes('grunning for')&&d.kr!==null);
+      });
+      if(harGrunningTopplakk){
+        fjernForslag(/grunning for topplakk|grunning topplakk/i,'grunning topplakk allerede ført');
+      }
+
+      // 6. Maskering av plast – fjern hvis allerede i Tiltak
+      const harMaskering=parserData.tiltak.some(d=>d.tekst.toLowerCase().includes('maskering'));
+      if(harMaskering){
+        fjernForslag(/maskering av plast|maskering grill|maskering nedre/i,'maskering allerede i Tiltak');
+      }
+    }
+    // ============================================================
+
     const r=parsed.resultater||[];
     const s=parsed.sammendrag||{};
     const el=document.getElementById('veil-results');
@@ -1515,7 +1618,7 @@ Eksempel feil: "Legg til tilstøtende flate mot A-stolpe 18p i lakkspesifikasjon
         <div class="summary-title">📋 Forslag til tillegg</div>
         <div style="font-size:11px;color:#666;margin-bottom:10px;font-style:italic">Dette er forslag til tillegg du kan ta med i denne taksten, men individuelle vurderinger må foretas.</div>
         <div class="summary-grid">
-          <div class="summary-stat"><div class="summary-stat-num">${r.filter(x=>x.farge==='rød').length}</div><div class="summary-stat-label">Mangler</div></div>
+          <div class="summary-stat"><div class="summary-stat-num">${(s.dbs_handlinger&&s.dbs_handlinger.length)||r.filter(x=>x.farge==='rød').length}</div><div class="summary-stat-label">Mangler</div></div>
           <div class="summary-stat"><div class="summary-stat-num">${r.filter(x=>x.farge==='gul').length}</div><div class="summary-stat-label">Sjekk</div></div>
           <div class="summary-stat"><div class="summary-stat-num">${r.filter(x=>x.farge==='lilla').length}</div><div class="summary-stat-label">Kalibrering</div></div>
         </div>`;
