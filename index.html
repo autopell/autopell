@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v1.9.8</div>
+    <div class="version-badge">v2.0</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -679,16 +679,362 @@ async function pdfToText(file){
   for(let i=1;i<=pdf.numPages;i++){
     const page=await pdf.getPage(i);
     const content=await page.getTextContent();
-    const pageText=content.items.map(item=>item.str).join(' ');
+    // Group items by Y-coordinate (same line) to preserve table structure
+    const lines={};
+    content.items.forEach(item=>{
+      const y=Math.round(item.transform[5]);
+      if(!lines[y])lines[y]=[];
+      lines[y].push({x:item.transform[4],str:item.str});
+    });
+    // Sort lines top-to-bottom, items left-to-right
+    const ys=Object.keys(lines).map(Number).sort((a,b)=>b-a);
+    const pageText=ys.map(y=>{
+      return lines[y].sort((a,b)=>a.x-b.x).map(it=>it.str).join(' ').replace(/\s+/g,' ').trim();
+    }).filter(l=>l).join('\n');
     fullText+=`\n--- Side ${i} ---\n${pageText}`;
   }
   return fullText.trim();
 }
 
+// =================================================================
+// v2.0 STRUKTURERT TAKST-PARSER
+// Tar PDF-tekst og lager strukturert JSON av takstens innhold.
+// Mål: Aldri overse "under begrensning", "polere flikk", "grunning topplakk" etc.
+// =================================================================
+function parseTakst(text){
+  const result={
+    bil:{},
+    sammenstilling:{},
+    notater:'',
+    karosseri_skift:[],     // Deler som skiftes (N)
+    karosseri_flaterett:[], // Deler som flatrettes
+    plastreparasjon:[],     // Plastrep-poster fra arbeidsspes
+    rustbeskyttelse:[],     // Deler med rustbeskyttelse
+    lakkspes:[],            // Lakkspesifikasjon-tabellen (alle rader)
+    lakkmateriell_annet:[], // HTT, polere flikk, grunning topplakk osv.
+    tiltak:[],              // "1) Maskering av plast" etc.
+    plastspes:null,         // Plastspesifikasjon med skadetype, flate, grunning
+    annet_fanen:[],         // Posisjonens annet-rad
+    raw:text                // Behold rå tekst som backup
+  };
+
+  const lines=text.split('\n').map(l=>l.trim()).filter(l=>l);
+
+  // ----- BIL-INFO -----
+  // Søk etter merke/modell-linje (format: "08-28771-2022 EQB 350 4MATIC ED63794" eller "183-29301-2026 XPENG G9 STV 5D ER27239")
+  for(const line of lines){
+    const m=line.match(/^\d{2,3}-\d{3,5}-\d{4}\s+(.+?)\s+([A-Z]{2}\d{5})\s*$/);
+    if(m){result.bil.modell=m[1].trim();result.bil.reg=m[2];break;}
+  }
+  // Lakktype
+  const lakktypeMatch=text.match(/Lakktype\s*\n?\s*(\d+)/);
+  if(lakktypeMatch)result.bil.lakktype=parseInt(lakktypeMatch[1]);
+  // Fargekode
+  const fargeMatch=text.match(/Fargekode\s*\n?\s*([A-Za-zøæåØÆÅ]+)/);
+  if(fargeMatch)result.bil.farge=fargeMatch[1];
+  // Chassisnr
+  const chassisMatch=text.match(/Chassisnr\.?\s*\n?\s*([A-Z0-9]{17})/);
+  if(chassisMatch)result.bil.chassis=chassisMatch[1];
+
+  // ----- SAMMENSTILLING (kostnader) -----
+  // Sammenstilling-linjer har format: "Karosseriarbeide - Skifte, De/Mo  3756  940,00  35 306,40"
+  // Vi tar bare det siste tallet (beløp i kr)
+  const sammKeys=['Karosseriarbeide - Skifte, De/Mo','Karosseri - Flaterette','Karosseriarbeide - Målrette','Plastreparasjon (inkl. materialer)','Rustbeskyttelse','Reservedeler','Lakkarbeide','Lakkmateriell','Understellsbehandling','Verkstedmateriell','Eksternt arbeid','Annet materiale'];
+  for(const line of lines){
+    for(const k of sammKeys){
+      if(line.startsWith(k)&&!line.endsWith('Tid')){
+        // Hent siste tall i linja (beløpet)
+        const beløpMatch=line.match(/([\d\s]+,\d{2})\s*$/);
+        if(beløpMatch){
+          result.sammenstilling[k]=parseFloat(beløpMatch[1].replace(/\s/g,'').replace(',','.'));
+        }
+      }
+    }
+  }
+  // UB spesifikt
+  const ubMatch=text.match(/Understellsbehandling\s+Materiale\s+([\d\s,\.]+)/);
+  if(ubMatch)result.sammenstilling.ub_kr=parseFloat(ubMatch[1].replace(/\s/g,'').replace(',','.'));
+
+  // ----- NOTATER -----
+  // Etter "Notater" til neste seksjon
+  const notatIdx=lines.findIndex(l=>l==='Notater'||l.endsWith('Notater'));
+  if(notatIdx>=0&&notatIdx<lines.length-1){
+    // Linja over Notater er ofte selve notatet (rar PDF-rekkefølge)
+    const candidates=[];
+    if(notatIdx>0)candidates.push(lines[notatIdx-1]);
+    if(notatIdx<lines.length-1)candidates.push(lines[notatIdx+1]);
+    result.notater=candidates.filter(c=>{
+      if(!c)return false;
+      // Filtrer ut header-info og modell-linja
+      if(c.match(/^(Fana|Tlf|E-post|Ref|Bestilling|Oppdrag|Side|\d{2}\.\d{2}\.\d{4})/))return false;
+      if(c.match(/^\d{2,3}-\d{3,5}-\d{4}/))return false; // modell-linja
+      return true;
+    }).join(' | ');
+  }
+
+  // ----- KAROSSERIARBEIDE SKIFT (N) -----
+  // Linjer mellom "Karosseriarbeide - Skifte, De/Mo" og "Sum perioder"
+  let inSkift=false;
+  for(const line of lines){
+    if(line.includes('Karosseriarbeide - Skifte')&&line.includes('Tid')){inSkift=true;continue;}
+    if(inSkift&&line.startsWith('Sum perioder'))break;
+    if(inSkift&&line.match(/Skift|De\/Mo/i)&&!line.includes('Sum')&&!line.match(/^\d+$/)){
+      // Format: "H Forskjerm Skift" eller "Støtfanger foran De/Mo"
+      const m=line.match(/^(.+?)\s+(Skift|De\/Mo)(\s+.*)?$/);
+      if(m){
+        result.karosseri_skift.push({navn:m[1].trim(),tiltak:m[2],kommentar:m[3]?m[3].trim():''});
+      }
+    }
+  }
+
+  // ----- KAROSSERI FLATERETT -----
+  let inFlate=false;
+  for(const line of lines){
+    if(line.includes('Karosseri - Justering')||line.match(/^Karosseri - Flaterette/)){inFlate=true;continue;}
+    if(inFlate&&line.startsWith('Sum Karosseri'))break;
+    if(inFlate){
+      const m=line.match(/^(Flatrette|Målrette),\s*(.+?)\s+(Manuell tid)?\s*(\d+)$/);
+      if(m){result.karosseri_flaterett.push({type:m[1],del:m[2],tid:parseInt(m[4])});}
+    }
+  }
+
+  // ----- PLASTREPARASJON (arbeidsspes) -----
+  let inPlast=false;
+  for(const line of lines){
+    if(line.match(/^Plastreparasjon\s+(Tiltak\s+)?Tid$/)){inPlast=true;continue;}
+    if(inPlast&&line.startsWith('Sum Plastreparasjon'))break;
+    if(inPlast){
+      const m=line.match(/^(.+?)\s+(?:Manuell tid\s+)?(\d+)$/);
+      if(m)result.plastreparasjon.push({del:m[1].trim(),tid:parseInt(m[2])});
+    }
+  }
+
+  // ----- RUSTBESKYTTELSE -----
+  let inRust=false;
+  for(const line of lines){
+    if(line.match(/^Rustbeskyttelse\s+Tid$/)){inRust=true;continue;}
+    if(inRust&&line.startsWith('Sum Rustbeskyttelse'))break;
+    if(inRust){
+      const m=line.match(/^(.+?),\s*Rustbeskyttelse\s+(ved\s+\w+)\s+(\d+)$/);
+      if(m)result.rustbeskyttelse.push({del:m[1].trim(),type:m[2],tid:parseInt(m[3])});
+    }
+  }
+
+  // ----- LAKKSPESIFIKASJON (utvendig lakk-tabellen) -----
+  // Format: "7401 G Løs H Forskjerm 31,5 5 78" (Kode Område NN navn dm² fotnoter tid)
+  let inLakk=false;
+  for(const line of lines){
+    if(line.match(/^Kode\s+Område\s+Utvendig lakk/)){inLakk=true;continue;}
+    if(inLakk&&(line.startsWith('Sum Utvendig')||line.startsWith('Annet')||line.startsWith('Innvendig lakk'))){
+      if(line.startsWith('Sum Utvendig')||line.startsWith('Innvendig lakk')){inLakk=false;continue;}
+      break;
+    }
+    if(inLakk){
+      // Hovedrad: "7401 G [Plast,Løs|Løs|Plast|tom] [navn] [dm²] [fotnoter] [tid]"
+      const m=line.match(/^(\d{4})\s+([NGT])\s+(Plast,Løs|Plast|Løs|)\s*(.+?)\s+([\d,]+)(?:\s+[\d,]+)?\s+(\d+)$/);
+      if(m){
+        result.lakkspes.push({
+          kode:m[1],
+          optype:m[2],          // N=ny, G=retting/gammel, T=tilstøtende
+          materialhint:m[3]||'', // Plast / Løs / Plast,Løs eller tomt
+          navn:m[4].trim(),
+          dm2:parseFloat(m[5].replace(',','.')),
+          tid:parseInt(m[6]),
+          tilstøtende: m[2]==='T' || /under begrensning|over begrensning/i.test(m[4])
+        });
+      }else{
+        // Tilleggsrader uten kode: "STØTFANGER FORAN, HTT 15" eller "STØTFANGER FORAN, polere flikk 20"
+        const m2=line.match(/^([A-ZÆØÅ][A-ZÆØÅ0-9\s]+,\s*.+?)\s+(\d+)$/);
+        if(m2){
+          result.lakkspes.push({
+            kode:'',
+            optype:'',
+            navn:m2[1].trim(),
+            dm2:null,
+            tid:parseInt(m2[2]),
+            tillegg:true
+          });
+        }
+      }
+    }
+  }
+
+  // ----- LAKKMATERIELL ANNET -----
+  // Format kan være:
+  //   "STØTFANGER FORAN, grunning for topplakk 133,00"  (én linje)
+  //   "STØTFANGER FORAN, grunning for topplakk" + "133,00"  (PDF-bryter linja)
+  let inMatAnnet=false;
+  for(let i=0;i<lines.length;i++){
+    const line=lines[i];
+    if(line.match(/^Lakkmateriell annet/)){inMatAnnet=true;continue;}
+    if(inMatAnnet&&(line.startsWith('Sum ')||line.match(/^\d+\)\s/)||line.startsWith('Kostnad')||line.startsWith('Lakkspesifikasjon'))){inMatAnnet=false;continue;}
+    if(inMatAnnet){
+      // Hvis linja er bare et tall → slå sammen med forrige rad
+      const onlyPrice=line.match(/^([\d\s]+,\d{2})$/);
+      if(onlyPrice&&result.lakkmateriell_annet.length){
+        const last=result.lakkmateriell_annet[result.lakkmateriell_annet.length-1];
+        if(last.kr===null){
+          last.kr=parseFloat(onlyPrice[1].replace(/\s/g,'').replace(',','.'));
+        }
+        continue;
+      }
+      // Vanlig rad: "NAVN, beskrivelse [pris]"
+      if(line.includes(',')){
+        // Trekk ut evt. pris på slutten
+        const withPrice=line.match(/^(.+?)\s+([\d\s]+,\d{2})$/);
+        if(withPrice){
+          result.lakkmateriell_annet.push({
+            navn:withPrice[1].trim(),
+            kr:parseFloat(withPrice[2].replace(/\s/g,'').replace(',','.'))
+          });
+        }else{
+          result.lakkmateriell_annet.push({navn:line.trim(),kr:null});
+        }
+      }
+    }
+  }
+
+  // ----- TILTAK (numererte linjer) -----
+  for(const line of lines){
+    const m=line.match(/^(\d+)\)\s+(.+)$/);
+    if(m&&!result.tiltak.find(t=>t.nr===parseInt(m[1])&&t.tekst===m[2].trim())){
+      result.tiltak.push({nr:parseInt(m[1]),tekst:m[2].trim()});
+    }
+  }
+
+  // ----- PLASTSPESIFIKASJON -----
+  const plastspesIdx=lines.findIndex(l=>l==='Plastspesifikasjon'||l.startsWith('Gruppe 1'));
+  if(plastspesIdx>=0){
+    const p={
+      aktivert:false,
+      gruppe:null,
+      skadetype:null,
+      del:null,
+      reparert_flate_cm2:null,
+      grunning_topplakk_dm2:null,
+      tid:null,
+      reservedelspris:null
+    };
+    // Gå gjennom resten av filen for å finne plastspes-data
+    for(let i=plastspesIdx;i<lines.length;i++){
+      const l=lines[i];
+      if(l.startsWith('Gruppe 1')){p.aktivert=true;p.gruppe=1;}
+      if(l.startsWith('Gruppe 2')){p.aktivert=true;p.gruppe=2;}
+      if(['Skrapeskade','Utvendig skade','Ut og innvendig skade'].includes(l))p.skadetype=l;
+      const repMatch=l.match(/Reparert flate\s+(\d+)\s*cm/);
+      if(repMatch)p.reparert_flate_cm2=parseInt(repMatch[1]);
+      const grMatch=l.match(/Grunning for topplakk\s+([\d,]+)\s*dm/i);
+      if(grMatch)p.grunning_topplakk_dm2=parseFloat(grMatch[1].replace(',','.'));
+      const tidMatch=l.match(/^Sum Gruppe \d\s+(\d+)\s+([\d\s,\.]+)$/);
+      if(tidMatch){p.tid=parseInt(tidMatch[1]);p.beløp=parseFloat(tidMatch[2].replace(/\s/g,'').replace(',','.'));}
+    }
+    if(p.aktivert)result.plastspes=p;
+  }
+
+  return result;
+}
+
+// Hjelper: lag lesbar oppsummering av JSON for Claude
+function takstSammendrag(t){
+  let s=`=== STRUKTURERT TAKST (parset fra PDF) ===\n\n`;
+  s+=`BIL: ${t.bil.modell||'?'} | Reg: ${t.bil.reg||'?'} | Farge: ${t.bil.farge||'?'} | Lakktype: ${t.bil.lakktype||'?'}\n\n`;
+
+  if(t.notater)s+=`NOTAT FRA TAKSTMANN: "${t.notater}"\n\n`;
+
+  s+=`SAMMENSTILLING (kostnader):\n`;
+  for(const[k,v]of Object.entries(t.sammenstilling)){if(k!=='ub_kr')s+=`  ${k}: ${v}\n`;}
+  s+=`  UB ført: ${t.sammenstilling.ub_kr?'JA ('+t.sammenstilling.ub_kr+' kr)':'NEI'}\n\n`;
+
+  if(t.karosseri_skift.length){
+    s+=`KAROSSERIARBEIDE SKIFT/DEMO (${t.karosseri_skift.length} stk):\n`;
+    t.karosseri_skift.forEach(d=>s+=`  • ${d.navn} – ${d.tiltak}${d.kommentar?' ('+d.kommentar+')':''}\n`);
+    s+=`\n`;
+  }
+
+  if(t.karosseri_flaterett.length){
+    s+=`FLATERETT/MÅLRETT:\n`;
+    t.karosseri_flaterett.forEach(d=>s+=`  • ${d.type} ${d.del}: ${d.tid}p\n`);
+    s+=`\n`;
+  }
+
+  if(t.plastreparasjon.length){
+    s+=`PLASTREPARASJON (arbeidsspes):\n`;
+    t.plastreparasjon.forEach(d=>s+=`  • ${d.del}: ${d.tid}p\n`);
+    s+=`\n`;
+  }
+
+  if(t.rustbeskyttelse.length){
+    s+=`RUSTBESKYTTELSE FØRT:\n`;
+    t.rustbeskyttelse.forEach(d=>s+=`  • ${d.del} (${d.type}): ${d.tid}p\n`);
+    s+=`\n`;
+  }
+
+  s+=`LAKKSPESIFIKASJON (${t.lakkspes.length} rader):\n`;
+  t.lakkspes.forEach(d=>{
+    if(d.tillegg){
+      s+=`  • TILLEGG: ${d.navn} – ${d.tid}p\n`;
+    }else{
+      const ts=d.tilstøtende?' [TILSTØTENDE]':'';
+      s+=`  • [${d.kode} ${d.optype}${d.materialhint?' '+d.materialhint:''}] ${d.navn} – ${d.dm2}dm² ${d.tid}p${ts}\n`;
+    }
+  });
+  s+=`\n`;
+
+  if(t.lakkmateriell_annet.length){
+    s+=`LAKKMATERIELL ANNET (egne kostnadsposter):\n`;
+    t.lakkmateriell_annet.forEach(d=>s+=`  • ${d.navn}${d.kr?' – '+d.kr+' kr':''}\n`);
+    s+=`\n`;
+  }
+
+  if(t.tiltak.length){
+    s+=`TILTAK FØRT:\n`;
+    t.tiltak.forEach(d=>s+=`  ${d.nr}) ${d.tekst}\n`);
+    s+=`\n`;
+  }
+
+  if(t.plastspes){
+    s+=`PLASTSPESIFIKASJON:\n`;
+    s+=`  Aktivert: JA, Gruppe ${t.plastspes.gruppe}\n`;
+    s+=`  Skadetype: ${t.plastspes.skadetype||'⚠️ IKKE VALGT'}\n`;
+    s+=`  Reparert flate: ${t.plastspes.reparert_flate_cm2||'?'} cm²\n`;
+    s+=`  Grunning for topplakk: ${t.plastspes.grunning_topplakk_dm2!==null?t.plastspes.grunning_topplakk_dm2+' dm²':'⚠️ IKKE UTFYLT'}\n`;
+    s+=`  Tid: ${t.plastspes.tid||'?'}p\n`;
+    s+=`\n`;
+  }else{
+    s+=`PLASTSPESIFIKASJON: Ikke aktivert i denne taksten.\n\n`;
+  }
+
+  // Hurtigfakta for Claude
+  s+=`HURTIGFAKTA:\n`;
+  const hasN=t.lakkspes.some(d=>d.optype==='N');
+  const hasG=t.lakkspes.some(d=>d.optype==='G');
+  const hasT=t.lakkspes.some(d=>d.optype==='T'||d.tilstøtende);
+  s+=`  Skift (N): ${hasN?'JA':'NEI'}\n`;
+  s+=`  Retting (G): ${hasG?'JA':'NEI'}\n`;
+  s+=`  Tilstøtende (T): ${hasT?'JA':'NEI'}\n`;
+  const tilstøtendeDeler=t.lakkspes.filter(d=>d.optype==='T'||d.tilstøtende).map(d=>d.navn);
+  if(tilstøtendeDeler.length)s+=`  Tilstøtende-poster: ${tilstøtendeDeler.join(', ')}\n`;
+  const harPolereFlikk=t.lakkspes.some(d=>d.navn&&d.navn.toLowerCase().includes('polere flikk'))||t.lakkmateriell_annet.some(d=>d.navn.toLowerCase().includes('polere flikk'));
+  s+=`  Polere flikk ført: ${harPolereFlikk?'JA':'NEI'}\n`;
+  const harGrunningTopplakk=t.lakkmateriell_annet.some(d=>d.navn.toLowerCase().includes('grunning for topplakk'));
+  s+=`  Grunning for topplakk i Lakkmateriell annet: ${harGrunningTopplakk?'JA':'NEI'}\n`;
+  const harMaskering=t.tiltak.some(d=>d.tekst.toLowerCase().includes('maskering'));
+  s+=`  Maskering av plast i Tiltak: ${harMaskering?'JA':'NEI'}\n`;
+
+  return s;
+}
+
 async function fileToContent(file){
   if(file.type==='application/pdf'){
     const text=await pdfToText(file);
-    return [{type:'text',text:`=== TAKST (PDF-tekst) ===\n${text}`}];
+    // v2.0: Strukturert parsing for bedre presisjon
+    let strukturert='';
+    try{
+      const t=parseTakst(text);
+      strukturert=takstSammendrag(t);
+    }catch(e){console.warn('Parser-feil, faller tilbake til rå tekst:',e);}
+    const combined=strukturert?`${strukturert}\n\n=== RÅ PDF-TEKST (for kontekst) ===\n${text}`:`=== TAKST (PDF-tekst) ===\n${text}`;
+    return [{type:'text',text:combined}];
   }else{
     const b64=await toBase64(file);
     return [{type:'image',source:{type:'base64',media_type:file.type,data:b64}}];
@@ -787,11 +1133,29 @@ async function runVeilSjekk(){
 
     const hasCarImages=carImgContent.length>0;
     const carImagesNote=hasCarImages
-      ? `\n\n=== BILDER AV BILEN (${carImgContent.length} stk) ===\nBruk bildene aktivt: vurder skadeomfang, deltype (stål/plast), tilgjengelighet (A/B), synlige skader som ikke er i taksten, og om taksten stemmer med det du ser.`
+      ? `\n\n=== BILDER AV BILEN (${carImgContent.length} stk) ===\nBruk bildene aktivt: vurder skadeomfang, deltype (stål/plast), tilgjengelighet (A/B), synlige skader som ikke er i taksten, og om taksten stemmer med det du ser.\n\nVIKTIG – SKADEMARKERINGER PÅ BILDER:\nTakstmannen markerer skadeområdet med PILER eller FIRKANTER tegnet direkte på bildet. Disse er som regel røde, men kan være svarte hvis bilen selv er rød (eller andre kontrastfarger). Markeringene er IKKE en del av bilen – de er takstmannens eget verktøy for å vise nøyaktig hvor skaden er.\n\nBRUK MARKERINGENE PRESIST:\n- Skaden er KUN der pilen/firkanten faktisk peker eller markerer – ikke der den "peker mot" eller "i nærheten av".\n- Hvis en pil er på forskjermen, er skaden på forskjermen – IKKE på A-stolpe, fordør eller andre nabodeler bare fordi de er nær.\n- Ikke ekstrapoler skadeområdet utover det markeringene faktisk dekker.\n- Bruk markeringens NØYAKTIGE posisjon til å avgjøre:\n  • Om skaden er nær dørkant (relevant for tilstøtende fordør ved retting av forskjerm)\n  • Om skaden er nær håndtak (relevant for HTT-vurdering)\n  • Om skaden er nær spesifikke detaljer (spyledeksel, sensorer osv.)\n  • Om kun et hjørne av en del er skadet (50%-lakkering) eller hele delen (full lakkering)\n- Hvis det IKKE er noen markeringer på bildene → vurder hele bildet, men ikke gjett – flagg gjerne at markeringer mangler hvis usikkert om skadeomfang.\n\nMarkeringene er en bevisst del av takstmannens dokumentasjon for forsikringsselskapet – de viser presist hvor skaden er og hjelper deg å gi treffsikre forslag.`
       : '';
 
     const prompt=`Du er AutoPell, et norsk takst-assistentverktøy for bilverksted (DBS-system).
 Analyser taksten grundig mot reglene nedenfor.${carImagesNote}
+
+=== HVORDAN LESE TAKSTEN (v2.0 – VIKTIG) ===
+Taksten kommer i to deler:
+1. "STRUKTURERT TAKST (parset fra PDF)" – ren, strukturert oversikt over alt i taksten. STOL PÅ DENNE FØRST.
+2. "RÅ PDF-TEKST" – bare backup hvis du trenger å verifisere noe.
+
+KRITISK: Bruk den STRUKTURERTE delen som hovedkilde. Den inneholder:
+- Bilinfo, lakkspesifikasjon med alle koder og op.typer
+- Liste over alt som allerede er ført (HTT, polere flikk, grunning topplakk, maskering)
+- "HURTIGFAKTA"-seksjon som svarer på de viktigste sjekkene direkte
+
+Hvis HURTIGFAKTA sier "Polere flikk ført: JA" → IKKE foreslå polere flikk.
+Hvis HURTIGFAKTA sier "Grunning for topplakk i Lakkmateriell annet: JA" → IKKE foreslå grunning for topplakk.
+Hvis "Tilstøtende-poster" lister en del → IKKE foreslå tilstøtende for den delen.
+Hvis "UB ført: JA" → IKKE foreslå UB.
+Hvis "Maskering av plast i Tiltak: JA" → IKKE foreslå maskering.
+
+Stol på parseren. Den har lest hele PDF-en strukturert.
 
 === MINE REGLER (høyest prioritet – overstyrer alt annet) ===
 ${savedRules||'(ingen lagt inn ennå)'}
