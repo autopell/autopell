@@ -1595,6 +1595,37 @@ Eksempel feil: "Legg til tilstøtende flate mot A-stolpe 18p i lakkspesifikasjon
         fjernForslag(/ub.*understellsbehandling|understellsbehandling.*verksteddata/i,'UB allerede ført med '+parserData.sammenstilling.ub_kr+' kr');
       }
 
+      // 3b. Tilstøtende A-stolpe – fjern hvis forskjerm KUN rettes (G), aldri skift (N)
+      const forskjermSkiftes=parserData.lakkspes.some(d=>{
+        if(d.tilstøtende||d.optype==='T')return false;
+        if(d.optype!=='N')return false;
+        return /forskjerm/i.test(d.navn);
+      });
+      const forskjermRettes=parserData.lakkspes.some(d=>{
+        if(d.tilstøtende||d.optype==='T')return false;
+        if(d.optype!=='G')return false;
+        return /forskjerm/i.test(d.navn);
+      });
+      // Hvis forskjerm KUN er G (ikke N) → ingen tilstøtende A-stolpe
+      if(forskjermRettes&&!forskjermSkiftes){
+        fjernForslag(/tilst[øo]tende.*a[-\s]?stolpe|a[-\s]?stolpe.*tilst[øo]tende/i,'forskjerm rettes (G), ikke skiftes – ingen tilstøtende A-stolpe');
+      }
+
+      // 3c. Tilstøtende mot del som allerede er i lakkspes (fordør, bakdør, panser, bakskjerm)
+      // Hvis Claude foreslår tilstøtende mot en del som ALLEREDE har post i lakkspes → fjern
+      const delerILakkspes=parserData.lakkspes
+        .filter(d=>!d.tillegg&&d.optype)
+        .map(d=>d.navn.toLowerCase().replace(/^[vh]\s+/,'').replace(/,.*$/,'').trim());
+      // Sjekk hver dbs_handling for "tilstøtende mot [X]" der X er en del som allerede er der
+      if(parsed.sammendrag&&Array.isArray(parsed.sammendrag.dbs_handlinger)){
+        ['fordør','bakdør','panser','bakskjerm','forskjerm'].forEach(delNavn=>{
+          if(delerILakkspes.some(d=>d.startsWith(delNavn))){
+            // Delen er allerede i lakkspes – Claude skal ikke foreslå tilstøtende mot den
+            fjernForslag(new RegExp('tilst[øo]tende.*'+delNavn,'i'),`${delNavn} er allerede i lakkspes – ingen tilstøtende mot den`);
+          }
+        });
+      }
+
       // 4. Polere flikk – fjern hvis allerede ført
       const harPolereFlikk=parserData.lakkspes.some(d=>d.navn&&d.navn.toLowerCase().includes('polere flikk'))
         ||parserData.lakkmateriell_annet.some(d=>d.navn.toLowerCase().includes('polere flikk'));
