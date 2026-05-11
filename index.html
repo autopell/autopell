@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.0.1</div>
+    <div class="version-badge">v2.0.2</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -728,11 +728,16 @@ function parseTakst(text){
     if(m){result.bil.modell=m[1].trim();result.bil.reg=m[2];break;}
   }
   // Lakktype
-  const lakktypeMatch=text.match(/Lakktype\s*\n?\s*(\d+)/);
+  const lakktypeMatch=text.match(/Lakktype\s*\n+\s*(\d+)/);
   if(lakktypeMatch)result.bil.lakktype=parseInt(lakktypeMatch[1]);
-  // Fargekode
-  const fargeMatch=text.match(/Fargekode\s*\n?\s*([A-Za-zøæåØÆÅ]+)/);
-  if(fargeMatch)result.bil.farge=fargeMatch[1];
+  // Fargekode – hopp over hvis det er "Påbegynt" (som er felt-navn, ikke farge)
+  const fargeMatch=text.match(/Fargekode\s*\n+\s*([A-Za-zøæåØÆÅ]+)/);
+  if(fargeMatch&&!['Påbegynt','Ferdig'].includes(fargeMatch[1]))result.bil.farge=fargeMatch[1];
+  // Hvis ovenfor feiler, prøv mer spesifikt fra lakkspes-tabellen
+  if(!result.bil.farge){
+    const fargeAlt=text.match(/Fargekode[^a-zA-ZøæåØÆÅ]+([A-Za-zøæåØÆÅ]{3,})\s*(?:Ferdig|Lakktype|\n)/);
+    if(fargeAlt&&!['Påbegynt','Ferdig'].includes(fargeAlt[1]))result.bil.farge=fargeAlt[1];
+  }
   // Chassisnr
   const chassisMatch=text.match(/Chassisnr\.?\s*\n?\s*([A-Z0-9]{17})/);
   if(chassisMatch)result.bil.chassis=chassisMatch[1];
@@ -861,16 +866,17 @@ function parseTakst(text){
   }
 
   // ----- LAKKMATERIELL ANNET -----
-  // Format kan være:
-  //   "STØTFANGER FORAN, grunning for topplakk 133,00"  (én linje)
-  //   "STØTFANGER FORAN, grunning for topplakk" + "133,00"  (PDF-bryter linja)
+  // Format kan være ulikt grunnet PDF-text-fragmentering:
+  //   A) "STØTFANGER FORAN, grunning for topplakk 133,00"  (alt på én linje)
+  //   B) "STØTFANGER FORAN, grunning for topplakk" + "133,00"  (pris på neste linje)
+  //   C) "STØTFANGER FORAN, grunning for" + "topplakk" + "133,00"  (navn delt over flere linjer)
   let inMatAnnet=false;
   for(let i=0;i<lines.length;i++){
     const line=lines[i];
     if(line.match(/^Lakkmateriell annet/)){inMatAnnet=true;continue;}
-    if(inMatAnnet&&(line.startsWith('Sum ')||line.match(/^\d+\)\s/)||line.startsWith('Kostnad')||line.startsWith('Lakkspesifikasjon'))){inMatAnnet=false;continue;}
+    if(inMatAnnet&&(line.startsWith('Sum ')||line.match(/^\d+\)\s/)||line.startsWith('Kostnad')||line.startsWith('Lakkspesifikasjon')||line.match(/^[A-Z]\)\s/))){inMatAnnet=false;continue;}
     if(inMatAnnet){
-      // Hvis linja er bare et tall → slå sammen med forrige rad
+      // Hvis linja er bare et tall → slå sammen med forrige rad (pris)
       const onlyPrice=line.match(/^([\d\s]+,\d{2})$/);
       if(onlyPrice&&result.lakkmateriell_annet.length){
         const last=result.lakkmateriell_annet[result.lakkmateriell_annet.length-1];
@@ -879,9 +885,16 @@ function parseTakst(text){
         }
         continue;
       }
+      // Hvis linja er bare et ord (ikke pris, ikke komma) → fortsettelse av forrige rad-navn
+      if(!line.includes(',')&&!line.match(/[\d,]\d{2}/)&&line.length<25&&result.lakkmateriell_annet.length){
+        const last=result.lakkmateriell_annet[result.lakkmateriell_annet.length-1];
+        if(last.kr===null){
+          last.navn=last.navn+' '+line.trim();
+          continue;
+        }
+      }
       // Vanlig rad: "NAVN, beskrivelse [pris]"
       if(line.includes(',')){
-        // Trekk ut evt. pris på slutten
         const withPrice=line.match(/^(.+?)\s+([\d\s]+,\d{2})$/);
         if(withPrice){
           result.lakkmateriell_annet.push({
@@ -1017,7 +1030,13 @@ function takstSammendrag(t){
   if(tilstøtendeDeler.length)s+=`  Tilstøtende-poster: ${tilstøtendeDeler.join(', ')}\n`;
   const harPolereFlikk=t.lakkspes.some(d=>d.navn&&d.navn.toLowerCase().includes('polere flikk'))||t.lakkmateriell_annet.some(d=>d.navn.toLowerCase().includes('polere flikk'));
   s+=`  Polere flikk ført: ${harPolereFlikk?'JA':'NEI'}\n`;
-  const harGrunningTopplakk=t.lakkmateriell_annet.some(d=>d.navn.toLowerCase().includes('grunning for topplakk'));
+  const harGrunningTopplakk=t.lakkmateriell_annet.some(d=>{
+    const n=(d.navn||'').toLowerCase();
+    // Tolerant match: "grunning for topplakk", "grunning topplakk", eller bare "grunning for" hvis prisen er satt
+    return n.includes('grunning for topplakk')
+        || n.includes('grunning topplakk')
+        || (n.includes('grunning for')&&d.kr!==null);
+  });
   s+=`  Grunning for topplakk i Lakkmateriell annet: ${harGrunningTopplakk?'JA':'NEI'}\n`;
   const harMaskering=t.tiltak.some(d=>d.tekst.toLowerCase().includes('maskering'));
   s+=`  Maskering av plast i Tiltak: ${harMaskering?'JA':'NEI'}\n`;
