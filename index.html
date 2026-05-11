@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.0</div>
+    <div class="version-badge">v2.0.1</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -194,6 +194,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
           <div id="car-images-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
           <br>
           <button class="btn btn-primary" onclick="runVeilSjekk()" style="margin-top:4px">🔍 Start kontroll</button>
+          <button class="btn" onclick="visParserDebug()" style="margin-top:4px;background:#f0f0f0;color:#333">🔬 Vis hva parser leser</button>
         </div>
         <div class="legend">
           <div class="legend-item"><div class="legend-dot" style="background:#F7C1C1"></div>Mangler påkrevd tillegg / feil</div>
@@ -1117,6 +1118,36 @@ Regler: ${getActiveRules()}`;
   }
 }
 
+async function visParserDebug(){
+  if(!files['veil-takst']){alert('Last opp taksten først.');return;}
+  const f=files['veil-takst'];
+  if(f.type!=='application/pdf'){alert('Debug fungerer kun for PDF-takster.');return;}
+  showLoading('veil-results','Parser PDF for debug...');
+  try{
+    const text=await pdfToText(f);
+    const t=parseTakst(text);
+    const sammendrag=takstSammendrag(t);
+
+    const el=document.getElementById('veil-results');
+    el.innerHTML=`
+      <div style="background:#fff;border:1px solid #ccc;border-radius:6px;padding:12px;margin:10px 0">
+        <h3 style="margin:0 0 8px 0">🔬 Parser-debug</h3>
+        <p style="margin:0 0 8px 0;color:#666;font-size:13px">Dette er det AutoPell faktisk leser fra PDF-en. Hvis noe mangler eller er feil, vet vi hvor problemet er.</p>
+        <details style="margin-bottom:10px"><summary style="cursor:pointer;font-weight:bold">📋 Strukturert sammendrag (det Claude får)</summary>
+          <pre style="background:#f5f5f5;padding:10px;overflow:auto;font-size:12px;white-space:pre-wrap">${sammendrag.replace(/</g,'&lt;')}</pre>
+        </details>
+        <details><summary style="cursor:pointer;font-weight:bold">📄 Rå PDF-tekst (linje-for-linje)</summary>
+          <pre style="background:#f5f5f5;padding:10px;overflow:auto;font-size:11px;max-height:400px;white-space:pre-wrap">${text.replace(/</g,'&lt;')}</pre>
+        </details>
+        <details><summary style="cursor:pointer;font-weight:bold">🔧 JSON (alt parser leste)</summary>
+          <pre style="background:#f5f5f5;padding:10px;overflow:auto;font-size:11px;max-height:400px;white-space:pre-wrap">${JSON.stringify(t,null,2).replace(/</g,'&lt;')}</pre>
+        </details>
+      </div>`;
+  }catch(e){
+    document.getElementById('veil-results').innerHTML=`<div class="result-item result-red">Debug-feil: ${e.message}</div>`;
+  }
+}
+
 async function runVeilSjekk(){
   if(!files['veil-takst']){alert('Last opp taksten først.');return;}
   showLoading('veil-results','Konverterer og sjekker taksten...');
@@ -1149,13 +1180,20 @@ KRITISK: Bruk den STRUKTURERTE delen som hovedkilde. Den inneholder:
 - Liste over alt som allerede er ført (HTT, polere flikk, grunning topplakk, maskering)
 - "HURTIGFAKTA"-seksjon som svarer på de viktigste sjekkene direkte
 
-Hvis HURTIGFAKTA sier "Polere flikk ført: JA" → IKKE foreslå polere flikk.
-Hvis HURTIGFAKTA sier "Grunning for topplakk i Lakkmateriell annet: JA" → IKKE foreslå grunning for topplakk.
-Hvis "Tilstøtende-poster" lister en del → IKKE foreslå tilstøtende for den delen.
-Hvis "UB ført: JA" → IKKE foreslå UB.
-Hvis "Maskering av plast i Tiltak: JA" → IKKE foreslå maskering.
+=== HURTIGFAKTA – ABSOLUTTE REGLER (kan IKKE overstyres) ===
+HURTIGFAKTA-seksjonen i den strukturerte taksten er FASIT. Den er kodet, ikke gjettet.
+Du SKAL følge disse reglene UTEN UNNTAK:
 
-Stol på parseren. Den har lest hele PDF-en strukturert.
+• Hvis HURTIGFAKTA sier "Polere flikk ført: JA" → IKKE foreslå polere flikk under noen omstendighet.
+• Hvis HURTIGFAKTA sier "Grunning for topplakk i Lakkmateriell annet: JA" → IKKE foreslå grunning for topplakk under noen omstendighet. Ikke "vurder", ikke "sjekk om", ikke noe. Posten ER der.
+• Hvis HURTIGFAKTA sier "UB ført: JA" → IKKE foreslå UB.
+• Hvis HURTIGFAKTA sier "Maskering av plast i Tiltak: JA" → IKKE foreslå maskering av plast.
+• Hvis HURTIGFAKTA lister en del under "Tilstøtende-poster" → IKKE foreslå tilstøtende for den delen.
+
+Disse er ikke forslag eller hint. Disse er HARDE LÅSER.
+Hvis du føler trang til å foreslå noe HURTIGFAKTA sier er ført – stopp. Ikke foreslå det. Posten er der allerede.
+
+Stol på parseren. Den har lest hele PDF-en strukturert linje for linje.
 
 === MINE REGLER (høyest prioritet – overstyrer alt annet) ===
 ${savedRules||'(ingen lagt inn ennå)'}
