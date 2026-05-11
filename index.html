@@ -1521,17 +1521,30 @@ Eksempel feil: "Legg til tilstøtende flate mot A-stolpe 18p i lakkspesifikasjon
         .map(d=>d.navn.toLowerCase());
 
       // Sjekk om en del er KUN tilstøtende (ikke skiftet/rettet andre steder)
+      // VIKTIG: Må unngå false-match på subdeler som inneholder navnet
+      // F.eks. "V Håndtak fordør" skal IKKE matche når vi spør om "fordør"
       function erKunTilstøtende(delNavn){
         const dnLower=delNavn.toLowerCase();
-        // Sjekk om denne delen finnes som N eller G uten "under/over begrensning"
+        // Sjekk om SELVE delen finnes som N/G uten begrensning
+        // (ikke en subdel som tilfeldigvis inneholder navnet)
         const fullLakk=parserData.lakkspes.some(d=>{
           if(d.tilstøtende||d.optype==='T')return false;
           if(d.optype!=='N'&&d.optype!=='G')return false;
-          return d.navn.toLowerCase().includes(dnLower);
+          const nlow=d.navn.toLowerCase();
+          // Eksklusjon: subdeler som har annet hoved-substantiv
+          if(/håndtak|hengsel|speil|lokk|list|spoiler|deksel|p-list|spyledyse|fotgjenger|gitter|kabel|sensor/.test(nlow))return false;
+          // Match: navnet må starte med del-uttrykket (etter evt. side-prefix V/H)
+          // Eksempler som skal matche "fordør": "V Fordør", "H Fordør", "Fordør"
+          // Eksempler som IKKE skal matche: "V Håndtak fordør"
+          const stripped=nlow.replace(/^[vh]\s+/,'');
+          return stripped.startsWith(dnLower)||stripped===dnLower;
         });
         if(fullLakk)return false;
         // Sjekk om det finnes en tilstøtende-post som matcher
-        return tilstøtendeNavn.some(n=>n.includes(dnLower));
+        return tilstøtendeNavn.some(n=>{
+          const stripped=n.replace(/^[vh]\s+/,'');
+          return stripped.startsWith(dnLower)||stripped.includes(', '+dnLower)||stripped.includes(' '+dnLower);
+        });
       }
 
       function fjernForslag(tekst,grunn){
