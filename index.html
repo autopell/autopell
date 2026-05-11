@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.0.2</div>
+    <div class="version-badge">v2.0.3</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -354,12 +354,22 @@ HENGSLER OG BRAKETTER løse: 9p per del
 Skift av sveiset detalj: 9p | Skift av skrudd detalj: 3p | Rettet detalj: 3p
 Forskjerm er alltid skrudd detalj → 3p rustbeskyttelse ved skift (aldri 9p)
 ALDRI rustbeskyttelse på plast (støtfangere, speil, lister, griller)
-UB 120kr ved retting eller skift av ståldetaljer (panser, tak, bakskjerm, bakdør, fordør, forskjerm) – legges i DBS under Verksteddata → Materialforbruk/understellsbehandling. IKKE i annetbildet.
+UB 120kr ved retting (G) eller skift (N) av ståldetaljer eller aluminiumsdetaljer (panser, tak, bakskjerm, bakdør, fordør, forskjerm) – legges i DBS under Verksteddata → Materialforbruk/understellsbehandling. IKKE i annetbildet.
+KRITISK – UB OG TILSTØTENDE FLATE: UB skal ALDRI foreslås for deler som kun har tilstøtende-post (T-kode eller "under/over begrensning" i navnet). Tilstøtende lakkering = kun overgangsflate, ikke faktisk skift eller retting av delen. Selv om en tilstøtende-post har G som op.type, er det fortsatt tilstøtende og skal IKKE få UB. UB foreslås KUN for deler som faktisk skiftes (N) eller rettes (G uten "under begrensning" eller "over begrensning" i navnet).
 KRITISK – UB ≠ INNVENDIG RUSTBESKYTTELSE: UB understellsbehandling (Verksteddata → Materialforbruk) og innvendig rustbeskyttelseslakkering (egen post i innvendig lakk-tabellen, f.eks. 25p) er TO FORSKJELLIGE POSTER. Begge skal være med ved skift av stål-/aluminiumdel. UB-forslag skal IKKE droppes bare fordi "innvendig rustbeskyttelse" allerede er i taksten – disse utelukker ikke hverandre. UB skal kun droppes hvis UB selv allerede er i Verksteddata → Materialforbruk.
 
 === DIAGNOSE OG KODING ===
 Ved demontering av støtfanger: diagnose for å slette feilkoder → 100p
-Ved demontering eller skift av fordør: diagnose for å slette airbag-feilkoder → 50p. KRITISK – sjekk D/M-status før forslag: Diagnose airbag skal KUN foreslås hvis "D/M av Dør fremre [V/H]" er huket av i De/Mo-fanen i taksten (= komplett demontering av døren fra kjøretøyet). Hvis fordøren KUN har tilstøtende-post (f.eks. "H Fordør, under begrensning") eller kun lakkering uten D/M-avkrysning → IKKE foreslå diagnose airbag. Tilstøtende lakk krever ikke demontering av døren, og airbag kobles ikke fra. Bakdør har normalt IKKE airbag – ikke flagg diagnose for bakdør med mindre taksten spesifikt nevner sidekollisjonspute i bakdør.
+Ved demontering eller skift av fordør: diagnose for å slette airbag-feilkoder → 50p. KRITISK – sjekk D/M-status før forslag: Diagnose airbag skal KUN foreslås hvis fordøren faktisk demonteres/skiftes. Det vil si:
+- Fordøren står som SKIFTET (N) i lakkspesifikasjonen, ELLER
+- "D/M av Dør fremre [V/H]" er huket av i De/Mo-fanen (komplett demontering).
+
+ALDRI foreslå diagnose airbag hvis fordøren:
+- Står i HURTIGFAKTA sin "Tilstøtende-poster"-liste (f.eks. "V Fordør, under begrensning")
+- Kun har op.type G uten skift-indikasjon andre steder
+- Kun har tilstøtende-lakk (overgangsflate fra forskjerm-skift)
+
+Tilstøtende lakk krever IKKE demontering av døren, og airbag kobles IKKE fra. Bakdør har normalt IKKE airbag – ikke flagg diagnose for bakdør med mindre taksten spesifikt nevner sidekollisjonspute i bakdør.
 Ved skift av lyskaster (Bi-Xenon, adaptiv, LED): koding mot bilen påkrevd → diagnosejobb
 - Gjelder spesielt: gamle BMW, Mercedes, alle moderne LED-lykter
 
@@ -1027,7 +1037,24 @@ function takstSammendrag(t){
   s+=`  Retting (G): ${hasG?'JA':'NEI'}\n`;
   s+=`  Tilstøtende (T): ${hasT?'JA':'NEI'}\n`;
   const tilstøtendeDeler=t.lakkspes.filter(d=>d.optype==='T'||d.tilstøtende).map(d=>d.navn);
-  if(tilstøtendeDeler.length)s+=`  Tilstøtende-poster: ${tilstøtendeDeler.join(', ')}\n`;
+  if(tilstøtendeDeler.length)s+=`  Tilstøtende-poster (IKKE foreslå UB/HTT på disse): ${tilstøtendeDeler.join(', ')}\n`;
+
+  // UB-relevante deler: kun ekte skift/retting av stål/alu-deler (ikke tilstøtende, ikke plast)
+  const ubKandidater=t.lakkspes.filter(d=>{
+    if(d.tillegg)return false;
+    if(d.tilstøtende||d.optype==='T')return false;
+    if(!d.optype||(d.optype!=='N'&&d.optype!=='G'))return false;
+    // Hopp over plast-deler
+    const mat=(d.materialhint||'').toLowerCase();
+    if(mat.includes('plast'))return false;
+    // Hopp over deler som åpenbart ikke er UB-relevante (hengsel, lokk osv.)
+    const navn=d.navn.toLowerCase();
+    if(/hengsel|lokk|håndtak|spoiler|spyledyse|p-list|gitter|liste/.test(navn))return false;
+    return true;
+  }).map(d=>`${d.navn} (${d.optype})`);
+  s+=`  UB-relevante deler (stål/alu, ikke tilstøtende, ikke plast): ${ubKandidater.length?ubKandidater.join(', '):'INGEN'}\n`;
+  s+=`  UB ført i Verksteddata: ${t.sammenstilling.ub_kr?'JA ('+t.sammenstilling.ub_kr+' kr)':'NEI'}\n`;
+
   const harPolereFlikk=t.lakkspes.some(d=>d.navn&&d.navn.toLowerCase().includes('polere flikk'))||t.lakkmateriell_annet.some(d=>d.navn.toLowerCase().includes('polere flikk'));
   s+=`  Polere flikk ført: ${harPolereFlikk?'JA':'NEI'}\n`;
   const harGrunningTopplakk=t.lakkmateriell_annet.some(d=>{
@@ -1205,9 +1232,11 @@ Du SKAL følge disse reglene UTEN UNNTAK:
 
 • Hvis HURTIGFAKTA sier "Polere flikk ført: JA" → IKKE foreslå polere flikk under noen omstendighet.
 • Hvis HURTIGFAKTA sier "Grunning for topplakk i Lakkmateriell annet: JA" → IKKE foreslå grunning for topplakk under noen omstendighet. Ikke "vurder", ikke "sjekk om", ikke noe. Posten ER der.
-• Hvis HURTIGFAKTA sier "UB ført: JA" → IKKE foreslå UB.
+• Hvis HURTIGFAKTA sier "UB ført i Verksteddata: JA" → IKKE foreslå UB.
 • Hvis HURTIGFAKTA sier "Maskering av plast i Tiltak: JA" → IKKE foreslå maskering av plast.
-• Hvis HURTIGFAKTA lister en del under "Tilstøtende-poster" → IKKE foreslå tilstøtende for den delen.
+• Hvis HURTIGFAKTA lister en del under "Tilstøtende-poster" → IKKE foreslå tilstøtende, HTT, eller UB for den delen. Tilstøtende lakkering = kun overgangsflate, ikke faktisk skift/retting.
+• Hvis HURTIGFAKTA sier "UB-relevante deler: INGEN" → IKKE foreslå UB i det hele tatt.
+• Hvis HURTIGFAKTA sier "UB-relevante deler: [liste]" → UB kan foreslås kun for delene i den listen, ALDRI for deler utenfor listen.
 
 Disse er ikke forslag eller hint. Disse er HARDE LÅSER.
 Hvis du føler trang til å foreslå noe HURTIGFAKTA sier er ført – stopp. Ikke foreslå det. Posten er der allerede.
