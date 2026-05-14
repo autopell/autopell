@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.0.4</div>
+    <div class="version-badge">v2.1</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -1039,6 +1039,48 @@ function takstSammendrag(t){
   const tilstøtendeDeler=t.lakkspes.filter(d=>d.optype==='T'||d.tilstøtende).map(d=>d.navn);
   if(tilstøtendeDeler.length)s+=`  Tilstøtende-poster (IKKE foreslå UB/HTT på disse): ${tilstøtendeDeler.join(', ')}\n`;
 
+  // === KRITISK KONSISTENS-SJEKK: REPARASJON UTEN LAKK ===
+  // Hvis en del har plastrep, flaterett eller skift → MÅ ha lakk-post (N eller G)
+  // Hvis ikke → rød mangel
+  const lakkedeNavn=t.lakkspes.filter(d=>!d.tillegg&&(d.optype==='N'||d.optype==='G')&&!d.tilstøtende).map(d=>d.navn.toLowerCase());
+  function harLakkPost(delNavn){
+    const dn=delNavn.toLowerCase().replace(/^[vh]\s+/,'').replace(/\(.*?\)/g,'').trim();
+    // Match hvis del-navnet finnes i lakkspes (etter strip av V/H prefiks og parentes-tillegg)
+    return lakkedeNavn.some(l=>{
+      const lStripped=l.replace(/^[vh]\s+/,'').replace(/\(.*?\)/g,'').replace(/,.*$/,'').trim();
+      return lStripped.includes(dn)||dn.includes(lStripped);
+    });
+  }
+  const reparasjonerUtenLakk=[];
+  // Sjekk plastreparasjon-posisjoner
+  t.plastreparasjon.forEach(p=>{
+    if(!harLakkPost(p.del)){
+      reparasjonerUtenLakk.push(`${p.del} (PLASTREP ${p.tid}p)`);
+    }
+  });
+  // Sjekk flaterett-posisjoner
+  t.karosseri_flaterett.forEach(p=>{
+    if(!harLakkPost(p.del)){
+      reparasjonerUtenLakk.push(`${p.del} (FLATERETT ${p.tid}p)`);
+    }
+  });
+  // Sjekk plastspes-aktivert deler
+  if(t.plastspes&&t.plastspes.aktivert&&t.plastspes.del){
+    if(!harLakkPost(t.plastspes.del)){
+      // Unngå duplikat hvis allerede flagget gjennom plastreparasjon
+      if(!reparasjonerUtenLakk.some(r=>r.toLowerCase().includes(t.plastspes.del.toLowerCase().substring(0,15)))){
+        reparasjonerUtenLakk.push(`${t.plastspes.del} (PLASTSPES AKTIVERT)`);
+      }
+    }
+  }
+  if(reparasjonerUtenLakk.length){
+    s+=`  🚨 KRITISK – REPARASJON UTEN LAKK: ${reparasjonerUtenLakk.join('; ')}\n`;
+    s+=`     Disse delene skal repareres men har INGEN lakk-post. Flagg som rød mangel: lakk må huket av og lakk-flate legges til.\n`;
+  }else{
+    s+=`  Konsistens-sjekk (reparasjon må ha lakk): OK – alle reparerte deler har lakk-post\n`;
+  }
+  // =====================================================
+
   // UB-relevante deler: kun ekte skift/retting av stål/alu-deler (ikke tilstøtende, ikke plast)
   const ubKandidater=t.lakkspes.filter(d=>{
     if(d.tillegg)return false;
@@ -1275,6 +1317,20 @@ ABSOLUTT REGEL: Hvis en post allerede finnes i taksten – ALDRI foreslå den.
 - Hvis UB allerede er i taksten → ALDRI foreslå UB
 
 Dette er et påminnelsesprogram – finn ALLE relevante tillegg, men ALDRI noe som allerede er i taksten.
+
+=== KRITISK – REPARASJON MÅ HA LAKK ===
+Grunnregel: Hvis en del repareres, må den lakkeres etterpå – ellers blir reparasjonen synlig.
+Dette gjelder uten unntak:
+- Flaterett (G på lakkspes ELLER post i Karosseri-flaterette-seksjonen) → MÅ ha lakk-post på samme del
+- Plastreparasjon (P i Op.Type ELLER plastspes aktivert ELLER post i Plastreparasjon-seksjonen i arbeidsspes) → MÅ ha lakk-post på samme del
+- Skift (N på lakkspes) → MÅ ha lakk-post på samme del
+
+Hvordan sjekke: 
+1. Se på "REPARASJON UTEN LAKK"-feltet i HURTIGFAKTA. Hvis det er deler listet der → FLAGG som RØD MANGEL.
+2. Format for forslag (eksakt ordlyd): 
+   "KRITISK MANGEL: [DEL] er satt opp med [reparasjon-type] men har INGEN lakk-post. Etter [reparasjon-type] skal det reparerte området lakkeres – ellers blir reparasjonen synlig. Huk av 'Lakk' og legg til de relevante lakkpostene."
+
+Dette er en av de viktigste regelene. ALDRI hopp over en del som er reparert uten lakk – det er en garantert mangel.
 
 === KONSERVATIV ANALYSE ===
 - Kun flagg det du er 100% sikker på mangler basert på hva som faktisk står i taksten.
@@ -1646,6 +1702,57 @@ Eksempel feil: "Legg til tilstøtende flate mot A-stolpe 18p i lakkspesifikasjon
       const harMaskering=parserData.tiltak.some(d=>d.tekst.toLowerCase().includes('maskering'));
       if(harMaskering){
         fjernForslag(/maskering av plast|maskering grill|maskering nedre/i,'maskering allerede i Tiltak');
+      }
+
+      // 7. KRITISK – LEGG TIL "reparasjon uten lakk"-mangel hvis Claude glemte den
+      // Sjekk alle reparerte deler (plastrep, flaterett) som ikke har lakk-post
+      const lakkedeNavn2=parserData.lakkspes.filter(d=>!d.tillegg&&(d.optype==='N'||d.optype==='G')&&!d.tilstøtende).map(d=>d.navn.toLowerCase());
+      function harLakkPost2(delNavn){
+        const dn=delNavn.toLowerCase().replace(/^[vh]\s+/,'').replace(/\(.*?\)/g,'').trim();
+        return lakkedeNavn2.some(l=>{
+          const lStripped=l.replace(/^[vh]\s+/,'').replace(/\(.*?\)/g,'').replace(/,.*$/,'').trim();
+          return lStripped.includes(dn)||dn.includes(lStripped);
+        });
+      }
+      const manglendeLakk=[];
+      parserData.plastreparasjon.forEach(p=>{
+        if(!harLakkPost2(p.del))manglendeLakk.push({del:p.del,type:'plastreparasjon'});
+      });
+      parserData.karosseri_flaterett.forEach(p=>{
+        if(!harLakkPost2(p.del))manglendeLakk.push({del:p.del,type:'flaterett'});
+      });
+      if(parserData.plastspes&&parserData.plastspes.aktivert&&parserData.plastspes.del){
+        if(!harLakkPost2(parserData.plastspes.del)){
+          // Unngå duplikat
+          if(!manglendeLakk.some(m=>m.del.toLowerCase().includes(parserData.plastspes.del.toLowerCase().substring(0,15)))){
+            manglendeLakk.push({del:parserData.plastspes.del,type:'plastreparasjon (plastspes aktivert)'});
+          }
+        }
+      }
+      if(manglendeLakk.length){
+        // Sikre at sammendrag og resultater finnes
+        if(!parsed.sammendrag)parsed.sammendrag={};
+        if(!Array.isArray(parsed.sammendrag.dbs_handlinger))parsed.sammendrag.dbs_handlinger=[];
+        if(!Array.isArray(parsed.resultater))parsed.resultater=[];
+
+        manglendeLakk.forEach(m=>{
+          const forslagTekst=`KRITISK MANGEL: ${m.del} er satt opp med ${m.type} men har INGEN lakk-post. Etter ${m.type} skal det reparerte området lakkeres – ellers blir reparasjonen synlig. Huk av "Lakk" og legg til de relevante lakkpostene.`;
+          // Sjekk om Claude allerede har flagget noe lignende
+          const alleredeFlagget=parsed.sammendrag.dbs_handlinger.some(d=>{
+            const lc=d.toLowerCase();
+            return lc.includes(m.del.toLowerCase().substring(0,15))&&(lc.includes('lakk')||lc.includes('uten lakk'));
+          });
+          if(!alleredeFlagget){
+            parsed.sammendrag.dbs_handlinger.unshift(forslagTekst);
+            parsed.resultater.unshift({
+              tittel:`Reparasjon uten lakk: ${m.del}`,
+              melding:forslagTekst,
+              farge:'rød',
+              plassering:'Lakkspesifikasjon'
+            });
+            console.log(`[POST-FILTER] LAGT TIL kritisk mangel: "${m.del}" har ${m.type} men ingen lakk-post`);
+          }
+        });
       }
     }
     // ============================================================
