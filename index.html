@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v1.9 – Smart kontroll av takster</title>
+<title>AutoPell v2.2 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.1</div>
+    <div class="version-badge">v2.2</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -940,11 +940,29 @@ function parseTakst(text){
       reservedelspris:null
     };
     // Gå gjennom resten av filen for å finne plastspes-data
+    // v2.2: Plukk også opp DELNAVN (var aldri parset i v2.1 → 🚨-regel var død kode)
+    let venterPaaDel=false; // settes når vi nettopp så "Gruppe X Tiltak Tid Beløp" eller "Gruppe X"
     for(let i=plastspesIdx;i<lines.length;i++){
       const l=lines[i];
-      if(l.startsWith('Gruppe 1')){p.aktivert=true;p.gruppe=1;}
-      if(l.startsWith('Gruppe 2')){p.aktivert=true;p.gruppe=2;}
-      if(['Skrapeskade','Utvendig skade','Ut og innvendig skade'].includes(l))p.skadetype=l;
+      if(l.startsWith('Gruppe 1')){p.aktivert=true;p.gruppe=1;venterPaaDel=true;continue;}
+      if(l.startsWith('Gruppe 2')){p.aktivert=true;p.gruppe=2;venterPaaDel=true;continue;}
+      if(['Skrapeskade','Utvendig skade','Ut og innvendig skade'].includes(l)){p.skadetype=l;continue;}
+      // Første "innholdslinje" etter Gruppe-header er delnavnet
+      // Format: "Støtfangerdeksel bak øvre del p-radar (eks) 275 3 148,75" eller bare "Støtfangerdeksel ... 275"
+      if(venterPaaDel&&!p.del){
+        // Hopp over åpenbare meta-linjer (kostnadssammenligning-headere, "Tiltak Tid Beløp" etc.)
+        if(l.match(/^(Tiltak\s+Tid|Kode|Område|Kostnad|Reparasjon|Reservedelspris)/i))continue;
+        // Match: noe tekst, deretter ett tall (tid), eventuelt fulgt av beløp
+        const delMatch=l.match(/^(.+?)\s+\d+(\s+[\d\s,\.]+)?$/);
+        if(delMatch){
+          const kandidat=delMatch[1].trim();
+          // Sanity: må være minst 3 bokstaver og ikke en kjent meta-linje
+          if(kandidat.length>=3&&!/^Sum\s/i.test(kandidat)){
+            p.del=kandidat;
+            venterPaaDel=false;
+          }
+        }
+      }
       const repMatch=l.match(/Reparert flate\s+(\d+)\s*cm/);
       if(repMatch)p.reparert_flate_cm2=parseInt(repMatch[1]);
       const grMatch=l.match(/Grunning for topplakk\s+([\d,]+)\s*dm/i);
@@ -1043,12 +1061,22 @@ function takstSammendrag(t){
   // Hvis en del har plastrep, flaterett eller skift → MÅ ha lakk-post (N eller G)
   // Hvis ikke → rød mangel
   const lakkedeNavn=t.lakkspes.filter(d=>!d.tillegg&&(d.optype==='N'||d.optype==='G')&&!d.tilstøtende).map(d=>d.navn.toLowerCase());
+  // v2.2: Strammet matching. Subdeler (lokk, sensor, deksel, bjelke...) regnes IKKE som lakk-post for hoveddelen.
+  // Krever at del-navnet matcher som eget ord (ikke som substring i en sammensetning).
   function harLakkPost(delNavn){
-    const dn=delNavn.toLowerCase().replace(/^[vh]\s+/,'').replace(/\(.*?\)/g,'').trim();
-    // Match hvis del-navnet finnes i lakkspes (etter strip av V/H prefiks og parentes-tillegg)
+    const dn=delNavn.toLowerCase().replace(/^[vh]\s+/,'').replace(/\(.*?\)/g,'').replace(/,.*$/,'').trim();
+    if(dn.length<4)return false; // for kort til å være pålitelig
     return lakkedeNavn.some(l=>{
       const lStripped=l.replace(/^[vh]\s+/,'').replace(/\(.*?\)/g,'').replace(/,.*$/,'').trim();
-      return lStripped.includes(dn)||dn.includes(lStripped);
+      // Subdel-eksklusjon: hvis lakk-raden er en subdel (lokk, sensor, bjelke, deksel osv.)
+      // så regner vi den IKKE som lakk-post for hovedrelaterte hoveddeler.
+      if(/^(lokk|sensor|bjelke|deksel|hengsel|håndtak|spoiler|spyledyse|p-list|fotgjenger|gitter|kabel|innstegslist|skiltbelysning|emblem|refleks)\b/.test(lStripped))return false;
+      // Ord-grense-match: del-navn må stå som eget ord i lakk-raden eller motsatt
+      const dnEscaped=dn.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+      const lEscaped=lStripped.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+      const dnInL=new RegExp('\\b'+dnEscaped+'\\b').test(lStripped);
+      const lInDn=new RegExp('\\b'+lEscaped+'\\b').test(dn);
+      return dnInL||lInDn;
     });
   }
   const reparasjonerUtenLakk=[];
@@ -1073,9 +1101,31 @@ function takstSammendrag(t){
       }
     }
   }
+  // v2.2 NY: Grunning for topplakk er en sterk indikator – delen MÅ lakkes
+  // Hvis lakkmateriell annet har "X, grunning for topplakk" og X ikke er i lakkspes som N/G → rød mangel
+  t.lakkmateriell_annet.forEach(m=>{
+    const navn=(m.navn||'').toLowerCase();
+    if(!navn.includes('grunning for topplakk')&&!navn.includes('grunning topplakk'))return;
+    // Hent delnavn fra "STØTFANGER BAK, grunning for topplakk" → "STØTFANGER BAK"
+    const delMatch=m.navn.match(/^(.+?),\s*grunning/i);
+    if(!delMatch)return;
+    const del=delMatch[1].trim();
+    if(!harLakkPost(del)){
+      if(!reparasjonerUtenLakk.some(r=>r.toLowerCase().includes(del.toLowerCase().substring(0,12)))){
+        reparasjonerUtenLakk.push(`${del} (GRUNNING TOPPLAKK FØRT)`);
+      }
+    }
+  });
+  // v2.2 NY: Plastspes aktivert men ingen del-match og ingen andre flagg → soft advarsel
+  let plastspesUkjentDel=false;
+  if(t.plastspes&&t.plastspes.aktivert&&!t.plastspes.del&&!reparasjonerUtenLakk.length){
+    plastspesUkjentDel=true;
+  }
   if(reparasjonerUtenLakk.length){
     s+=`  🚨 KRITISK – REPARASJON UTEN LAKK: ${reparasjonerUtenLakk.join('; ')}\n`;
     s+=`     Disse delene skal repareres men har INGEN lakk-post. Flagg som rød mangel: lakk må huket av og lakk-flate legges til.\n`;
+  }else if(plastspesUkjentDel){
+    s+=`  ⚠️ Plastspesifikasjon aktivert (Gruppe ${t.plastspes.gruppe}, ${t.plastspes.reparert_flate_cm2||'?'} cm²) men delnavnet ble ikke identifisert sikkert fra PDF. Verifiser at delen som repareres har lakk-post i lakkspesifikasjonen.\n`;
   }else{
     s+=`  Konsistens-sjekk (reparasjon må ha lakk): OK – alle reparerte deler har lakk-post\n`;
   }
@@ -1707,11 +1757,18 @@ Eksempel feil: "Legg til tilstøtende flate mot A-stolpe 18p i lakkspesifikasjon
       // 7. KRITISK – LEGG TIL "reparasjon uten lakk"-mangel hvis Claude glemte den
       // Sjekk alle reparerte deler (plastrep, flaterett) som ikke har lakk-post
       const lakkedeNavn2=parserData.lakkspes.filter(d=>!d.tillegg&&(d.optype==='N'||d.optype==='G')&&!d.tilstøtende).map(d=>d.navn.toLowerCase());
+      // v2.2: Strammet matching - se kommentar i takstSammendrag
       function harLakkPost2(delNavn){
-        const dn=delNavn.toLowerCase().replace(/^[vh]\s+/,'').replace(/\(.*?\)/g,'').trim();
+        const dn=delNavn.toLowerCase().replace(/^[vh]\s+/,'').replace(/\(.*?\)/g,'').replace(/,.*$/,'').trim();
+        if(dn.length<4)return false;
         return lakkedeNavn2.some(l=>{
           const lStripped=l.replace(/^[vh]\s+/,'').replace(/\(.*?\)/g,'').replace(/,.*$/,'').trim();
-          return lStripped.includes(dn)||dn.includes(lStripped);
+          if(/^(lokk|sensor|bjelke|deksel|hengsel|håndtak|spoiler|spyledyse|p-list|fotgjenger|gitter|kabel|innstegslist|skiltbelysning|emblem|refleks)\b/.test(lStripped))return false;
+          const dnEscaped=dn.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+          const lEscaped=lStripped.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+          const dnInL=new RegExp('\\b'+dnEscaped+'\\b').test(lStripped);
+          const lInDn=new RegExp('\\b'+lEscaped+'\\b').test(dn);
+          return dnInL||lInDn;
         });
       }
       const manglendeLakk=[];
@@ -1729,6 +1786,19 @@ Eksempel feil: "Legg til tilstøtende flate mot A-stolpe 18p i lakkspesifikasjon
           }
         }
       }
+      // v2.2 NY: Grunning for topplakk → del MÅ være i lakkspes
+      parserData.lakkmateriell_annet.forEach(m=>{
+        const navn=(m.navn||'').toLowerCase();
+        if(!navn.includes('grunning for topplakk')&&!navn.includes('grunning topplakk'))return;
+        const delMatch=m.navn.match(/^(.+?),\s*grunning/i);
+        if(!delMatch)return;
+        const del=delMatch[1].trim();
+        if(!harLakkPost2(del)){
+          if(!manglendeLakk.some(x=>x.del.toLowerCase().includes(del.toLowerCase().substring(0,12)))){
+            manglendeLakk.push({del:del,type:'lakkering (grunning topplakk ført)'});
+          }
+        }
+      });
       if(manglendeLakk.length){
         // Sikre at sammendrag og resultater finnes
         if(!parsed.sammendrag)parsed.sammendrag={};
