@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.3 – Smart kontroll av takster</title>
+<title>AutoPell v2.4 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.3</div>
+    <div class="version-badge">v2.4</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -721,6 +721,7 @@ function parseTakst(text){
     karosseri_flaterett:[], // Deler som flatrettes
     plastreparasjon:[],     // Plastrep-poster fra arbeidsspes
     rustbeskyttelse:[],     // Deler med rustbeskyttelse
+    kalibreringer:[],       // v2.4: Kalibreringer ført i arbeidsspes (Kalibr./programmere)
     lakkspes:[],            // Lakkspesifikasjon-tabellen (alle rader)
     lakkmateriell_annet:[], // HTT, polere flikk, grunning topplakk osv.
     tiltak:[],              // "1) Maskering av plast" etc.
@@ -799,6 +800,13 @@ function parseTakst(text){
       const m=line.match(/^(.+?)\s+(Skift|De\/Mo)(\s+.*)?$/);
       if(m){
         result.karosseri_skift.push({navn:m[1].trim(),tiltak:m[2],kommentar:m[3]?m[3].trim():''});
+      }
+    }
+    // v2.4: Plukk opp kalibreringer (Kalibr./programmere) i karosseriarbeide
+    if(inSkift&&/Kalibr\.?|kalibrer/i.test(line)){
+      const km=line.match(/^(.+?)\s*[-–]\s*Kalibr\.?\/?(programmere)?\s+(Manuell tid\s+)?(\d+)$/i);
+      if(km){
+        result.kalibreringer.push({navn:km[1].trim(),tid:parseInt(km[4])});
       }
     }
   }
@@ -1062,17 +1070,42 @@ function takstSammendrag(t){
   // Hvis en del har plastrep, flaterett eller skift → MÅ ha lakk-post (N eller G)
   // Hvis ikke → rød mangel
   const lakkedeNavn=t.lakkspes.filter(d=>!d.tillegg&&(d.optype==='N'||d.optype==='G')&&!d.tilstøtende).map(d=>d.navn.toLowerCase());
-  // v2.2: Strammet matching. Subdeler (lokk, sensor, deksel, bjelke...) regnes IKKE som lakk-post for hoveddelen.
-  // Krever at del-navnet matcher som eget ord (ikke som substring i en sammensetning).
+
+  // v2.4: Synonymordbok – DBS bruker forskjellige navn i plastspes vs lakkspes.
+  // Plastspes har tekniske, ofte lange navn (eks: "Støtfangerdeksel bak grunnet M sportpakke p-radar").
+  // Lakkspes har korte, generelle navn (eks: "Støtfanger bak").
+  // Normaliseringsfunksjonen forkorter beggesidig før matching.
+  // FORMAT: lengre/tekniske navn → kortere/lakkspes-navn
+  // NB: Vurder nøye før utvidelse – feil synonym kan skjule reelle mangler.
+  const synonymer=[
+    {fra:/støtfangerdeksel/g, til:'støtfanger'},
+    {fra:/\bp-list\b/g, til:'list'},
+  ];
+  function normaliserDelnavn(s){
+    let n=s.toLowerCase()
+      .replace(/^[vh]\s+/,'')
+      .replace(/\(.*?\)/g,'')
+      .replace(/,.*$/,'')
+      .trim();
+    // Strip beskrivende suffikser (M sportpakke, p-radar, grunnet osv.) – beholdes som metadata, fjernes for matching
+    n=n.replace(/\b(grunnet|m sportpakke|sport-?pakke|p-radar|p radar|eks)\b/g,'').replace(/\s+/g,' ').trim();
+    // Bruk synonymer (lengre → kortere)
+    synonymer.forEach(syn=>{n=n.replace(syn.fra,syn.til);});
+    n=n.replace(/\s+/g,' ').trim();
+    return n;
+  }
+
   function harLakkPost(delNavn){
-    const dn=delNavn.toLowerCase().replace(/^[vh]\s+/,'').replace(/\(.*?\)/g,'').replace(/,.*$/,'').trim();
+    const dn=normaliserDelnavn(delNavn);
     if(dn.length<4)return false; // for kort til å være pålitelig
     return lakkedeNavn.some(l=>{
-      const lStripped=l.replace(/^[vh]\s+/,'').replace(/\(.*?\)/g,'').replace(/,.*$/,'').trim();
-      // Subdel-eksklusjon: hvis lakk-raden er en subdel (lokk, sensor, bjelke, deksel osv.)
-      // så regner vi den IKKE som lakk-post for hovedrelaterte hoveddeler.
-      if(/^(lokk|sensor|bjelke|deksel|hengsel|håndtak|spoiler|spyledyse|p-list|fotgjenger|gitter|kabel|innstegslist|skiltbelysning|emblem|refleks)\b/.test(lStripped))return false;
-      // Ord-grense-match: del-navn må stå som eget ord i lakk-raden eller motsatt
+      const lStripped=normaliserDelnavn(l);
+      // Subdel-eksklusjon: hvis lakk-raden er en subdel (lokk, sensor, bjelke osv.)
+      // så regner vi den IKKE som lakk-post for hoveddelen.
+      // NB: "deksel" og "p-list" er fjernet fra eksklusjonslisten i v2.4 fordi synonymordboken
+      // gjør at "støtfangerdeksel"/"p-list" normaliseres til "støtfanger"/"list" før denne sjekken.
+      if(/^(lokk|sensor|bjelke|hengsel|håndtak|spoiler|spyledyse|fotgjenger|gitter|kabel|innstegslist|skiltbelysning|emblem|refleks)\b/.test(lStripped))return false;
+      // Ord-grense-match
       const dnEscaped=dn.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
       const lEscaped=lStripped.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
       const dnInL=new RegExp('\\b'+dnEscaped+'\\b').test(lStripped);
@@ -1160,6 +1193,13 @@ function takstSammendrag(t){
   s+=`  Grunning for topplakk i Lakkmateriell annet: ${harGrunningTopplakk?'JA':'NEI'}\n`;
   const harMaskering=t.tiltak.some(d=>d.tekst.toLowerCase().includes('maskering'));
   s+=`  Maskering av plast i Tiltak: ${harMaskering?'JA':'NEI'}\n`;
+  // v2.4: Kalibreringer ført i arbeidsspes
+  if(t.kalibreringer&&t.kalibreringer.length){
+    s+=`  Kalibreringer ført i arbeidsspes: ${t.kalibreringer.map(k=>k.navn+' ('+k.tid+'p)').join(', ')}\n`;
+    s+=`     → IKKE foreslå kalibrering for disse systemene eller relaterte sensorer\n`;
+  }else{
+    s+=`  Kalibreringer ført i arbeidsspes: INGEN\n`;
+  }
 
   return s;
 }
@@ -1766,6 +1806,13 @@ Eksempel feil: "Legg til tilstøtende flate mot A-stolpe 18p i lakkspesifikasjon
         fjernForslag(/polere flikk/i,'polere flikk allerede ført');
       }
 
+      // v2.4 NY – 6. Kalibrering – fjern forslag hvis kalibrering allerede er ført i arbeidsspes
+      // Eksempel: "Styreenhet filbytte-assistent - Kalibr./programmere 300" dekker også blind spot,
+      // så ikke foreslå separat kalibrering av blind spot-sensor.
+      if(parserData.kalibreringer&&parserData.kalibreringer.length){
+        fjernForslag(/kalibrer/i,'kalibrering allerede ført i arbeidsspes: '+parserData.kalibreringer.map(k=>k.navn).join(', '));
+      }
+
       // 5. Grunning topplakk – fjern hvis allerede ført
       const harGrunningTopplakk=parserData.lakkmateriell_annet.some(d=>{
         const n=(d.navn||'').toLowerCase();
@@ -1784,13 +1831,23 @@ Eksempel feil: "Legg til tilstøtende flate mot A-stolpe 18p i lakkspesifikasjon
       // 7. KRITISK – LEGG TIL "reparasjon uten lakk"-mangel hvis Claude glemte den
       // Sjekk alle reparerte deler (plastrep, flaterett) som ikke har lakk-post
       const lakkedeNavn2=parserData.lakkspes.filter(d=>!d.tillegg&&(d.optype==='N'||d.optype==='G')&&!d.tilstøtende).map(d=>d.navn.toLowerCase());
-      // v2.2: Strammet matching - se kommentar i takstSammendrag
+      // v2.4: Samme synonymordbok som i takstSammendrag (holdes parallelt)
+      const synonymer2=[
+        {fra:/støtfangerdeksel/g, til:'støtfanger'},
+        {fra:/\bp-list\b/g, til:'list'},
+      ];
+      function normaliserDelnavn2(s){
+        let n=s.toLowerCase().replace(/^[vh]\s+/,'').replace(/\(.*?\)/g,'').replace(/,.*$/,'').trim();
+        n=n.replace(/\b(grunnet|m sportpakke|sport-?pakke|p-radar|p radar|eks)\b/g,'').replace(/\s+/g,' ').trim();
+        synonymer2.forEach(syn=>{n=n.replace(syn.fra,syn.til);});
+        return n.replace(/\s+/g,' ').trim();
+      }
       function harLakkPost2(delNavn){
-        const dn=delNavn.toLowerCase().replace(/^[vh]\s+/,'').replace(/\(.*?\)/g,'').replace(/,.*$/,'').trim();
+        const dn=normaliserDelnavn2(delNavn);
         if(dn.length<4)return false;
         return lakkedeNavn2.some(l=>{
-          const lStripped=l.replace(/^[vh]\s+/,'').replace(/\(.*?\)/g,'').replace(/,.*$/,'').trim();
-          if(/^(lokk|sensor|bjelke|deksel|hengsel|håndtak|spoiler|spyledyse|p-list|fotgjenger|gitter|kabel|innstegslist|skiltbelysning|emblem|refleks)\b/.test(lStripped))return false;
+          const lStripped=normaliserDelnavn2(l);
+          if(/^(lokk|sensor|bjelke|hengsel|håndtak|spoiler|spyledyse|fotgjenger|gitter|kabel|innstegslist|skiltbelysning|emblem|refleks)\b/.test(lStripped))return false;
           const dnEscaped=dn.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
           const lEscaped=lStripped.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
           const dnInL=new RegExp('\\b'+dnEscaped+'\\b').test(lStripped);
