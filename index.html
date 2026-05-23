@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.2 – Smart kontroll av takster</title>
+<title>AutoPell v2.3 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.2</div>
+    <div class="version-badge">v2.3</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -1037,6 +1037,7 @@ function takstSammendrag(t){
   if(t.plastspes){
     s+=`PLASTSPESIFIKASJON:\n`;
     s+=`  Aktivert: JA, Gruppe ${t.plastspes.gruppe}\n`;
+    s+=`  Del: ${t.plastspes.del||'⚠️ IKKE IDENTIFISERT FRA PDF'}\n`;
     s+=`  Skadetype: ${t.plastspes.skadetype||'⚠️ IKKE VALGT'}\n`;
     s+=`  Reparert flate: ${t.plastspes.reparert_flate_cm2||'?'} cm²\n`;
     s+=`  Grunning for topplakk: ${t.plastspes.grunning_topplakk_dm2!==null?t.plastspes.grunning_topplakk_dm2+' dm²':'⚠️ IKKE UTFYLT'}\n`;
@@ -1692,6 +1693,32 @@ Eksempel feil: "Legg til tilstøtende flate mot A-stolpe 18p i lakkspesifikasjon
           if(lc.includes(dn)&&erKunTilstøtende(dn)){
             const escaped=ubLinje.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
             fjernForslag(new RegExp(escaped.toLowerCase().replace(/\s+/g,'\\s+')),`UB på tilstøtende del: ${dn}`);
+          }
+        });
+      });
+
+      // v2.3 NY – 2b. HTT på tilstøtende del → fjern
+      // Hvis Claude foreslår HTT for en del som er ført som tilstøtende (T-kode) i lakkspes,
+      // er det per definisjon feil – tilstøtende lakkering er allerede HTT (15p i lakkmateriell).
+      // Gjelder f.eks. håndtak, speil, list, spoiler ført som T.
+      const httMatch=parsed.sammendrag&&parsed.sammendrag.dbs_handlinger
+        ?parsed.sammendrag.dbs_handlinger.filter(d=>/\bHTT\b/i.test(d))
+        :[];
+      httMatch.forEach(httLinje=>{
+        const lc=httLinje.toLowerCase();
+        // Sjekk hver tilstøtende del om navnet forekommer i forslaget
+        tilstøtendeNavn.forEach(tn=>{
+          // Strip prefiks og normalisér til hovednøkkelord(ene)
+          const tnStripped=tn.replace(/^[vh]\s+/,'').replace(/\(.*?\)/g,'').replace(/,.*$/,'').trim();
+          if(tnStripped.length<4)return;
+          // For "h håndtak bakdør" vil vi matche når forslaget nevner "håndtak bakdør" eller "dørhåndtak bakdør"
+          // Bruk hovedord-trippelmatch: alle ord (>=3 bokstaver) fra tnStripped må forekomme
+          const kjerneord=tnStripped.split(/\s+/).filter(o=>o.length>=3);
+          if(!kjerneord.length)return;
+          const alleTilstede=kjerneord.every(o=>lc.includes(o));
+          if(alleTilstede){
+            const escaped=httLinje.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+            fjernForslag(new RegExp(escaped.toLowerCase().replace(/\s+/g,'\\s+')),`HTT på tilstøtende del: ${tn}`);
           }
         });
       });
