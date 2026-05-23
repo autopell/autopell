@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.4 – Smart kontroll av takster</title>
+<title>AutoPell v2.5 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.4</div>
+    <div class="version-badge">v2.5</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -708,11 +708,102 @@ async function pdfToText(file){
 }
 
 // =================================================================
+// v2.5: Pre-prosessering av rå PDF-tekst
+// PDF-er fra DBS har av og til kolonner med tall (tid) over delnavn,
+// fordi pdf.js sorterer fragmenter etter Y-koordinat. Resultatet er at
+// "Plastreparasjon"-tabellen kan komme ut som:
+//   233
+//   Støtfangerdeksel bak grunnet M sportpakke p-radar
+//   Manuell tid 50
+//   Støtfangerdeksel bak nedre del M sportpakke (eks)
+// I stedet for forventet:
+//   Støtfangerdeksel bak grunnet M sportpakke p-radar 233
+//   Støtfangerdeksel bak nedre del M sportpakke (eks) Manuell tid 50
+//
+// Funksjonen detekterer slike mønstre INNENFOR kjente tabell-blokker
+// (Plastreparasjon, Karosseriarbeide-Skifte, Karosseri-Justering) og
+// kombinerer linjer slik at downstream-parser kan jobbe som før.
+// =================================================================
+function preprosesserPdfTekst(text){
+  const linjer=text.split('\n');
+  const resultat=[];
+
+  // Definerer tabell-blokker som trenger pre-prosessering
+  const blokker=[
+    {start:/^Plastreparasjon\s+(Tiltak\s+)?Tid$/, slutt:/^Sum Plastreparasjon/},
+    {start:/^Karosseriarbeide - Skifte, De\/Mo\s+(Tiltak\s+)?Tid$/, slutt:/^Sum Karosseriarbeide/},
+    {start:/^Karosseri - (Justering|Flaterette)\s+(Tiltak\s+)?Tid$/, slutt:/^Sum Karosseri - (Justering|Flaterette)/},
+  ];
+
+  let i=0;
+  while(i<linjer.length){
+    const linje=linjer[i];
+    const trimmet=linje.trim();
+    // Sjekk om vi går inn i en tabell-blokk
+    const blokk=blokker.find(b=>b.start.test(trimmet));
+    if(!blokk){resultat.push(linje);i++;continue;}
+
+    // Vi er nå inne i en tabell - samle alle linjer fram til slutt
+    resultat.push(linje);
+    i++;
+    const blokkLinjer=[];
+    while(i<linjer.length){
+      const t=linjer[i].trim();
+      if(blokk.slutt.test(t))break;
+      if(t)blokkLinjer.push(t);
+      i++;
+    }
+
+    // Nå har vi alle linjene i tabellen. Slå sammen "tall + navn"-mønster:
+    // - Hvis linje N er KUN tall (eller "Manuell tid X") OG linje N+1 ser ut som delnavn
+    //   → kombinér til "delnavn ...tall"
+    // - Hvis linje N er allerede "delnavn tall" (normalt format) → behold som er
+    const erKunTall=s=>/^\d+$/.test(s);
+    const erManuellTid=s=>/^Manuell tid\s+\d+$/.test(s);
+    const erDelnavn=s=>{
+      // Heuristikk: starter med bokstav, har ord, og inneholder IKKE et avsluttende tall
+      if(!/^[A-ZÆØÅa-zæøå]/.test(s))return false;
+      // Hvis linja allerede har et tall på slutten, er den allerede normalisert
+      if(/\s\d+\s*$/.test(s))return false;
+      return true;
+    };
+
+    const kombinerte=[];
+    let j=0;
+    while(j<blokkLinjer.length){
+      const a=blokkLinjer[j];
+      const b=j+1<blokkLinjer.length?blokkLinjer[j+1]:null;
+
+      if(erKunTall(a)&&b&&erDelnavn(b)){
+        // Mønster: tall, så delnavn → kombinér
+        kombinerte.push(`${b} ${a}`);
+        j+=2;
+      }else if(erManuellTid(a)&&b&&erDelnavn(b)){
+        // Mønster: "Manuell tid X", så delnavn → kombinér
+        kombinerte.push(`${b} ${a}`);
+        j+=2;
+      }else{
+        kombinerte.push(a);
+        j++;
+      }
+    }
+
+    kombinerte.forEach(l=>resultat.push(l));
+    // Selve slutt-linja (Sum Plastreparasjon etc.) legges til neste iter
+  }
+
+  return resultat.join('\n');
+}
+
+// =================================================================
 // v2.0 STRUKTURERT TAKST-PARSER
 // Tar PDF-tekst og lager strukturert JSON av takstens innhold.
 // Mål: Aldri overse "under begrensning", "polere flikk", "grunning topplakk" etc.
 // =================================================================
 function parseTakst(text){
+  // v2.5: Pre-prosesser tekst for å fikse kolonner-i-omvendt-rekkefølge fra pdf.js
+  text=preprosesserPdfTekst(text);
+
   const result={
     bil:{},
     sammenstilling:{},
