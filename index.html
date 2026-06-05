@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.5 – Smart kontroll av takster</title>
+<title>AutoPell v2.6 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.5</div>
+    <div class="version-badge">v2.6</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -813,6 +813,7 @@ function parseTakst(text){
     plastreparasjon:[],     // Plastrep-poster fra arbeidsspes
     rustbeskyttelse:[],     // Deler med rustbeskyttelse
     kalibreringer:[],       // v2.4: Kalibreringer ført i arbeidsspes (Kalibr./programmere)
+    dm_av:[],               // v2.6: Deler med D/M-hake (demonteres fra bil i De/Mo-fanen)
     lakkspes:[],            // Lakkspesifikasjon-tabellen (alle rader)
     lakkmateriell_annet:[], // HTT, polere flikk, grunning topplakk osv.
     tiltak:[],              // "1) Maskering av plast" etc.
@@ -898,6 +899,15 @@ function parseTakst(text){
       const km=line.match(/^(.+?)\s*[-–]\s*Kalibr\.?\/?(programmere)?\s+(Manuell tid\s+)?(\d+)$/i);
       if(km){
         result.kalibreringer.push({navn:km[1].trim(),tid:parseInt(km[4])});
+      }
+    }
+    // v2.6: Plukk opp D/M-haker ("D/M av Dør fremre V" osv.)
+    // Denne haken indikerer at delen demonteres helt fra bilen, ikke bare De/Mo
+    // i karosseri-sammenheng. Viktig for airbag-diagnose-regelen.
+    if(inSkift){
+      const dmMatch=line.match(/^D\/M av\s+(.+?)(\s+\d+)?$/i);
+      if(dmMatch){
+        result.dm_av.push({navn:dmMatch[1].trim()});
       }
     }
   }
@@ -1272,6 +1282,16 @@ function takstSammendrag(t){
   s+=`  UB-relevante deler (stål/alu, ikke tilstøtende, ikke plast): ${ubKandidater.length?ubKandidater.join(', '):'INGEN'}\n`;
   s+=`  UB ført i Verksteddata: ${t.sammenstilling.ub_kr?'JA ('+t.sammenstilling.ub_kr+' kr)':'NEI'}\n`;
 
+  // v2.6: Airbag-diagnose-status: kun fordører med N i lakkspes eller D/M-haket
+  const fordørerNSkift=t.lakkspes.filter(d=>!d.tillegg&&d.optype==='N'&&!d.tilstøtende&&d.navn&&/\bfordør\b/i.test(d.navn)).map(d=>d.navn);
+  const fordørerDM=(t.dm_av||[]).filter(d=>/dør fremre/i.test(d.navn)).map(d=>d.navn);
+  const trengerAirbagDiagnose=[...new Set([...fordørerNSkift,...fordørerDM])];
+  if(trengerAirbagDiagnose.length){
+    s+=`  Airbag-diagnose relevant for: ${trengerAirbagDiagnose.join(', ')}\n`;
+  }else{
+    s+=`  Airbag-diagnose relevant: NEI – ingen fordør skiftes (N) eller har D/M-hake. IKKE foreslå airbag-diagnose.\n`;
+  }
+
   const harPolereFlikk=t.lakkspes.some(d=>d.navn&&d.navn.toLowerCase().includes('polere flikk'))||t.lakkmateriell_annet.some(d=>d.navn.toLowerCase().includes('polere flikk'));
   s+=`  Polere flikk ført: ${harPolereFlikk?'JA':'NEI'}\n`;
   const harGrunningTopplakk=t.lakkmateriell_annet.some(d=>{
@@ -1290,6 +1310,29 @@ function takstSammendrag(t){
     s+=`     → IKKE foreslå kalibrering for disse systemene eller relaterte sensorer\n`;
   }else{
     s+=`  Kalibreringer ført i arbeidsspes: INGEN\n`;
+  }
+  // v2.6: D/M-haker (deler som demonteres fra bilen i De/Mo-fanen)
+  if(t.dm_av&&t.dm_av.length){
+    s+=`  D/M-haker (deler demonteres fra bil): ${t.dm_av.map(d=>d.navn).join(', ')}\n`;
+  }else{
+    s+=`  D/M-haker (deler demonteres fra bil): INGEN\n`;
+  }
+  // v2.6: 50% lakk-deler – krever alltid polere flikk-tillegg (20p)
+  const halvLakkDeler=t.lakkspes.filter(d=>!d.tillegg&&d.navn&&/\(50\s*%?\s*\)/i.test(d.navn));
+  if(halvLakkDeler.length){
+    const harPolereFlikk=t.lakkspes.some(d=>d.navn&&d.navn.toLowerCase().includes('polere flikk'))||t.lakkmateriell_annet.some(d=>d.navn.toLowerCase().includes('polere flikk'));
+    s+=`  50% lakk-deler: ${halvLakkDeler.map(d=>d.navn).join(', ')}\n`;
+    s+=`     → Polere flikk (20p i annetbildet) skal alltid med ved 50% lakk. Status: ${harPolereFlikk?'JA – ført':'NEI – mangler, foreslå tillegg'}\n`;
+  }
+  // v2.6: Tesla-bakdør (N eller G) → folie/tape-montering 50p
+  const erTesla=t.bil&&t.bil.modell&&/tesla/i.test(t.bil.modell);
+  if(erTesla){
+    const harBakdørLakk=t.lakkspes.some(d=>!d.tillegg&&(d.optype==='N'||d.optype==='G')&&!d.tilstøtende&&d.navn&&/bakdør/i.test(d.navn));
+    const harBakdørSkift=t.karosseri_skift.some(d=>/bakdør/i.test(d.navn)&&d.tiltak==='Skift');
+    if(harBakdørLakk||harBakdørSkift){
+      s+=`  Tesla bakdør (N eller G): JA\n`;
+      s+=`     → Folie/tape-montering 50p arbeid i annetbildet skal foreslås (Tesla-regel)\n`;
+    }
   }
 
   return s;
@@ -1812,6 +1855,18 @@ Eksempel feil: "Legg til tilstøtende flate mot A-stolpe 18p i lakkspesifikasjon
       if(erKunTilstøtende('fordør')||erKunTilstøtende('dør fremre')){
         fjernForslag(/diagnose.*airbag|airbag.*feilkod/i,'fordør er kun tilstøtende, ikke D/M');
       }
+
+      // v2.6 NY: Stram airbag-regel – hvis ingen fordører har N eller D/M-hake, blokker airbag-forslag helt
+      const fordørN=parserData.lakkspes.filter(d=>!d.tillegg&&d.optype==='N'&&!d.tilstøtende&&d.navn&&/\bfordør\b/i.test(d.navn));
+      const fordørDM=(parserData.dm_av||[]).filter(d=>/dør fremre/i.test(d.navn));
+      if(!fordørN.length&&!fordørDM.length){
+        fjernForslag(/diagnose.*airbag|airbag.*feilkod|airbag.*diagnose/i,'ingen fordør skiftes (N) eller har D/M-hake');
+      }
+
+      // v2.6 NY: Filtrer "kontroller at X er riktig"-forslag. Disse ber takstmann verifisere
+      // noe som allerede er ført – støy uten verdi. Mønster: "Kontroller at...", "Sjekk at...",
+      // "Bekreft at...", "Verifiser at...".
+      fjernForslag(/^(.*\b)?(Kontroller|Sjekk|Bekreft|Verifiser)\s+at\b.*\b(er korrekt|er riktig|er korrekt valgt|stemmer)/i,'verifiserings-forslag uten reell mangel');
 
       // 2. UB – fjern for deler som er kun tilstøtende
       const ubMatch=parsed.sammendrag&&parsed.sammendrag.dbs_handlinger
