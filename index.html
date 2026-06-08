@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.6 – Smart kontroll av takster</title>
+<title>AutoPell v2.7 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.6</div>
+    <div class="version-badge">v2.7</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -1046,39 +1046,64 @@ function parseTakst(text){
       reparert_flate_cm2:null,
       grunning_topplakk_dm2:null,
       tid:null,
-      reservedelspris:null
+      reservedelspris:null,
+      deler:[]  // v2.7: Array av {del, skadetype, reparert_flate_cm2, tid} for flere deler
     };
-    // Gå gjennom resten av filen for å finne plastspes-data
-    // v2.2: Plukk også opp DELNAVN (var aldri parset i v2.1 → 🚨-regel var død kode)
-    let venterPaaDel=false; // settes når vi nettopp så "Gruppe X Tiltak Tid Beløp" eller "Gruppe X"
+    // v2.7: Parser flere plastspes-deler. En del avgrenses av delnavn-linje fulgt av
+    // skadetype-linje og evt reparert flate. Ny del starter ved neste "navn + tid"-linje
+    // eller når Sum Gruppe X kommer.
+    let aktivDel=null;
+    let gruppeAktiv=false;
     for(let i=plastspesIdx;i<lines.length;i++){
       const l=lines[i];
-      if(l.startsWith('Gruppe 1')){p.aktivert=true;p.gruppe=1;venterPaaDel=true;continue;}
-      if(l.startsWith('Gruppe 2')){p.aktivert=true;p.gruppe=2;venterPaaDel=true;continue;}
-      if(['Skrapeskade','Utvendig skade','Ut og innvendig skade'].includes(l)){p.skadetype=l;continue;}
-      // Første "innholdslinje" etter Gruppe-header er delnavnet
-      // Format: "Støtfangerdeksel bak øvre del p-radar (eks) 275 3 148,75" eller bare "Støtfangerdeksel ... 275"
-      if(venterPaaDel&&!p.del){
-        // Hopp over åpenbare meta-linjer (kostnadssammenligning-headere, "Tiltak Tid Beløp" etc.)
-        if(l.match(/^(Tiltak\s+Tid|Kode|Område|Kostnad|Reparasjon|Reservedelspris)/i))continue;
-        // Match: noe tekst, deretter ett tall (tid), eventuelt fulgt av beløp
-        const delMatch=l.match(/^(.+?)\s+\d+(\s+[\d\s,\.]+)?$/);
-        if(delMatch){
-          const kandidat=delMatch[1].trim();
-          // Sanity: må være minst 3 bokstaver og ikke en kjent meta-linje
-          if(kandidat.length>=3&&!/^Sum\s/i.test(kandidat)){
-            p.del=kandidat;
-            venterPaaDel=false;
-          }
+      if(l.startsWith('Gruppe 1')){p.aktivert=true;p.gruppe=1;gruppeAktiv=true;continue;}
+      if(l.startsWith('Gruppe 2')){p.aktivert=true;p.gruppe=2;gruppeAktiv=true;continue;}
+      if(!gruppeAktiv)continue;
+
+      // Sum Gruppe markerer slutt på gruppe-blokken
+      const sumMatch=l.match(/^Sum Gruppe \d\s+(\d+)\s+([\d\s,\.]+)$/);
+      if(sumMatch){
+        if(aktivDel)p.deler.push(aktivDel);
+        aktivDel=null;
+        gruppeAktiv=false;
+        p.tid=parseInt(sumMatch[1]);
+        p.beløp=parseFloat(sumMatch[2].replace(/\s/g,'').replace(',','.'));
+        continue;
+      }
+
+      // Skadetype-linje – tilhører aktiv del
+      if(['Skrapeskade','Utvendig skade','Ut og innvendig skade'].includes(l)){
+        if(aktivDel)aktivDel.skadetype=l;
+        if(!p.skadetype)p.skadetype=l; // legacy: behold første skadetype
+        continue;
+      }
+
+      // Reparert flate – tilhører aktiv del
+      const repMatch=l.match(/Reparert flate\s+(\d+)\s*cm/);
+      if(repMatch){
+        if(aktivDel)aktivDel.reparert_flate_cm2=parseInt(repMatch[1]);
+        if(!p.reparert_flate_cm2)p.reparert_flate_cm2=parseInt(repMatch[1]);
+        continue;
+      }
+
+      // Grunning for topplakk – tilhører hele gruppen
+      const grMatch=l.match(/Grunning for topplakk\s+([\d,]+)\s*dm/i);
+      if(grMatch){p.grunning_topplakk_dm2=parseFloat(grMatch[1].replace(',','.'));continue;}
+
+      // Delnavn-linje: "delnavn TID" eller "delnavn TID BELØP"
+      if(l.match(/^(Tiltak\s+Tid|Kode|Område|Kostnad|Reparasjon|Reservedelspris)/i))continue;
+      const delMatch=l.match(/^(.+?)\s+\d+(\s+[\d\s,\.]+)?$/);
+      if(delMatch){
+        const kandidat=delMatch[1].trim();
+        if(kandidat.length>=3&&!/^Sum\s/i.test(kandidat)){
+          // Ny del – push gammel hvis den finnes
+          if(aktivDel)p.deler.push(aktivDel);
+          aktivDel={del:kandidat,skadetype:null,reparert_flate_cm2:null,tid:parseInt(delMatch[0].match(/\s(\d+)/)[1])};
+          if(!p.del)p.del=kandidat; // legacy: behold første del
         }
       }
-      const repMatch=l.match(/Reparert flate\s+(\d+)\s*cm/);
-      if(repMatch)p.reparert_flate_cm2=parseInt(repMatch[1]);
-      const grMatch=l.match(/Grunning for topplakk\s+([\d,]+)\s*dm/i);
-      if(grMatch)p.grunning_topplakk_dm2=parseFloat(grMatch[1].replace(',','.'));
-      const tidMatch=l.match(/^Sum Gruppe \d\s+(\d+)\s+([\d\s,\.]+)$/);
-      if(tidMatch){p.tid=parseInt(tidMatch[1]);p.beløp=parseFloat(tidMatch[2].replace(/\s/g,'').replace(',','.'));}
     }
+    if(aktivDel)p.deler.push(aktivDel);
     if(p.aktivert)result.plastspes=p;
   }
 
@@ -1146,11 +1171,30 @@ function takstSammendrag(t){
   if(t.plastspes){
     s+=`PLASTSPESIFIKASJON:\n`;
     s+=`  Aktivert: JA, Gruppe ${t.plastspes.gruppe}\n`;
-    s+=`  Del: ${t.plastspes.del||'⚠️ IKKE IDENTIFISERT FRA PDF'}\n`;
-    s+=`  Skadetype: ${t.plastspes.skadetype||'⚠️ IKKE VALGT'}\n`;
-    s+=`  Reparert flate: ${t.plastspes.reparert_flate_cm2||'?'} cm²\n`;
+    // v2.7: Vis alle deler hvis flere
+    if(t.plastspes.deler&&t.plastspes.deler.length>1){
+      s+=`  Antall plastrep-deler: ${t.plastspes.deler.length}\n`;
+      t.plastspes.deler.forEach((d,i)=>{
+        s+=`    ${i+1}. ${d.del} – Skadetype: ${d.skadetype||'⚠️ IKKE VALGT'}, ${d.reparert_flate_cm2||'?'} cm², ${d.tid||'?'}p\n`;
+      });
+    }else{
+      s+=`  Del: ${t.plastspes.del||'⚠️ IKKE IDENTIFISERT FRA PDF'}\n`;
+      s+=`  Skadetype: ${t.plastspes.skadetype||'⚠️ IKKE VALGT'}\n`;
+      s+=`  Reparert flate: ${t.plastspes.reparert_flate_cm2||'?'} cm²\n`;
+    }
     s+=`  Grunning for topplakk: ${t.plastspes.grunning_topplakk_dm2!==null?t.plastspes.grunning_topplakk_dm2+' dm²':'⚠️ IKKE UTFYLT'}\n`;
     s+=`  Tid: ${t.plastspes.tid||'?'}p\n`;
+    // v2.7: Konsistens-sjekk – grunning topplakk (dm²) skal ≈ reparert flate (cm²) / 100
+    if(t.plastspes.grunning_topplakk_dm2!==null&&t.plastspes.reparert_flate_cm2){
+      const forventet=t.plastspes.reparert_flate_cm2/100;
+      const faktisk=t.plastspes.grunning_topplakk_dm2;
+      const avvik=Math.abs(forventet-faktisk);
+      // Toleranse: 50% i hver retning, eller minst 0,5 dm² absolutt avvik
+      const tolerert=Math.max(forventet*0.5,0.5);
+      if(avvik>tolerert){
+        s+=`  ⚠️ KONSISTENS-FEIL: Grunning topplakk er ${faktisk} dm², men reparert flate er ${t.plastspes.reparert_flate_cm2} cm² (= ${forventet.toFixed(1)} dm²). Verdiene stemmer ikke overens – sannsynlig enhetsfeil (cm² vs dm²). Foreslå korrigering som rød mangel.\n`;
+      }
+    }
     s+=`\n`;
   }else{
     s+=`PLASTSPESIFIKASJON: Ikke aktivert i denne taksten.\n\n`;
@@ -1206,12 +1250,23 @@ function takstSammendrag(t){
       // NB: "deksel" og "p-list" er fjernet fra eksklusjonslisten i v2.4 fordi synonymordboken
       // gjør at "støtfangerdeksel"/"p-list" normaliseres til "støtfanger"/"list" før denne sjekken.
       if(/^(lokk|sensor|bjelke|hengsel|håndtak|spoiler|spyledyse|fotgjenger|gitter|kabel|innstegslist|skiltbelysning|emblem|refleks)\b/.test(lStripped))return false;
-      // Ord-grense-match
+      // Ord-grense-match (eksakt eller substring med ord-grense)
       const dnEscaped=dn.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
       const lEscaped=lStripped.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
       const dnInL=new RegExp('\\b'+dnEscaped+'\\b').test(lStripped);
       const lInDn=new RegExp('\\b'+lEscaped+'\\b').test(dn);
-      return dnInL||lInDn;
+      if(dnInL||lInDn)return true;
+      // v2.7: Kjerne-ord-match. Hvis begge strenger har minst 2 felles starter-ord
+      // (etter normalisering), regn som samme del. Eksempel:
+      //   "støtfanger bak øvre" og "støtfanger bak parkassist parking" → begge starter med "støtfanger bak" → match
+      // Dette håndterer at plastspes og lakkspes kan ha ulike suffiks/utvidelser for samme hoveddel.
+      const dnOrd=dn.split(/\s+/).filter(o=>o.length>=3);
+      const lOrd=lStripped.split(/\s+/).filter(o=>o.length>=3);
+      if(dnOrd.length>=2&&lOrd.length>=2){
+        const felles=dnOrd[0]===lOrd[0]&&dnOrd[1]===lOrd[1];
+        if(felles)return true;
+      }
+      return false;
     });
   }
   const reparasjonerUtenLakk=[];
@@ -1512,6 +1567,10 @@ Du SKAL følge disse reglene UTEN UNNTAK:
 • Hvis HURTIGFAKTA lister en del under "Tilstøtende-poster" → IKKE foreslå tilstøtende, HTT, eller UB for den delen. Tilstøtende lakkering = kun overgangsflate, ikke faktisk skift/retting.
 • Hvis HURTIGFAKTA sier "UB-relevante deler: INGEN" → IKKE foreslå UB i det hele tatt.
 • Hvis HURTIGFAKTA sier "UB-relevante deler: [liste]" → UB kan foreslås kun for delene i den listen, ALDRI for deler utenfor listen.
+• Hvis HURTIGFAKTA sier "Airbag-diagnose relevant: NEI" → IKKE foreslå airbag-diagnose i det hele tatt.
+• Hvis HURTIGFAKTA viser PLASTSPESIFIKASJON med en gitt Skadetype → Det er den eneste skadetypen som er valgt. IKKE påstå at det er konflikt eller andre skadetyper. IKKE foreslå "kontroller skadetype". Hvis du tror du ser noe i bildet eller PDF-en som motsier dette, stol på HURTIGFAKTA – den er strukturert og parset, bildene kan vise mer enn det som er valgt.
+• Hvis HURTIGFAKTA viser "50% lakk-deler: ..." og "polere flikk skal med, Status: NEI" → DETTE er en mangel (foreslå 20p polere flikk i annetbildet). Ikke ignorer denne instruksjonen.
+• Hvis HURTIGFAKTA viser "Tesla bakdør: JA → folie/tape-montering 50p" → Foreslå 50p folie/tape-montering i annetbildet. Ikke ignorer denne instruksjonen.
 
 Disse er ikke forslag eller hint. Disse er HARDE LÅSER.
 Hvis du føler trang til å foreslå noe HURTIGFAKTA sier er ført – stopp. Ikke foreslå det. Posten er der allerede.
@@ -1779,7 +1838,8 @@ SVAR KUN MED GYLDIG JSON. INGEN ANNEN TEKST. IKKE SKRIV NOE FØR ELLER ETTER JSO
   "sammendrag": {
     "perioder_funnet": 0,
     "kroner_funnet": 0,
-    "dbs_handlinger": ["hva som skal gjøres i DBS uten perioder eller kroner"]
+    "dbs_handlinger": ["hva som skal gjøres i DBS uten perioder eller kroner"],
+    "bilde_observasjoner": ["konkrete observasjoner fra bildene"]
   },
   "resultater": [{"tittel":"...","melding":"[Taksten sier]: ... [Regel]: ...","farge":"rød|gul|lilla","plassering":"..."}]
 }
@@ -1787,7 +1847,16 @@ rød=mangler påkrevd tillegg/feil, gul=anbefalt/sjekk, lilla=kalibrering/koding
 Plassering=nøyaktig hvor i DBS dette legges inn.
 DBS-handlinger: KUN hva som skal gjøres, ingen perioder eller kroner.
 Eksempel riktig: "Legg til tilstøtende flate mot A-stolpe i lakkspesifikasjonen"
-Eksempel feil: "Legg til tilstøtende flate mot A-stolpe 18p i lakkspesifikasjonen"`;
+Eksempel feil: "Legg til tilstøtende flate mot A-stolpe 18p i lakkspesifikasjonen"
+
+BILDE_OBSERVASJONER – regler:
+• Skriv KUN konkrete, nøkterne observasjoner direkte fra bildene
+• Ikke spekuler om årsak, eierens holdning, eller hva som "burde" vært gjort
+• Hvis takstmann har tegnet piler eller markeringer på bildet, tolk dem: piler peker som regel på skadeomfang eller måler bulker
+• Eksempler på OK: "Pilen viser bulk øverst på V Fordør, ca 15 cm bred", "Bildet viser også skade på baklykt – sjekk om dette er ført", "Synlig rust i fals i bakdør V"
+• Eksempler på IKKE OK: "Bilen ser velholdt ut", "Skaden kunne vært unngått", "Eieren har sannsynligvis kollidert med..."
+• Hvis ingen bilder gir verdifull info: returner tom liste []
+• Maks 5 punkter`;
 
     const data=await callClaude([{role:'user',content:[...takstContent,...carImgContent,{type:'text',text:prompt}]}]);
     const txt=data.content.map(c=>c.text||'').join('').trim().replace(/```json|```/g,'');
@@ -1863,10 +1932,12 @@ Eksempel feil: "Legg til tilstøtende flate mot A-stolpe 18p i lakkspesifikasjon
         fjernForslag(/diagnose.*airbag|airbag.*feilkod|airbag.*diagnose/i,'ingen fordør skiftes (N) eller har D/M-hake');
       }
 
-      // v2.6 NY: Filtrer "kontroller at X er riktig"-forslag. Disse ber takstmann verifisere
-      // noe som allerede er ført – støy uten verdi. Mønster: "Kontroller at...", "Sjekk at...",
-      // "Bekreft at...", "Verifiser at...".
+      // v2.6/2.7: Filtrer "kontroller/sjekk/avklar/korriger"-forslag uten reell mangel
+      // Disse ber takstmann verifisere noe som allerede er ført – støy uten verdi.
       fjernForslag(/^(.*\b)?(Kontroller|Sjekk|Bekreft|Verifiser)\s+at\b.*\b(er korrekt|er riktig|er korrekt valgt|stemmer)/i,'verifiserings-forslag uten reell mangel');
+      // v2.7: Utvidet – fanger også "Kontroller plastspesifikasjonen for X: ... avklar og korriger"
+      // og "Sjekk skadetype for X: ... avklar/bekreft"
+      fjernForslag(/^(Kontroller|Sjekk|Avklar|Verifiser)\s+(plastspesifikasjon|skadetype|valg).*\b(avklar|korriger|bekreft|stemmer)/i,'verifiserings-forslag om plastspes/skadetype uten reell mangel');
 
       // 2. UB – fjern for deler som er kun tilstøtende
       const ubMatch=parsed.sammendrag&&parsed.sammendrag.dbs_handlinger
@@ -1998,7 +2069,12 @@ Eksempel feil: "Legg til tilstøtende flate mot A-stolpe 18p i lakkspesifikasjon
           const lEscaped=lStripped.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
           const dnInL=new RegExp('\\b'+dnEscaped+'\\b').test(lStripped);
           const lInDn=new RegExp('\\b'+lEscaped+'\\b').test(dn);
-          return dnInL||lInDn;
+          if(dnInL||lInDn)return true;
+          // v2.7: Kjerne-ord-match (samme logikk som i takstSammendrag)
+          const dnOrd=dn.split(/\s+/).filter(o=>o.length>=3);
+          const lOrd=lStripped.split(/\s+/).filter(o=>o.length>=3);
+          if(dnOrd.length>=2&&lOrd.length>=2&&dnOrd[0]===lOrd[0]&&dnOrd[1]===lOrd[1])return true;
+          return false;
         });
       }
       const manglendeLakk=[];
@@ -2077,6 +2153,12 @@ Eksempel feil: "Legg til tilstøtende flate mot A-stolpe 18p i lakkspesifikasjon
       if(s.dbs_handlinger&&s.dbs_handlinger.length>0){
         html+=`<div class="dbs-list"><div class="dbs-list-title">🔧 Dette må gjøres i DBS</div>`;
         s.dbs_handlinger.forEach(d=>{html+=`<div class="dbs-item">• ${d}</div>`;});
+        html+=`</div>`;
+      }
+      // v2.7: Vis bilde-observasjoner hvis det finnes
+      if(s.bilde_observasjoner&&s.bilde_observasjoner.length>0){
+        html+=`<div class="dbs-list" style="background:#f0f4f8;border-color:#b6c8d8;margin-top:10px"><div class="dbs-list-title">📷 Observasjoner fra bilder</div>`;
+        s.bilde_observasjoner.forEach(d=>{html+=`<div class="dbs-item">• ${d}</div>`;});
         html+=`</div>`;
       }
       html+=`</div>`;
