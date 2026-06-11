@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.7 – Smart kontroll av takster</title>
+<title>AutoPell v2.8 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.7</div>
+    <div class="version-badge">v2.8</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -1378,6 +1378,46 @@ function takstSammendrag(t){
     const harPolereFlikk=t.lakkspes.some(d=>d.navn&&d.navn.toLowerCase().includes('polere flikk'))||t.lakkmateriell_annet.some(d=>d.navn.toLowerCase().includes('polere flikk'));
     s+=`  50% lakk-deler: ${halvLakkDeler.map(d=>d.navn).join(', ')}\n`;
     s+=`     → Polere flikk (20p i annetbildet) skal alltid med ved 50% lakk. Status: ${harPolereFlikk?'JA – ført':'NEI – mangler, foreslå tillegg'}\n`;
+    // v2.8: 50%-smådeler (<3 dm²) skal lakkes 100%, ikke arve 50% fra hoveddelen.
+    // Hoveddel (≥3 dm², typisk støtfangeren) skal være 50%. Kun de minste rykker til 100%.
+    const halvSmaadeler=halvLakkDeler.filter(d=>typeof d.dm2==='number'&&d.dm2<3);
+    if(halvSmaadeler.length){
+      halvSmaadeler.forEach(d=>{
+        const fullTid=d.tid?d.tid*2:null; // 50%-tid → 100%-tid (differanse = samme som halv tid)
+        s+=`     ⚠️ SMÅDEL PÅ 50%: ${d.navn} (${d.dm2}dm², ${d.tid}p) er en liten del som arver 50% fra hoveddelen – skal lakkes 100%. ${fullTid?'Full tid ≈ '+fullTid+'p, manglende ≈ '+d.tid+'p.':''} Flagg som mangel.\n`;
+      });
+    }
+  }
+  // v2.8: Brukt reservedel skal lakkes som gammel flate (G), aldri ny (N).
+  // Markør: "Brukt reservedel" i karosseri_skift (navn/tiltak/kommentar).
+  const bruktDeler=t.karosseri_skift.filter(d=>/brukt reservedel/i.test(((d.tiltak||'')+' '+(d.kommentar||'')+' '+(d.navn||''))));
+  if(bruktDeler.length){
+    s+=`  BRUKTE DELER (skal lakkes som gammel flate G): ${bruktDeler.map(d=>d.navn).join(', ')}\n`;
+    bruktDeler.forEach(bd=>{
+      // Kjerne-ord-match mot lakkspes: del navnene i ord, ignorer side-bokstav V/H alene
+      const norm=s2=>s2.toLowerCase().replace(/[^a-zæøå0-9\s]/g,' ').split(/\s+/).filter(w=>w&&w.length>1&&!/^(v|h)$/.test(w));
+      const bdOrd=norm(bd.navn);
+      const treff=t.lakkspes.find(d=>{
+        if(d.tillegg||!d.navn)return false;
+        const lOrd=norm(d.navn);
+        // minst 2 felles kjerneord
+        const felles=bdOrd.filter(w=>lOrd.includes(w));
+        return felles.length>=2;
+      });
+      if(treff){
+        if(treff.optype==='N'){
+          s+=`     ⚠️ BRUKT DEL SOM N: "${bd.navn}" er brukt reservedel, men lakk-linja "${treff.navn}" står som NY flate (N). Skal hukes av som GAMMEL flate (G). Flagg som mangel.\n`;
+        }else{
+          s+=`     OK: "${bd.navn}" → lakk-linje "${treff.navn}" er ${treff.optype} (ikke N).\n`;
+        }
+        // v2.8: Brukt bakskjerm som lakkeres → gul påminnelse om løfteteip
+        if(/bakskjerm/i.test(bd.navn)){
+          s+=`     💡 PÅMINNELSE (huskeliste, ikke mangel): Brukt bakskjerm lakkeres – vurder om denne lakkeringen trenger løfteteip (spesialtape for maskering av rute, 20p pr. maskert del).\n`;
+        }
+      }else{
+        s+=`     (Fant ingen matchende lakk-linje for brukt del "${bd.navn}".)\n`;
+      }
+    });
   }
   // v2.6: Tesla-bakdør (N eller G) → folie/tape-montering 50p
   const erTesla=t.bil&&t.bil.modell&&/tesla/i.test(t.bil.modell);
@@ -1570,6 +1610,9 @@ Du SKAL følge disse reglene UTEN UNNTAK:
 • Hvis HURTIGFAKTA sier "Airbag-diagnose relevant: NEI" → IKKE foreslå airbag-diagnose i det hele tatt.
 • Hvis HURTIGFAKTA viser PLASTSPESIFIKASJON med en gitt Skadetype → Det er den eneste skadetypen som er valgt. IKKE påstå at det er konflikt eller andre skadetyper. IKKE foreslå "kontroller skadetype". Hvis du tror du ser noe i bildet eller PDF-en som motsier dette, stol på HURTIGFAKTA – den er strukturert og parset, bildene kan vise mer enn det som er valgt.
 • Hvis HURTIGFAKTA viser "50% lakk-deler: ..." og "polere flikk skal med, Status: NEI" → DETTE er en mangel (foreslå 20p polere flikk i annetbildet). Ikke ignorer denne instruksjonen.
+• Hvis HURTIGFAKTA viser "⚠️ SMÅDEL PÅ 50%" → DETTE er en mangel. Smådelen (<3 dm²) skal lakkes 100%, ikke 50%. Foreslå at den hukes av 100% og at differansen legges til.
+• Hvis HURTIGFAKTA viser "⚠️ BRUKT DEL SOM N" → DETTE er en mangel. Brukt reservedel skal lakkes som gammel flate (G), ikke ny (N). Foreslå at lakk-linja endres fra N til G.
+• Hvis HURTIGFAKTA viser "💡 PÅMINNELSE ... løfteteip" → legg dette som en GUL påminnelse/huskeliste (IKKE rød mangel). Det er en vurdering, ikke et hardt krav.
 • Hvis HURTIGFAKTA viser "Tesla bakdør: JA → folie/tape-montering 50p" → Foreslå 50p folie/tape-montering i annetbildet. Ikke ignorer denne instruksjonen.
 
 Disse er ikke forslag eller hint. Disse er HARDE LÅSER.
@@ -1838,8 +1881,7 @@ SVAR KUN MED GYLDIG JSON. INGEN ANNEN TEKST. IKKE SKRIV NOE FØR ELLER ETTER JSO
   "sammendrag": {
     "perioder_funnet": 0,
     "kroner_funnet": 0,
-    "dbs_handlinger": ["hva som skal gjøres i DBS uten perioder eller kroner"],
-    "bilde_observasjoner": ["konkrete observasjoner fra bildene"]
+    "dbs_handlinger": ["hva som skal gjøres i DBS uten perioder eller kroner"]
   },
   "resultater": [{"tittel":"...","melding":"[Taksten sier]: ... [Regel]: ...","farge":"rød|gul|lilla","plassering":"..."}]
 }
@@ -1849,14 +1891,11 @@ DBS-handlinger: KUN hva som skal gjøres, ingen perioder eller kroner.
 Eksempel riktig: "Legg til tilstøtende flate mot A-stolpe i lakkspesifikasjonen"
 Eksempel feil: "Legg til tilstøtende flate mot A-stolpe 18p i lakkspesifikasjonen"
 
-BILDE_OBSERVASJONER – regler:
-• Skriv KUN konkrete, nøkterne observasjoner direkte fra bildene
-• Ikke spekuler om årsak, eierens holdning, eller hva som "burde" vært gjort
-• Hvis takstmann har tegnet piler eller markeringer på bildet, tolk dem: piler peker som regel på skadeomfang eller måler bulker
-• Eksempler på OK: "Pilen viser bulk øverst på V Fordør, ca 15 cm bred", "Bildet viser også skade på baklykt – sjekk om dette er ført", "Synlig rust i fals i bakdør V"
-• Eksempler på IKKE OK: "Bilen ser velholdt ut", "Skaden kunne vært unngått", "Eieren har sannsynligvis kollidert med..."
-• Hvis ingen bilder gir verdifull info: returner tom liste []
-• Maks 5 punkter`;
+BILDER – bruk i bakgrunnen:
+• Bildene er BAKGRUNNSKUNNSKAP. Bruk dem til å vurdere skadeomfang, deltype og om noe mangler i taksten.
+• IKKE lag en egen liste med bilde-observasjoner. IKKE skriv "Bilde 1 viser...", "Bilde 2 viser..." e.l.
+• Hvis et bilde avdekker noe takst-relevant (f.eks. at skaden strekker seg til en nabodel som ikke er ført), legg det inn som et VANLIG forslag/mangel i "resultater" – uten å referere til bildenummer.
+• Bruk bildene stille: la dem skjerpe og begrunne forslagene, ikke produsere eget referat.`;
 
     const data=await callClaude([{role:'user',content:[...takstContent,...carImgContent,{type:'text',text:prompt}]}]);
     const txt=data.content.map(c=>c.text||'').join('').trim().replace(/```json|```/g,'');
@@ -2153,12 +2192,6 @@ BILDE_OBSERVASJONER – regler:
       if(s.dbs_handlinger&&s.dbs_handlinger.length>0){
         html+=`<div class="dbs-list"><div class="dbs-list-title">🔧 Dette må gjøres i DBS</div>`;
         s.dbs_handlinger.forEach(d=>{html+=`<div class="dbs-item">• ${d}</div>`;});
-        html+=`</div>`;
-      }
-      // v2.7: Vis bilde-observasjoner hvis det finnes
-      if(s.bilde_observasjoner&&s.bilde_observasjoner.length>0){
-        html+=`<div class="dbs-list" style="background:#f0f4f8;border-color:#b6c8d8;margin-top:10px"><div class="dbs-list-title">📷 Observasjoner fra bilder</div>`;
-        s.bilde_observasjoner.forEach(d=>{html+=`<div class="dbs-item">• ${d}</div>`;});
         html+=`</div>`;
       }
       html+=`</div>`;
