@@ -260,6 +260,16 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+/* AutoPell v2.8 – endringer fra v2.7:
+   1. 50%-smådel (<3 dm²) skal lakkes 100% – flagg differanse
+   2. Bilder kun i bakgrunnen (fjernet "Observasjoner fra bilder"-seksjon)
+   3. Brukt reservedel (tekst) som står N → flagg skal være gammel flate (G)
+   4. Brukt bakskjerm som lakkeres → gul løfteteip-påminnelse
+   5. Parser-fiks: tilleggsrader uten komma/store bokstaver fanges nå ("polere flikk", "ht")
+   6. P-radar/parkeringssensor flagges ALDRI for kalibrering (skilt fra filskiftesensor)
+   7. Spylervæske-vakt: ikke foreslå hvis allerede ført i taksten
+   8. Grønn "alt sjekket"-liste når 0 mangler
+*/
 const KALIB_PARTS=['Frontkamera','Adaptiv cruise control','Filskiftesensor','Blindsonevarsler','Nattsynkamera','HUD','Regnensor','Lyktesensor','Parkeringssensor bak (radar)','Surroundkamera','Trafikkskiltgjenkjenning'];
 
 const RULES_BUILTIN = `=== VIKTIGE REGNEREGLER ===
@@ -979,6 +989,21 @@ function parseTakst(text){
             tid:parseInt(m2[2]),
             tillegg:true
           });
+        }else{
+          // v2.8: Tillegg uten komma/store bokstaver, f.eks. "polere flikk 15",
+          // "Støtfanger foran ht 15". Krever kjent tillegg-nøkkelord + tid på slutten,
+          // for ikke å sluke tilfeldige tekstlinjer.
+          const m3=line.match(/^(.*?\b(?:polere\s*flikk|h?tt|ht|maskering|grunning|struktur|folie|tape|løftetape|loftetape)\b.*?)\s+(\d+)$/i);
+          if(m3){
+            result.lakkspes.push({
+              kode:'',
+              optype:'',
+              navn:m3[1].trim(),
+              dm2:null,
+              tid:parseInt(m3[2]),
+              tillegg:true
+            });
+          }
         }
       }
     }
@@ -1366,6 +1391,29 @@ function takstSammendrag(t){
   }else{
     s+=`  Kalibreringer ført i arbeidsspes: INGEN\n`;
   }
+  // v2.8: P-radar/parkeringssensor skal ALDRI kalibreres (i motsetning til filskiftesensor).
+  // Skill på delnavn. Samler fra karosseri_skift og lakkspes.
+  const alleNavn=[].concat(
+    (t.karosseri_skift||[]).map(d=>d.navn||''),
+    (t.lakkspes||[]).map(d=>d.navn||'')
+  );
+  const pRadarDeler=[...new Set(alleNavn.filter(n=>/p-?radar|p-?sensor|parkeringssensor|parkerings-?radar/i.test(n)))];
+  const filskifteDeler=[...new Set(alleNavn.filter(n=>/filskifte|blindsone|lane.?change/i.test(n)))];
+  if(pRadarDeler.length){
+    s+=`  P-radar/parkeringssensor i taksten: ${pRadarDeler.join(', ')}\n`;
+    s+=`     ⛔ Dette er PARKERINGSSENSOR (piper ved rygging/nærhet) – skal ALDRI kalibreres. IKKE foreslå filskiftesensor-kalibrering for disse. Ikke forveksle med filskiftesensor.\n`;
+  }
+  if(filskifteDeler.length){
+    s+=`  Filskiftesensor/blindsone i taksten: ${filskifteDeler.join(', ')}\n`;
+    s+=`     → Filskiftesensor skal kalibreres (300p) ved skift. Sjekk om kalibrering er ført.\n`;
+  }
+  // v2.8: Spylervæske allerede ført? Hvis ordet finnes i takst-teksten, er den med.
+  // Da skal Claude IKKE foreslå spylervæske ved demontering av støtfanger m/lyktespylere.
+  const harSpylervaeske=/spyler?væske|spyler?veske/i.test(t.raw||'');
+  if(harSpylervaeske){
+    s+=`  Spylervæske ført i taksten: JA\n`;
+    s+=`     → IKKE foreslå spylervæske (100kr) – den er allerede med i taksten.\n`;
+  }
   // v2.6: D/M-haker (deler som demonteres fra bilen i De/Mo-fanen)
   if(t.dm_av&&t.dm_av.length){
     s+=`  D/M-haker (deler demonteres fra bil): ${t.dm_av.map(d=>d.navn).join(', ')}\n`;
@@ -1613,6 +1661,8 @@ Du SKAL følge disse reglene UTEN UNNTAK:
 • Hvis HURTIGFAKTA viser "⚠️ SMÅDEL PÅ 50%" → DETTE er en mangel. Smådelen (<3 dm²) skal lakkes 100%, ikke 50%. Foreslå at den hukes av 100% og at differansen legges til.
 • Hvis HURTIGFAKTA viser "⚠️ BRUKT DEL SOM N" → DETTE er en mangel. Brukt reservedel skal lakkes som gammel flate (G), ikke ny (N). Foreslå at lakk-linja endres fra N til G.
 • Hvis HURTIGFAKTA viser "💡 PÅMINNELSE ... løfteteip" → legg dette som en GUL påminnelse/huskeliste (IKKE rød mangel). Det er en vurdering, ikke et hardt krav.
+• Hvis HURTIGFAKTA viser "⛔ Dette er PARKERINGSSENSOR" → IKKE foreslå kalibrering for den sensoren. P-radar/parkeringssensor kalibreres aldri. Kun filskiftesensor/blindsone kalibreres.
+• Hvis HURTIGFAKTA viser "Spylervæske ført i taksten: JA" → IKKE foreslå spylervæske. Den er allerede med.
 • Hvis HURTIGFAKTA viser "Tesla bakdør: JA → folie/tape-montering 50p" → Foreslå 50p folie/tape-montering i annetbildet. Ikke ignorer denne instruksjonen.
 
 Disse er ikke forslag eller hint. Disse er HARDE LÅSER.
@@ -2198,7 +2248,16 @@ BILDER – bruk i bakgrunnen:
     }
 
     if(!r.length){
-      el.innerHTML='<div class="result-item result-green"><div class="result-title">Ingenting å bemerke!</div><div class="result-sub">Taksten ser fullstendig ut mot veiledningene.</div></div>';
+      el.innerHTML='<div class="result-item result-green"><div class="result-title">✓ Ingenting å bemerke</div>'
+        +'<div class="result-sub">Taksten ser fullstendig ut mot veiledningene. AutoPell har kontrollert:</div>'
+        +'<div class="dbs-list" style="background:#eef7ee;border-color:#bcd8bc;margin-top:8px">'
+        +'<div class="dbs-item">• Lakk-konsistens – alle reparerte/skiftede deler har lakk-post</div>'
+        +'<div class="dbs-item">• Håndteringstillegg (HTT) og polere flikk ved 50%-lakk</div>'
+        +'<div class="dbs-item">• 50%-smådeler som skal til 100%, og brukte deler som skal være gammel flate (G)</div>'
+        +'<div class="dbs-item">• Underbygg (UB), grunning topplakk og maskering</div>'
+        +'<div class="dbs-item">• Kalibrering – filskiftesensor vs. parkeringssensor (p-radar)</div>'
+        +'<div class="dbs-item">• Airbag-diagnose og diagnose/feilkoder ved demontering</div>'
+        +'</div></div>';
     }else{
       el.innerHTML=html;
     }
