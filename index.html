@@ -269,6 +269,11 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    6. P-radar/parkeringssensor flagges ALDRI for kalibrering (skilt fra filskiftesensor)
    7. Spylervæske-vakt: ikke foreslå hvis allerede ført i taksten
    8. Grønn "alt sjekket"-liste når 0 mangler
+   9. Konsistens-sjekk: rekkefølge-uavhengig navnematch ("List midtre støtfanger bak"
+      matcher nå "P-list støtfanger bak") – fanger ikke lenger falsk "reparasjon uten lakk"
+      når posisjonsord (midtre/øvre osv.) står midt i ett av navnene
+  10. Saksbehandler-animasjon (AutoPell-figur som sjekker takst med lupe) vises mens
+      takstkontrollen kjører, i stedet for enkel spinner
 */
 const KALIB_PARTS=['Frontkamera','Adaptiv cruise control','Filskiftesensor','Blindsonevarsler','Nattsynkamera','HUD','Regnensor','Lyktesensor','Parkeringssensor bak (radar)','Surroundkamera','Trafikkskiltgjenkjenning'];
 
@@ -1291,6 +1296,16 @@ function takstSammendrag(t){
         const felles=dnOrd[0]===lOrd[0]&&dnOrd[1]===lOrd[1];
         if(felles)return true;
       }
+      // v2.8: Rekkefølge-uavhengig kjerne-ord-match. Ord som "midtre"/"øvre"/"nedre"
+      // kan stå MIDT i ett navn men ikke det andre ("List midtre støtfanger bak"
+      // vs "P-list støtfanger bak" → "list støtfanger bak"). Da feiler både substring
+      // og første-to-ord. Match hvis de deler minst 2 meningsbærende ord uansett posisjon,
+      // OG minst ett av dem er et "hoveddel"-ord (ikke bare posisjonsord som bak/øvre).
+      const posOrd=new Set(['bak','foran','øvre','nedre','midtre','venstre','høyre','indre','ytre','fremre','bakre','del']);
+      const dnSet=new Set(dnOrd), lSet=new Set(lOrd);
+      const fellesOrd=[...dnSet].filter(o=>lSet.has(o));
+      const fellesHoveddel=fellesOrd.filter(o=>!posOrd.has(o));
+      if(fellesOrd.length>=2&&fellesHoveddel.length>=1)return true;
       return false;
     });
   }
@@ -1499,6 +1514,45 @@ async function fileToContent(file){
 }
 
 function showLoading(id,msg){const el=document.getElementById(id);if(el)el.innerHTML=`<div class="loading-box"><span class="spinner"></span>${msg}</div>`;}
+// v2.8: Saksbehandler-animasjon vist mens takstkontrollen kjører
+function showInspectorLoading(id,msg){
+  const el=document.getElementById(id);if(!el)return;
+  el.innerHTML=`<div style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:18px 12px;background:#faf8f6;border-radius:10px">
+<svg width="300" viewBox="0 0 680 400" xmlns="http://www.w3.org/2000/svg" style="max-width:300px;height:auto" aria-label="AutoPell sjekker taksten">
+<style>
+@keyframes ap_blink{0%,44%,50%,100%{opacity:1}46%,48%{opacity:0}}
+@keyframes ap_paper{0%{transform:translateY(24px) rotate(-5deg);opacity:0}7%{transform:translateY(0) rotate(0);opacity:1}12%,88%{transform:translateY(0) rotate(0);opacity:1}94%{transform:translateY(16px) rotate(6deg);opacity:0}100%{transform:translateY(24px) rotate(-5deg);opacity:0}}
+@keyframes ap_scan{0%{transform:rotate(-12deg)}50%{transform:rotate(7deg)}100%{transform:rotate(-12deg)}}
+@keyframes ap_glint{0%,100%{opacity:.18}50%{opacity:.55}}
+@keyframes ap_pop{0%{opacity:0;transform:scale(.3)}4%,86%{opacity:1;transform:scale(1)}92%{opacity:0}100%{opacity:0}}
+@keyframes ap_grow{0%,92%{opacity:0}95%,100%{opacity:1}}
+.ap_blink{animation:ap_blink 5s steps(1) infinite}
+.ap_paper{animation:ap_paper 6.6s ease-in-out infinite;transform-origin:330px 300px}
+.ap_arm{animation:ap_scan 2.4s ease-in-out infinite;transform-origin:300px 300px}
+.ap_glint{animation:ap_glint 2.4s ease-in-out infinite}
+.ap_c1{opacity:0;transform-origin:center;animation:ap_pop 6.6s ease-in-out infinite;animation-delay:1s}
+.ap_c2{opacity:0;transform-origin:center;animation:ap_pop 6.6s ease-in-out infinite;animation-delay:2.4s}
+.ap_c3{opacity:0;transform-origin:center;animation:ap_pop 6.6s ease-in-out infinite;animation-delay:3.8s}
+.ap_grow{animation:ap_grow 6.6s steps(1) infinite}
+</style>
+<defs><linearGradient id="ap_car" x1="0" y1="0" x2="1" y2="0.6"><stop offset="0%" stop-color="#7a1722"/><stop offset="100%" stop-color="#c0303f"/></linearGradient></defs>
+<rect x="40" y="320" width="600" height="60" rx="6" fill="#999" opacity="0.18"/>
+<rect x="40" y="320" width="600" height="11" rx="4" fill="#999" opacity="0.3"/>
+<g transform="translate(56,320)"><rect x="0" y="-12" width="68" height="12" rx="2" fill="#fff" stroke="#ccc"/><rect x="2" y="-22" width="68" height="12" rx="2" fill="#fff" stroke="#ccc"/><rect x="0" y="-32" width="68" height="12" rx="2" fill="#fff" stroke="#ccc"/><text x="34" y="-44" text-anchor="middle" font-size="13" fill="#888" font-family="sans-serif">Skal sjekkes</text></g>
+<g class="ap_grow" transform="translate(564,320)"><rect x="0" y="-12" width="68" height="12" rx="2" fill="#3a9d5d"/><rect x="2" y="-22" width="68" height="12" rx="2" fill="#3a9d5d"/><text x="34" y="-32" text-anchor="middle" font-size="13" fill="#888" font-family="sans-serif">Godkjent</text></g>
+<ellipse cx="226" cy="376" rx="100" ry="12" fill="#999" opacity="0.16"/>
+<path d="M192 268 Q180 290 300 300" fill="none" stroke="#f2f2f3" stroke-width="17" stroke-linecap="round"/>
+<path d="M176 320 Q172 270 190 258 L262 258 Q280 270 276 320 Z" fill="#f2f2f3" stroke="#ccc"/>
+<path d="M190 264 Q226 256 262 264" fill="none" stroke="#f2f2f3" stroke-width="10" stroke-linecap="round"/>
+<g transform="translate(226,292)"><path d="M-36 5 Q-33 4 -29 5 Q-26 -3 -19 -6 Q-6 -11 9 -9 Q20 -7 27 -2 L36 -1 Q41 0 39 3 L-35 3 Z" fill="#1f1f22"/><path d="M-17 -5 Q-6 -10 7 -8 Q17 -6 24 -1 L-14 -1 Q-17 -3 -17 -5 Z" fill="url(#ap_car)"/><rect x="38" y="-8" width="4" height="4" fill="#a01f2b"/><rect x="43" y="-4" width="3" height="3" fill="#a01f2b"/><rect x="41" y="0" width="3" height="3" fill="#c0303f"/><path d="M26 6 Q38 11 43 2 L39 12 Q33 18 27 11 Z" fill="url(#ap_car)"/><text x="0" y="17" text-anchor="middle" font-size="9.5" font-weight="700" font-family="sans-serif"><tspan fill="#1f1f22">Auto</tspan><tspan fill="#a01f2b">Pell</tspan></text></g>
+<rect x="222" y="228" width="16" height="22" rx="6" fill="#e8b894"/>
+<g transform="translate(234,208)"><ellipse cx="0" cy="0" rx="28" ry="30" fill="#e8b894"/><path d="M26 2 Q33 6 26 11" fill="none" stroke="#d6a279" stroke-width="2.5" stroke-linecap="round"/><path d="M-26 -3 Q-25 -34 4 -34 Q30 -34 30 -6 Q30 -22 14 -30 Q2 -35 -6 -32 Q-20 -27 -26 -3Z" fill="#4a3826"/><circle class="ap_blink" cx="10" cy="0" r="2.9" fill="#33271c"/><circle class="ap_blink" cx="22" cy="2" r="2.6" fill="#33271c"/><path d="M12 14 Q18 17 24 13" fill="none" stroke="#9a6b4f" stroke-width="2.2" stroke-linecap="round"/><ellipse cx="-22" cy="4" rx="4" ry="6" fill="#e8b894"/></g>
+<g class="ap_paper"><path d="M262 280 Q310 274 346 264" fill="none" stroke="#e6e6e8" stroke-width="15" stroke-linecap="round"/><circle cx="348" cy="262" r="9" fill="#e8b894"/><rect x="338" y="210" width="92" height="116" rx="5" fill="#fff" stroke="#ccc"/><rect x="350" y="224" width="50" height="7" rx="2" fill="#999" opacity="0.4"/><rect x="350" y="244" width="66" height="6" rx="2" fill="#999" opacity="0.3"/><rect x="350" y="264" width="58" height="6" rx="2" fill="#999" opacity="0.3"/><rect x="350" y="284" width="64" height="6" rx="2" fill="#999" opacity="0.3"/><rect x="350" y="304" width="46" height="6" rx="2" fill="#999" opacity="0.3"/><g class="ap_c1" transform="translate(418,227)"><circle r="8" fill="#3a9d5d"/><path d="M-3.6 0 L-1.1 2.6 L3.6 -3" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></g><g class="ap_c2" transform="translate(426,267)"><circle r="8" fill="#3a9d5d"/><path d="M-3.6 0 L-1.1 2.6 L3.6 -3" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></g><g class="ap_c3" transform="translate(404,307)"><circle r="8" fill="#3a9d5d"/><path d="M-3.6 0 L-1.1 2.6 L3.6 -3" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></g></g>
+<g class="ap_arm"><path d="M300 300 Q330 290 350 272" fill="none" stroke="#e6e6e8" stroke-width="15" stroke-linecap="round"/><circle cx="352" cy="270" r="9" fill="#e8b894"/><line x1="357" y1="265" x2="368" y2="252" stroke="#5a4632" stroke-width="6" stroke-linecap="round"/><circle cx="374" cy="244" r="21" fill="#fff" stroke="#5a4632" stroke-width="5"/><circle cx="374" cy="244" r="17" fill="#5b8dc9" opacity="0.12"/><ellipse class="ap_glint" cx="367" cy="238" rx="5" ry="8" fill="#fff" transform="rotate(-30 367 238)"/></g>
+</svg>
+<div style="font-size:13px;color:#666;margin-top:2px">${msg}</div>
+</div>`;
+}
 function renderResult(item){const colors={rød:'result-red',gul:'result-yellow',blå:'result-blue',grønn:'result-green',lilla:'result-purple'};const cls=colors[item.farge]||'result-blue';const loc=item.plassering?`<div class="result-location">📍 ${item.plassering}</div>`:'';return`<div class="result-item ${cls}"><div class="result-title">${item.tittel}</div><div class="result-sub">${item.melding}</div>${loc}</div>`;}
 async function callClaude(messages){const key=getApiKey();if(!key){openModal();throw new Error('Ingen API-nøkkel');}const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:8000,temperature:0.1,messages})});if(!res.ok){const err=await res.json().catch(()=>({}));throw new Error(err.error?.message||`HTTP ${res.status}`);}return res.json();}
 function updateStats(r){document.getElementById('stat-missing').textContent=r.filter(x=>x.farge==='gul').length;document.getElementById('stat-price').textContent=r.filter(x=>x.farge==='rød').length;document.getElementById('stat-suggestions').textContent=r.filter(x=>x.farge==='blå'||x.farge==='grønn').length;document.getElementById('stats-row').style.display='grid';}
@@ -1606,7 +1660,7 @@ async function visParserDebug(){
 
 async function runVeilSjekk(){
   if(!files['veil-takst']){alert('Last opp taksten først.');return;}
-  showLoading('veil-results','Konverterer og sjekker taksten...');
+  showInspectorLoading('veil-results','Sjekker taksten mot veiledningene…');
   try{
     const takstContent=await fileToContent(files['veil-takst']);
     // Også parser direkte for post-filtrering
@@ -2268,7 +2322,7 @@ BILDER – bruk i bakgrunnen:
 
 // ============ GMAIL INTEGRATION ============
 // Uses Google Apps Script as backend – no OAuth login needed!
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzbj8njAwvBjxLgJ7OzNkx3ukN3bbfjUgMPXz-bbIPDVa2vQPEIkRUpNWQl1q1acBc-/exec';
+const APPS_SCRIPT_URL = 'DIN_APPS_SCRIPT_URL_HER';
 
 let selectedGmailAttachment = null;
 
