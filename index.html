@@ -274,6 +274,9 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       når posisjonsord (midtre/øvre osv.) står midt i ett av navnene
   10. Saksbehandler-animasjon (AutoPell-figur som sjekker takst med lupe) vises mens
       takstkontrollen kjører, i stedet for enkel spinner
+  11. Rendrings-fiks: når Claude la funn i "resultater" men ikke "dbs_handlinger",
+      ble de talt ("3 mangler") men aldri vist (tom liste). Nå vises resultat-kortene
+      som fallback så funnene alltid er synlige.
 */
 const KALIB_PARTS=['Frontkamera','Adaptiv cruise control','Filskiftesensor','Blindsonevarsler','Nattsynkamera','HUD','Regnensor','Lyktesensor','Parkeringssensor bak (radar)','Surroundkamera','Trafikkskiltgjenkjenning'];
 
@@ -2299,6 +2302,13 @@ BILDER – bruk i bakgrunnen:
         html+=`</div>`;
       }
       html+=`</div>`;
+
+      // v2.8-fiks: Hvis Claude la funnene i "resultater" men IKKE i "dbs_handlinger",
+      // ble de talt i telleren men aldri vist (tom liste under "3 mangler").
+      // Fallback: rendre resultat-kortene når dbs_handlinger er tom, så funnene alltid vises.
+      if(!(s.dbs_handlinger&&s.dbs_handlinger.length>0)){
+        r.forEach(item=>{html+=renderResult(item);});
+      }
     }
 
     if(!r.length){
