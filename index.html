@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.8 – Smart kontroll av takster</title>
+<title>AutoPell v2.9 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.8</div>
+    <div class="version-badge">v2.9</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,6 +260,14 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+/* AutoPell v2.9 – endringer fra v2.8:
+   1. Folie-vakt: "folie" i taksten → farge-avvik flagges mykt (bilen er foliert,
+      fargekode sannsynligvis riktig), ikke som hard "sjekk fargekode"-mangel
+   2. UB ved retting: Flaterette-kostnad finnes men UB ikke ført → påminnelse om
+      at retting av stål/alu normalt utløser underbygg (120kr pr. del)
+   3. Tilstøtende ved kanal: kanal lakkeres (N/G) → samlet forslag om tilstøtende
+      A-stolpe, B-stolpe og bakskjerm (hopper over de som alt er ført som T)
+*/
 /* AutoPell v2.8 – endringer fra v2.7:
    1. 50%-smådel (<3 dm²) skal lakkes 100% – flagg differanse
    2. Bilder kun i bakgrunnen (fjernet "Observasjoner fra bilder"-seksjon)
@@ -1432,6 +1440,36 @@ function takstSammendrag(t){
     s+=`  Spylervæske ført i taksten: JA\n`;
     s+=`     → IKKE foreslå spylervæske (100kr) – den er allerede med i taksten.\n`;
   }
+  // v2.9: Folie-vakt. Hvis "folie" nevnes i taksten er bilen sannsynligvis foliert,
+  // så et farge-avvik (fargekode vs farge på bilde) forklares av folien.
+  // Da skal farge-avvik flagges MYKT, ikke som "sjekk fargekode"-mangel.
+  const harFolie=/folie|foliert|wrappet|wrap\b/i.test(t.raw||'');
+  if(harFolie){
+    s+=`  Folie nevnt i taksten: JA\n`;
+    s+=`     → Bilen er sannsynligvis foliert. Fargekoden er da sannsynligvis riktig selv om bilen ser annerledes ut på bildet. Hvis du ser farge-avvik: nevn det MYKT ("bilen er foliert, fargekode sannsynligvis riktig") – IKKE flagg som "sjekk fargekode"-mangel.\n`;
+  }
+  // v2.9: UB ved retting. Hvis det finnes flaterette-kostnad og UB ikke er ført,
+  // skal det minnes om at retting (stål/alu) normalt utløser UB.
+  const flateretteKr=t.sammenstilling['Karosseri - Flaterette'];
+  if(flateretteKr&&flateretteKr>0&&!t.sammenstilling.ub_kr){
+    s+=`  Flaterette-kostnad finnes (${flateretteKr} kr) men UB IKKE ført\n`;
+    s+=`     → Retting av stål/alu-deler utløser normalt underbygg (UB, 120kr pr. del). Vurder om UB mangler.\n`;
+  }
+  // v2.9: Tilstøtende ved kanal. Ved kanal (N eller G) skal det minnes om tilstøtende
+  // A-stolpe, B-stolpe og bakskjerm. Hopp over de som alt er ført som tilstøtende (T).
+  const harKanalLakk=t.lakkspes.some(d=>!d.tillegg&&(d.optype==='N'||d.optype==='G')&&d.navn&&/\bkanal\b/i.test(d.navn));
+  if(harKanalLakk){
+    // hvilke tilstøtende-deler er alt ført (optype T eller tilstøtende-flagg)?
+    const alleredeT=n=>t.lakkspes.some(d=>(d.optype==='T'||d.tilstøtende)&&d.navn&&new RegExp('\\b'+n+'\\b','i').test(d.navn));
+    const mangler=[];
+    if(!alleredeT('a-?stolpe'))mangler.push('A-stolpe');
+    if(!alleredeT('b-?stolpe'))mangler.push('B-stolpe');
+    if(!alleredeT('bakskjerm'))mangler.push('bakskjerm');
+    if(mangler.length){
+      s+=`  Kanal lakkeres (N/G) – tilstøtende ikke ført for: ${mangler.join(', ')}\n`;
+      s+=`     → Vurder tilstøtende flate (arealavhengig) mot ${mangler.join(', ')} ved kanalskift/-retting. Legg eventuelt til i lakkspes.\n`;
+    }
+  }
   // v2.6: D/M-haker (deler som demonteres fra bilen i De/Mo-fanen)
   if(t.dm_av&&t.dm_av.length){
     s+=`  D/M-haker (deler demonteres fra bil): ${t.dm_av.map(d=>d.navn).join(', ')}\n`;
@@ -1720,6 +1758,9 @@ Du SKAL følge disse reglene UTEN UNNTAK:
 • Hvis HURTIGFAKTA viser "💡 PÅMINNELSE ... løfteteip" → legg dette som en GUL påminnelse/huskeliste (IKKE rød mangel). Det er en vurdering, ikke et hardt krav.
 • Hvis HURTIGFAKTA viser "⛔ Dette er PARKERINGSSENSOR" → IKKE foreslå kalibrering for den sensoren. P-radar/parkeringssensor kalibreres aldri. Kun filskiftesensor/blindsone kalibreres.
 • Hvis HURTIGFAKTA viser "Spylervæske ført i taksten: JA" → IKKE foreslå spylervæske. Den er allerede med.
+• Hvis HURTIGFAKTA viser "Folie nevnt i taksten: JA" → behandle farge-avvik MYKT. Nevn at bilen er foliert og at fargekoden sannsynligvis er riktig. IKKE flagg "sjekk fargekode" som en hard mangel.
+• Hvis HURTIGFAKTA viser "Flaterette-kostnad finnes ... men UB IKKE ført" → foreslå å vurdere UB (underbygg, 120kr pr. del), siden retting av stål/alu normalt utløser UB.
+• Hvis HURTIGFAKTA viser "Kanal lakkeres (N/G) – tilstøtende ikke ført for: ..." → foreslå å vurdere tilstøtende flate mot de nevnte delene (A-stolpe/B-stolpe/bakskjerm) ved kanalskift/-retting.
 • Hvis HURTIGFAKTA viser "Tesla bakdør: JA → folie/tape-montering 50p" → Foreslå 50p folie/tape-montering i annetbildet. Ikke ignorer denne instruksjonen.
 
 Disse er ikke forslag eller hint. Disse er HARDE LÅSER.
