@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.13 – Smart kontroll av takster</title>
+<title>AutoPell v2.14 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.13</div>
+    <div class="version-badge">v2.14</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,7 +260,10 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-/* AutoPell v2.13 – endringer fra v2.12:
+/* AutoPell v2.14 – endringer fra v2.13:
+   - Eksplisitt negativ-eksempel lagt til for å hindre at kronebeløp fra regelteksten
+     (sveisemateriell 300kr, karosserilim, blanderør osv.) lekker inn i dbs_handlinger
+   endringer fra v2.12:
    - Alle forslag frases nå som forslag ("Vurder å...") istedenfor kommando ("Legg til...") –
      AutoPell er et påminnelsesprogram, takstmannen gjør alltid den endelige vurderingen
    - Oppdaterte eksempler for diagnose, grunning, sveisemateriell, tilstøtende bakdør,
@@ -2102,6 +2105,9 @@ KRITISK – ALT ER FORSLAG, ALDRI KOMMANDO: AutoPell er et påminnelsesprogram �
 - "Vurder å legge til kostnad karosserilim og/eller nagler hvis dette skal brukes"
 - "Vurder å legge til kostnad for blanderør"
 - "Vurder å legge til tid for oppdekking av bil med sveisetepper og brannsikring"
+KRITISK – KRONEBELØP LEKKER LETT INN: Flere regler under (f.eks. sveisemateriell 300kr, karosserilim 1500kr, blanderør 80kr, dokumentasjon 100p) har beløp/perioder skrevet inn i selve regelteksten for din egen forståelse – disse tallene skal ALDRI kopieres inn i dbs_handlinger-teksten.
+Eksempel feil: "Vurder å legge til kostnad for sveisemateriell plastrep 300kr i annetbildet"
+Eksempel riktig: "Vurder å legge til kostnad for sveisemateriell plastrep"
 Eksempel riktig: "Legg til tilstøtende flate mot A-stolpe i lakkspesifikasjonen"
 Eksempel feil: "Legg til tilstøtende flate mot A-stolpe 18p i lakkspesifikasjonen"
 
