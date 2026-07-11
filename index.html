@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.12 – Smart kontroll av takster</title>
+<title>AutoPell v2.13 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.12</div>
+    <div class="version-badge">v2.13</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,7 +260,12 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-/* AutoPell v2.12 – endringer fra v2.11:
+/* AutoPell v2.13 – endringer fra v2.12:
+   - Alle forslag frases nå som forslag ("Vurder å...") istedenfor kommando ("Legg til...") –
+     AutoPell er et påminnelsesprogram, takstmannen gjør alltid den endelige vurderingen
+   - Oppdaterte eksempler for diagnose, grunning, sveisemateriell, tilstøtende bakdør,
+     dokumentasjon, karosserilim/nagler, blanderør, sveisetepper/brannsikring
+   endringer fra v2.11:
    - "SJEKK KUN DISSE" presisert: sjekklisten for en del i taksten gjelder fullt ut, også
      tilstøtende til naboer som ikke selv er nevnt, og generiske følgetillegg (dokumentasjon, lim)
    - DELSTATUS-punkter: Claude skal nå søke i rå PDF-tekst (Detaljspesifikasjon) for detaljer
@@ -1996,14 +2001,14 @@ For hver del i taksten – sjekk disse punktene:
       - Føres i annetbildet.
    c) UB PÅ PLAST: ALDRI. Støtfangere er plast. Sjekk regel 3 og 4 før du foreslår UB.
    d) GRUNNING FOR TOPPLAKK (alltid foreslås når plastreparasjon er aktivert):
-      - Hvis plastreparasjon er aktivert (se gjenkjennings-kriterier øverst i regel 5) → foreslå ALLTID som mangel: "Forslag: Legg til grunning for topplakk i annetbilde."
+      - Hvis plastreparasjon er aktivert (se gjenkjennings-kriterier øverst i regel 5) → foreslå ALLTID som mangel: "Forslag: Vurder å legge til grunning for topplakk i annetbilde."
       - HVORDAN SJEKKE: I plastreparasjon-vinduet finnes feltet "Grunning for topplakk" under "Kostnadssammenligning" – verdien står i dm². Hvis verdien er 0 eller blank → grunning er IKKE tatt med → flagg som mangel.
       - Hvis verdien er satt (f.eks. 4 dm²) → grunning ER tatt med → IKKE flagg.
-      - Ordlyd EKSAKT: "Forslag: Legg til grunning for topplakk i annetbilde."
+      - Ordlyd EKSAKT: "Forslag: Vurder å legge til grunning for topplakk i annetbilde."
       - Skal foreslås uansett størrelse på reparert flate, uansett gruppe og uansett skadetype – så lenge plastreparasjon er aktivert OG grunning-feltet står på 0.
       - Ved ren lakkering av støtfanger UTEN plastreparasjon i taksten → IKKE foreslå grunning for topplakk.
       - Hvis du ikke kan se plastrep-vinduet eller grunning-feltet eksplisitt: foreslå likevel som forsiktig påminnelse, siden grunning ofte glemmes.
-      - Ordlyd EKSAKT: "Forslag: Legg til grunning for topplakk i annetbilde."
+      - Ordlyd EKSAKT: "Forslag: Vurder å legge til grunning for topplakk i annetbilde."
 
 6. 50% STØTFANGER (gjelder KUN støtfanger foran/bak – ikke andre deler):
    - SJEKK FRADRAG LAKK: Hvis kolonnen "Fradrag lakk → Delvis erstatning for utvendig flate (%)" er satt til en verdi (f.eks. 50%) for støtfanger foran eller bak → da skal maskering-boksen på samme linje i utvendig lakk-tabellen være huket av.
@@ -2012,7 +2017,7 @@ For hver del i taksten – sjekk disse punktene:
      • Linje i taksten som "1) Maskering av plast" under tiltak/sammendrag
      • Tekst "Maskering" eller "Maskering av plast" i lakkspesifikasjonen
    - Hvis maskering vises på NOEN av disse måtene → maskering ER på plass, IKKE flagg.
-   - HVIS fradrag er satt OG ingen tegn til maskering finnes i taksten → flagg som mangel: "Legg til maskering på støtfanger foran/bak (huk av maskering-boksen i utvendig lakk-tabellen)."
+   - HVIS fradrag er satt OG ingen tegn til maskering finnes i taksten → flagg som mangel: "Vurder å legge til maskering på støtfanger foran/bak (huk av maskering-boksen i utvendig lakk-tabellen)."
    - VED USIKKERHET (kan ikke se klart om maskering er der eller ikke): IKKE flagg. Bedre å droppe forslaget enn å foreslå noe som allerede er der.
    - IKKE bruk formuleringer som ikke er i denne regelen – hold deg til ordlyden over. Ikke finn på "fine line teip", "grill/nedre støtfanger" eller andre detaljer som ikke er regel-spesifikke.
    - Maskering-regelen gjelder KUN støtfangere (foran/bak) – ikke andre deler med fradrag lakk.
@@ -2086,6 +2091,17 @@ DBS-handlinger: KUN hva som skal gjøres, ingen perioder eller kroner.
 KRITISK – ÉN TING PER OPPFØRING: Hver oppføring i "dbs_handlinger" skal inneholde KUN ÉTT forslag. ALDRI kombiner flere forslag i samme setning med "og", "samt" eller komma-liste. Hvis du har tre separate funn, skal det være tre separate oppføringer i arrayet – ikke én lang setning med tre ting. Del opp selv om funnene gjelder samme del.
 Eksempel feil: "Legg til tilstøtende bakdør og vurder polere flikk og bestill dokumentasjon"
 Eksempel riktig: tre separate oppføringer – "Legg til tilstøtende flate mot bakdør i lakkspesifikasjonen", "Vurder polere flikk 20p i annetbildet", "Bestill dokumentasjon for skift av bakskjerm"
+
+KRITISK – ALT ER FORSLAG, ALDRI KOMMANDO: AutoPell er et påminnelsesprogram – takstmannen gjør alltid den endelige vurderingen selv. Start ALDRI en oppføring med et direkte pålegg som "Legg til X" eller "Bestill X". Bruk forslags-språk som "Vurder å legge til...", "Vurder å ta med...". Eksempler på riktig ordlyd (bruk disse aktivt som mal for lignende funn):
+- "Vurder å legge til diagnose (slette feilkoder)"
+- "Vurder å legge til grunning for topplakk"
+- "Vurder å legge til kostnad for sveisemateriell plastrep"
+- "Vurder å ta med tilstøtende bakdør hvis fargen ikke passer kant i kant"
+- "Vurder polere flikk 20p i annetbildet"
+- "Vurder å ta med kostnad for innhenting av dokumentasjon ifølge sikre bilreparasjoner (kostnad + brukt tid)"
+- "Vurder å legge til kostnad karosserilim og/eller nagler hvis dette skal brukes"
+- "Vurder å legge til kostnad for blanderør"
+- "Vurder å legge til tid for oppdekking av bil med sveisetepper og brannsikring"
 Eksempel riktig: "Legg til tilstøtende flate mot A-stolpe i lakkspesifikasjonen"
 Eksempel feil: "Legg til tilstøtende flate mot A-stolpe 18p i lakkspesifikasjonen"
 
