@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.10 – Smart kontroll av takster</title>
+<title>AutoPell v2.11 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.10</div>
+    <div class="version-badge">v2.11</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,7 +260,11 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-/* AutoPell v2.10 – endringer fra v2.9:
+/* AutoPell v2.11 – endringer fra v2.10:
+   - DELSTATUS PER HOVEDDEL: HURTIGFAKTA lister nå eksplisitt hver skiftet/rettet hoveddel med
+     pekepinn til riktig regelavsnitt, istedenfor å stole på at Claude finner riktig avsnitt selv
+     i en lang regeltekst (bakskjerm-skift ble bevist ikke sjekket i praksis i v2.10-testen)
+   endringer fra v2.9:
    - HTT posisjonsnivå: generisk HTT-linje (uten delnavn) dekker løse deler på samme posisjon uansett N/G/T
    - Bakskjerm skift (N): nytt eget regelavsnitt (rustbeskyttelse, UB, tilstøtende, hjulbueliste/tankluke via bilder, innv. lakk, dokumentasjon)
    - Konsolidering: fjernet duplikate HTT/dørhåndtak-regler, slått sammen fordør/bakdør-sjekklister
@@ -1265,6 +1269,32 @@ function takstSammendrag(t){
   const tilstøtendeDeler=t.lakkspes.filter(d=>d.optype==='T'||d.tilstøtende).map(d=>d.navn);
   if(tilstøtendeDeler.length)s+=`  Tilstøtende-poster (IKKE foreslå UB/HTT på disse): ${tilstøtendeDeler.join(', ')}\n`;
 
+  // v2.10: DELSTATUS PER HOVEDDEL – eksplisitt kobling fra faktisk førte deler til riktig
+  // sjekkliste-avsnitt i reglene. Uten dette må Claude selv finne riktig avsnitt blant mange
+  // regelblokker, noe som viste seg upålitelig (bakskjerm-skift ble ikke sjekket i praksis).
+  const delRegler=[
+    {re:/bakskjerm/i, N:'Ved skift (N = ny) av bakskjerm', G:'Ved retting eller lakkering av bakskjerm'},
+    {re:/forskjerm/i, N:'Ved skift av forskjerm (N = ny)'},
+    {re:/\bpanser\b/i, N:'Ved retting eller skifte/lakkering av panser', G:'Ved retting eller skifte/lakkering av panser'},
+    {re:/\bfordør\b/i, N:'FELLES for fordør og bakdør (+ "I tillegg ved fordør")', G:'FELLES for fordør og bakdør (+ "I tillegg ved fordør")'},
+    {re:/\bbakdør\b/i, N:'FELLES for fordør og bakdør (+ "I tillegg ved bakdør")', G:'FELLES for fordør og bakdør (+ "I tillegg ved bakdør")'},
+    {re:/\btak\b/i, N:'Ved retting eller lakkering av tak', G:'Ved retting eller lakkering av tak'},
+    {re:/støtfanger/i, N:'Ved lakkering av støtfanger', G:'Ved lakkering av støtfanger'},
+  ];
+  const delstatusLinjer=[];
+  t.lakkspes.forEach(d=>{
+    if(d.tillegg||d.tilstøtende||d.optype==='T'||!d.navn)return;
+    if(d.optype!=='N'&&d.optype!=='G')return;
+    const match=delRegler.find(r=>r.re.test(d.navn));
+    if(match){
+      const seksjon=d.optype==='N'?match.N:match.G;
+      if(seksjon)delstatusLinjer.push(`  • ${d.navn} [${d.optype} = ${d.optype==='N'?'SKIFTET':'RETTET/LAKKERT'}] → sjekk avsnittet "${seksjon}" i reglene`);
+    }
+  });
+  if(delstatusLinjer.length){
+    s+=`DELSTATUS PER HOVEDDEL (bruk til å finne riktig sjekkliste-avsnitt i reglene – ikke hopp over noen av disse):\n${delstatusLinjer.join('\n')}\n`;
+  }
+
   // === KRITISK KONSISTENS-SJEKK: REPARASJON UTEN LAKK ===
   // Hvis en del har plastrep, flaterett eller skift → MÅ ha lakk-post (N eller G)
   // Hvis ikke → rød mangel
@@ -1774,6 +1804,7 @@ Du SKAL følge disse reglene UTEN UNNTAK:
 • Hvis HURTIGFAKTA viser "Folie nevnt i taksten: JA" → behandle farge-avvik MYKT. Nevn at bilen er foliert og at fargekoden sannsynligvis er riktig. IKKE flagg "sjekk fargekode" som en hard mangel.
 • Hvis HURTIGFAKTA viser "Flaterette-kostnad finnes ... men UB IKKE ført" → foreslå å vurdere UB (underbygg, 120kr pr. del), siden retting av stål/alu normalt utløser UB.
 • Hvis HURTIGFAKTA viser "Kanal lakkeres (N/G) – tilstøtende ikke ført for: ..." → foreslå å vurdere tilstøtende flate mot de nevnte delene (A-stolpe/B-stolpe/bakskjerm) ved kanalskift/-retting.
+• Hvis HURTIGFAKTA viser "DELSTATUS PER HOVEDDEL" → dette er en OBLIGATORISK huskeliste. For HVER linje der: finn det navngitte regelavsnittet i INNEBYGDE REGLER og gå gjennom HVERT punkt i det avsnittet mot taksten – ikke bare de punktene du husker eller anser som mest sannsynlige. Hopp aldri over en linje i DELSTATUS uten å ha sjekket det tilhørende avsnittet.
 • Hvis HURTIGFAKTA viser "Tesla bakdør: JA → folie/tape-montering 50p" → Foreslå 50p folie/tape-montering i annetbildet. Ikke ignorer denne instruksjonen.
 
 Disse er ikke forslag eller hint. Disse er HARDE LÅSER.
@@ -2339,12 +2370,7 @@ BILDER – bruk i bakgrunnen:
     if(r.length>0){
       html+=`<div class="summary-box">
         <div class="summary-title">📋 Forslag til tillegg</div>
-        <div style="font-size:11px;color:#666;margin-bottom:10px;font-style:italic">Dette er forslag til tillegg du kan ta med i denne taksten, men individuelle vurderinger må foretas.</div>
-        <div class="summary-grid">
-          <div class="summary-stat"><div class="summary-stat-num">${(s.dbs_handlinger&&s.dbs_handlinger.length)||r.filter(x=>x.farge==='rød').length}</div><div class="summary-stat-label">Mangler</div></div>
-          <div class="summary-stat"><div class="summary-stat-num">${r.filter(x=>x.farge==='gul').length}</div><div class="summary-stat-label">Sjekk</div></div>
-          <div class="summary-stat"><div class="summary-stat-num">${r.filter(x=>x.farge==='lilla').length}</div><div class="summary-stat-label">Kalibrering</div></div>
-        </div>`;
+        <div style="font-size:11px;color:#666;margin-bottom:10px;font-style:italic">Dette er forslag til tillegg du kan ta med i denne taksten, men individuelle vurderinger må foretas.</div>`;
 
       if(s.dbs_handlinger&&s.dbs_handlinger.length>0){
         html+=`<div class="dbs-list"><div class="dbs-list-title">🔧 Dette må gjøres i DBS</div>`;
