@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.11 – Smart kontroll av takster</title>
+<title>AutoPell v2.12 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.11</div>
+    <div class="version-badge">v2.12</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,7 +260,13 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-/* AutoPell v2.11 – endringer fra v2.10:
+/* AutoPell v2.12 – endringer fra v2.11:
+   - "SJEKK KUN DISSE" presisert: sjekklisten for en del i taksten gjelder fullt ut, også
+     tilstøtende til naboer som ikke selv er nevnt, og generiske følgetillegg (dokumentasjon, lim)
+   - DELSTATUS-punkter: Claude skal nå søke i rå PDF-tekst (Detaljspesifikasjon) for detaljer
+     som ikke er synlige i strukturert sammendrag, f.eks. tankluke/dekklokk
+   - Ett forslag per oppføring i dbs_handlinger – aldri flere funn kombinert i samme setning
+   endringer fra v2.10:
    - DELSTATUS PER HOVEDDEL: HURTIGFAKTA lister nå eksplisitt hver skiftet/rettet hoveddel med
      pekepinn til riktig regelavsnitt, istedenfor å stole på at Claude finner riktig avsnitt selv
      i en lang regeltekst (bakskjerm-skift ble bevist ikke sjekket i praksis i v2.10-testen)
@@ -1804,7 +1810,7 @@ Du SKAL følge disse reglene UTEN UNNTAK:
 • Hvis HURTIGFAKTA viser "Folie nevnt i taksten: JA" → behandle farge-avvik MYKT. Nevn at bilen er foliert og at fargekoden sannsynligvis er riktig. IKKE flagg "sjekk fargekode" som en hard mangel.
 • Hvis HURTIGFAKTA viser "Flaterette-kostnad finnes ... men UB IKKE ført" → foreslå å vurdere UB (underbygg, 120kr pr. del), siden retting av stål/alu normalt utløser UB.
 • Hvis HURTIGFAKTA viser "Kanal lakkeres (N/G) – tilstøtende ikke ført for: ..." → foreslå å vurdere tilstøtende flate mot de nevnte delene (A-stolpe/B-stolpe/bakskjerm) ved kanalskift/-retting.
-• Hvis HURTIGFAKTA viser "DELSTATUS PER HOVEDDEL" → dette er en OBLIGATORISK huskeliste. For HVER linje der: finn det navngitte regelavsnittet i INNEBYGDE REGLER og gå gjennom HVERT punkt i det avsnittet mot taksten – ikke bare de punktene du husker eller anser som mest sannsynlige. Hopp aldri over en linje i DELSTATUS uten å ha sjekket det tilhørende avsnittet.
+• Hvis HURTIGFAKTA viser "DELSTATUS PER HOVEDDEL" → dette er en OBLIGATORISK huskeliste. For HVER linje der: finn det navngitte regelavsnittet i INNEBYGDE REGLER og gå gjennom HVERT punkt i det avsnittet mot taksten – ikke bare de punktene du husker eller anser som mest sannsynlige. Hopp aldri over en linje i DELSTATUS uten å ha sjekket det tilhørende avsnittet. For detaljer sjekklisten spør om (f.eks. hjulbueliste, tankluke/dekklokk) som IKKE er synlige i det strukturerte sammendraget – søk også i RÅ PDF-TEKST (spesielt Detaljspesifikasjon-siden) før du konkluderer med at detaljen mangler eller ikke finnes.
 • Hvis HURTIGFAKTA viser "Tesla bakdør: JA → folie/tape-montering 50p" → Foreslå 50p folie/tape-montering i annetbildet. Ikke ignorer denne instruksjonen.
 
 Disse er ikke forslag eller hint. Disse er HARDE LÅSER.
@@ -1820,7 +1826,8 @@ ${getActiveRules()}
 
 === SKADEOMRÅDE – LES DETTE FØRST ===
 Les taksten og identifiser HVILKE DELER som faktisk er med i taksten.
-SJEKK KUN DISSE – ikke foreslå tillegg på deler som ikke er nevnt i taksten.
+SJEKK KUN DISSE – ikke finn på sjekker for deler som ikke har NOEN tilknytning til taksten i det hele tatt.
+VIKTIG PRESISERING: Hvis en del (f.eks. bakskjerm) ER i taksten, gjelder HELE sjekklisten for den delen fullt ut – også punkter som spør om tilstøtende til en NABODEL som ikke selv er nevnt i taksten (det er nettopp poenget med å spørre), og generiske følgetillegg som dokumentasjon eller karosserilim. Disse skal IKKE filtreres bort bare fordi nabodelen eller tillegget ikke selv står som egen post i taksten.
 Hvis en post allerede er priset i taksten – IKKE flagg den.
 Ikke foreslå generelle tillegg (diagnose, AC gass, hjulstilling osv.) med mindre de er direkte relevante for en del i taksten.
 
@@ -2076,6 +2083,9 @@ SVAR KUN MED GYLDIG JSON. INGEN ANNEN TEKST. IKKE SKRIV NOE FØR ELLER ETTER JSO
 rød=mangler påkrevd tillegg/feil, gul=anbefalt/sjekk, lilla=kalibrering/koding påkrevd.
 Plassering=nøyaktig hvor i DBS dette legges inn.
 DBS-handlinger: KUN hva som skal gjøres, ingen perioder eller kroner.
+KRITISK – ÉN TING PER OPPFØRING: Hver oppføring i "dbs_handlinger" skal inneholde KUN ÉTT forslag. ALDRI kombiner flere forslag i samme setning med "og", "samt" eller komma-liste. Hvis du har tre separate funn, skal det være tre separate oppføringer i arrayet – ikke én lang setning med tre ting. Del opp selv om funnene gjelder samme del.
+Eksempel feil: "Legg til tilstøtende bakdør og vurder polere flikk og bestill dokumentasjon"
+Eksempel riktig: tre separate oppføringer – "Legg til tilstøtende flate mot bakdør i lakkspesifikasjonen", "Vurder polere flikk 20p i annetbildet", "Bestill dokumentasjon for skift av bakskjerm"
 Eksempel riktig: "Legg til tilstøtende flate mot A-stolpe i lakkspesifikasjonen"
 Eksempel feil: "Legg til tilstøtende flate mot A-stolpe 18p i lakkspesifikasjonen"
 
