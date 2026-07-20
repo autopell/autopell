@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.16 – Smart kontroll av takster</title>
+<title>AutoPell v2.17 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.16</div>
+    <div class="version-badge">v2.17</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,7 +260,15 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-/* AutoPell v2.16 – endringer fra v2.15:
+/* AutoPell v2.17 – endringer fra v2.16:
+   - Rotårsak funnet for "delsjekk sier foreslått, men forslaget kom aldri med": Claude skulle
+     duplisere DELSTATUS-funn inn i to separate lister (delsjekk og resultater/dbs_handlinger),
+     og disse kunne drifte fra hverandre
+   - FIX: delsjekk er nå eneste kilde for DELSTATUS-relaterte funn. Hvert punkt med
+     status="foreslått"/"usikker" bærer nå selve forslagsteksten, og koden bygger
+     resultater/dbs_handlinger deterministisk derfra – Claude trenger ikke lenger huske å
+     skrive samme funn to steder
+   endringer fra v2.15:
    - NYTT: "delsjekk" er nå et obligatorisk felt i JSON-svaret. For hver DELSTATUS-linje må
      Claude eksplisitt liste opp HVERT regelpunkt i det tilhørende avsnittet med status
      (foreslått / allerede ført / ikke relevant / usikker) – tvinger punkt-for-punkt-gjennomgang
@@ -2112,18 +2120,19 @@ SVAR KUN MED GYLDIG JSON. INGEN ANNEN TEKST. IKKE SKRIV NOE FØR ELLER ETTER JSO
       "del": "V Forskjerm [N]",
       "avsnitt": "Ved skift av forskjerm (N = ny)",
       "punkter": [
-        {"punkt":"kort navn på regelpunktet, f.eks. 'Tilstøtende A-stolpe'","status":"foreslått|allerede ført|ikke relevant|usikker"}
+        {"punkt":"kort navn på regelpunktet, f.eks. 'Tilstøtende A-stolpe'","status":"foreslått|allerede ført|ikke relevant|usikker","forslag":"Vurder å... (KUN utfylt hvis status er foreslått eller usikker – ellers tom streng)","farge":"rød|gul|lilla (KUN hvis status er foreslått eller usikker)"}
       ]
     }
   ],
   "sammendrag": {
     "perioder_funnet": 0,
     "kroner_funnet": 0,
-    "dbs_handlinger": ["hva som skal gjøres i DBS uten perioder eller kroner"]
+    "dbs_handlinger": ["hva som skal gjøres i DBS uten perioder eller kroner – KUN funn som IKKE allerede er dekket av delsjekk (se under)"]
   },
   "resultater": [{"tittel":"...","melding":"[Taksten sier]: ... [Regel]: ...","farge":"rød|gul|lilla","plassering":"..."}]
 }
-KRITISK OM "delsjekk": Dette feltet er OBLIGATORISK når HURTIGFAKTA inneholder "DELSTATUS PER HOVEDDEL". Ett objekt per linje i DELSTATUS. Under "punkter": ett element for HVERT punkt i det tilhørende regelavsnittet i INNEBYGDE REGLER – ikke bare punktene du husker, men ALLE punktene i avsnittet, punktert opp én og én. status="foreslått" betyr at punktet er lagt i "resultater"/"dbs_handlinger". status="allerede ført" betyr at taksten allerede dekker det (skal IKKE foreslås på nytt). status="ikke relevant" betyr at punktet ikke gjelder denne bilen/skaden (f.eks. bilen har ikke hjulbueliste). status="usikker" betyr at du er usikker og bør flagge det som gult spørsmål i "resultater" i stedet for å la det forsvinne stille. Denne listen er en tvungen sjekkliste – den skal IKKE forkortes eller hoppes over selv om svaret blir langt.
+KRITISK OM "delsjekk": Dette feltet er OBLIGATORISK når HURTIGFAKTA inneholder "DELSTATUS PER HOVEDDEL". Ett objekt per linje i DELSTATUS. Under "punkter": ett element for HVERT punkt i det tilhørende regelavsnittet i INNEBYGDE REGLER – ikke bare punktene du husker, men ALLE punktene i avsnittet, punktert opp én og én. status="allerede ført" betyr at taksten allerede dekker det (skal IKKE foreslås på nytt). status="ikke relevant" betyr at punktet ikke gjelder denne bilen/skaden (f.eks. bilen har ikke hjulbueliste). status="usikker" betyr at du er usikker på om det gjelder – skriv likevel et forslag/spørsmål i "forslag" med farge "gul". Denne listen er en tvungen sjekkliste – den skal IKKE forkortes eller hoppes over selv om svaret blir langt.
+KRITISK – DELSJEKK ER ENESTE KILDE FOR DISSE FUNNENE: Hvis status="foreslått" eller "usikker", MÅ feltet "forslag" inneholde den fullstendige forslagsteksten (samme "Vurder å..."-format som ellers). IKKE skriv i tillegg en duplikatoppføring for det samme punktet i "resultater" eller "dbs_handlinger" – koden legger automatisk delsjekk-forslagene inn der. "resultater" og "dbs_handlinger" skal KUN inneholde funn som ikke stammer fra et DELSTATUS-punkt (f.eks. generiske regler som grunning topplakk, sveisemateriell, diagnose osv.).
 rød=mangler påkrevd tillegg/feil, gul=anbefalt/sjekk, lilla=kalibrering/koding påkrevd.
 Plassering=nøyaktig hvor i DBS dette legges inn.
 DBS-handlinger: KUN hva som skal gjøres, ingen perioder eller kroner.
@@ -2156,6 +2165,33 @@ BILDER – bruk i bakgrunnen:
     const data=await callClaude([{role:'user',content:[...takstContent,...carImgContent,{type:'text',text:prompt}]}]);
     const txt=data.content.map(c=>c.text||'').join('').trim().replace(/```json|```/g,'');
     const parsed=JSON.parse(txt);
+
+    // ============================================================
+    // v2.17: DELSJEKK ER ENESTE KILDE – bygg resultater/dbs_handlinger fra delsjekk
+    // deterministisk, i stedet for å stole på at Claude dupliserer riktig selv.
+    // ============================================================
+    if(Array.isArray(parsed.delsjekk)){
+      if(!parsed.sammendrag)parsed.sammendrag={};
+      if(!Array.isArray(parsed.sammendrag.dbs_handlinger))parsed.sammendrag.dbs_handlinger=[];
+      if(!Array.isArray(parsed.resultater))parsed.resultater=[];
+      parsed.delsjekk.forEach(d=>{
+        (d.punkter||[]).forEach(p=>{
+          if((p.status==='foreslått'||p.status==='usikker')&&p.forslag){
+            const alleredeMed=parsed.sammendrag.dbs_handlinger.some(x=>x.toLowerCase()===p.forslag.toLowerCase())
+              || parsed.resultater.some(r=>(r.melding||'').toLowerCase().includes(p.forslag.toLowerCase()));
+            if(!alleredeMed){
+              parsed.sammendrag.dbs_handlinger.push(p.forslag);
+              parsed.resultater.push({
+                tittel:p.punkt||d.del,
+                melding:p.forslag,
+                farge:p.farge||(p.status==='usikker'?'gul':'rød'),
+                plassering:d.del||''
+              });
+            }
+          }
+        });
+      });
+    }
 
     // ============================================================
     // POST-FILTER: Fjern forslag som åpenbart er feil basert på parser-data
