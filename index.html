@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.14 – Smart kontroll av takster</title>
+<title>AutoPell v2.15 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.14</div>
+    <div class="version-badge">v2.15</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,7 +260,12 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-/* AutoPell v2.14 – endringer fra v2.13:
+/* AutoPell v2.15 – endringer fra v2.14:
+   - Hjulstilling: ny deterministisk deteksjon (parser + HURTIGFAKTA-flagg + post-filter) som
+     fanger "hjulstilling"/"firehjulsjustering" uansett hvilken seksjon den står i, og fjerner
+     automatisk falske "mangler hjulstilling"-forslag når den allerede er ført (samme mønster
+     som eksisterende kalibrerings-sjekk)
+   endringer fra v2.13:
    - Eksplisitt negativ-eksempel lagt til for å hindre at kronebeløp fra regelteksten
      (sveisemateriell 300kr, karosserilim, blanderør osv.) lekker inn i dbs_handlinger
    endringer fra v2.12:
@@ -1179,6 +1184,17 @@ function parseTakst(text){
     if(p.aktivert)result.plastspes=p;
   }
 
+  // v2.15: Hjulstilling allerede ført – skann hele taksten uavhengig av seksjon,
+  // siden "hjulstilling"/"firehjulsjustering" kan stå i Mekanisk arbeid, ikke bare Karosseri-Skifte.
+  result.hjulstillingFørt=null;
+  for(const line of lines){
+    if(/hjulstilling|firehjulsjuster/i.test(line)){
+      const hm=line.match(/(\d+)\s*$/);
+      result.hjulstillingFørt={tekst:line,tid:hm?parseInt(hm[1]):null};
+      break;
+    }
+  }
+
   return result;
 }
 
@@ -1474,6 +1490,7 @@ function takstSammendrag(t){
   }else{
     s+=`  Kalibreringer ført i arbeidsspes: INGEN\n`;
   }
+  s+=t.hjulstillingFørt?`  Hjulstilling ført i taksten: JA (${t.hjulstillingFørt.tid?t.hjulstillingFørt.tid+'p':'se linje'}) – IKKE foreslå hjulstilling på nytt\n`:`  Hjulstilling ført i taksten: NEI\n`;
   // v2.8: P-radar/parkeringssensor skal ALDRI kalibreres (i motsetning til filskiftesensor).
   // Skill på delnavn. Samler fra karosseri_skift og lakkspes.
   const alleNavn=[].concat(
@@ -2287,6 +2304,11 @@ BILDER – bruk i bakgrunnen:
       // så ikke foreslå separat kalibrering av blind spot-sensor.
       if(parserData.kalibreringer&&parserData.kalibreringer.length){
         fjernForslag(/kalibrer/i,'kalibrering allerede ført i arbeidsspes: '+parserData.kalibreringer.map(k=>k.navn).join(', '));
+      }
+
+      // v2.15 NY – Hjulstilling – fjern forslag hvis hjulstilling allerede er ført i taksten
+      if(parserData.hjulstillingFørt){
+        fjernForslag(/hjulstilling|firehjulsjuster/i,'hjulstilling allerede ført i taksten: '+parserData.hjulstillingFørt.tekst);
       }
 
       // 5. Grunning topplakk – fjern hvis allerede ført
