@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.24 – Smart kontroll av takster</title>
+<title>AutoPell v2.25 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.24</div>
+    <div class="version-badge">v2.25</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,7 +260,11 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-/* AutoPell v2.24 – endringer fra v2.23:
+/* AutoPell v2.25 – endringer fra v2.24:
+   - Temperature senket fra 0.1 til 0.0 for å redusere tilfeldig variasjon mellom kjøringer
+     (samme takst kunne gi forskjellig duplikat-mønster fra gang til gang). Dedupe-systemet
+     fra v2.18–v2.24 er fortsatt hovedsikkerhetsnettet, siden Claude aldri blir 100% deterministisk
+   endringer fra v2.23:
    - FIX: Konsept-dedupe gjort GLOBAL i stedet for per del – per-del-nøkkelen kunne bomme når
      Claude formulerte "del"-labelen litt ulikt mellom to nesten-identiske punkter
    - FIX: Sikkerhetsnett-filteret (v2.18) fjernet feilaktig legitime funn som bare nevnte et
@@ -1733,7 +1737,7 @@ function showInspectorLoading(id,msg){
 </div>`;
 }
 function renderResult(item){const colors={rød:'result-red',gul:'result-yellow',blå:'result-blue',grønn:'result-green',lilla:'result-purple'};const cls=colors[item.farge]||'result-blue';const loc=item.plassering?`<div class="result-location">📍 ${item.plassering}</div>`:'';return`<div class="result-item ${cls}"><div class="result-title">${item.tittel}</div><div class="result-sub">${item.melding}</div>${loc}</div>`;}
-async function callClaude(messages){const key=getApiKey();if(!key){openModal();throw new Error('Ingen API-nøkkel');}const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:8000,temperature:0.1,messages})});if(!res.ok){const err=await res.json().catch(()=>({}));throw new Error(err.error?.message||`HTTP ${res.status}`);}return res.json();}
+async function callClaude(messages){const key=getApiKey();if(!key){openModal();throw new Error('Ingen API-nøkkel');}const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:8000,temperature:0.0,messages})});if(!res.ok){const err=await res.json().catch(()=>({}));throw new Error(err.error?.message||`HTTP ${res.status}`);}return res.json();}
 function updateStats(r){document.getElementById('stat-missing').textContent=r.filter(x=>x.farge==='gul').length;document.getElementById('stat-price').textContent=r.filter(x=>x.farge==='rød').length;document.getElementById('stat-suggestions').textContent=r.filter(x=>x.farge==='blå'||x.farge==='grønn').length;document.getElementById('stats-row').style.display='grid';}
 
 function renderPakkResults(parsed) {
