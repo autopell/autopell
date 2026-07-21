@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.19 – Smart kontroll av takster</title>
+<title>AutoPell v2.20 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.19</div>
+    <div class="version-badge">v2.20</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,7 +260,15 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-/* AutoPell v2.19 – endringer fra v2.18:
+/* AutoPell v2.20 – endringer fra v2.19:
+   - FIX: Claude fabrikkerte selvsikre "bildene viser..."-observasjoner som ikke stemte (feil
+     håndtakfarge, feil hjulbueliste-premiss, påstått bakrute som ikke fantes). Bilde-baserte
+     spørsmål (hjulbueliste, tankluke, løftetape) er nå omskrevet til NØYTRALE spørsmål
+     ("Sjekk om...") i stedet for påståtte observasjoner, pluss en generell instruks mot å dikte
+     opp visuelle observasjoner
+   - FIX: Tankluke/bensinluke-sjekk (tilstøtende) lagt til også i "Ved retting eller lakkering av
+     bakskjerm"-avsnittet – fantes tidligere kun for skift (N)
+   endringer fra v2.18:
    - FIX: Gmail-panelet lå strukturelt UTENFOR .content/.main/.layout-wrapperen i HTML-en (lukke-tagger
      stod feil plassert), så det rendret langt nede på siden med stort tomrom over. Flyttet
      lukke-taggene til riktig sted – Gmail-knappen vises nå normalt øverst i panelet.
@@ -538,8 +546,9 @@ Ved retting eller lakkering av bakskjerm, sjekk alltid:
 - De/Mo innvendige detaljer
 - UB 120kr – DBS: Verksteddata → Materialforbruk/understellsbehandling
 - Spør om tilstøtende mot bakdør er aktuelt
-- Hjulbueliste: HTT 15p hvis lakkerbar – ikke hvis svart ulakkert plast
-- Løftetape 20p – hvis pakningen på bakruten må løftes for tilkomst (KUN ved retting, ikke ved skift – ved skift må ruten alltid ut)
+- Hjulbueliste: HTT 15p hvis lakkerbar. Still som NØYTRALT spørsmål ("Sjekk om V bakskjerm har lakkerbar hjulbueliste") – ikke hevd at bildene viser et bestemt svar
+- Tankluke/bensinluke: hvis den sitter på bakskjermen, vurder tilstøtende. Still som NØYTRALT spørsmål ("Sjekk om tankluken på V bakskjerm bør vurderes som tilstøtende") – ikke hevd et bestemt svar
+- Løftetape 20p – still som spørsmål: "Sjekk om pakningen på bakruten må løftes for tilkomst" (KUN aktuelt hvis bakskjermen faktisk har en rute mot bakruten – varebiler har ofte ingen rute her; ikke anta at ruten finnes). KUN ved retting, ikke ved skift – ved skift må ruten alltid ut
 - Polere flikk 20p – hvis takstolpe ikke lakkes helt ut. KUN på bakskjerm, ALDRI på dør
 Ved skift (N = ny) av bakskjerm, sjekk alltid:
 - Rustbeskyttelse 3p (skrudd detalj)
@@ -547,8 +556,8 @@ Ved skift (N = ny) av bakskjerm, sjekk alltid:
 - Tilstøtende flate mot bakdør
 - Spør om tilstøtende bakskjerm eller arealavhengig lakk av kanal er aktuelt
 - Polere flikk 20p – hvis takstolpe/kanal ikke lakkes helt frem
-- Hjulbueliste: HTT 15p hvis lakkerbar – ikke hvis svart ulakkert plast. Bruk BILDENE aktivt for å sjekke om bilen faktisk har hjulbueliste – ikke gjett ut fra bilmodell alene
-- Tankluke/dekklokk: sjekk BILDENE om det sitter på den skiftede bakskjermen – vurder HTT hvis lakkerbart
+- Hjulbueliste: HTT 15p hvis lakkerbar – ikke hvis svart ulakkert plast. Still dette som et NØYTRALT spørsmål ("Sjekk om V bakskjerm har lakkerbar hjulbueliste") – ikke hevd at bildene viser et bestemt svar med mindre du er reelt sikker
+- Tankluke/dekklokk: still som NØYTRALT spørsmål ("Sjekk om tankluke sitter på den skiftede bakskjermen") – vurder HTT hvis lakkerbart, ikke hevd et bestemt svar
 - Innvendig lakkering bakskjermkant: fremre 62p + bakre 19p
 - Karosserilim 1500kr + Blanderør 80kr (hvis sveiset/limt inn)
 - Innhente dokumentasjon 100p – for skift av bakskjerm
@@ -1825,7 +1834,7 @@ async function runVeilSjekk(){
 
     const hasCarImages=carImgContent.length>0;
     const carImagesNote=hasCarImages
-      ? `\n\n=== BILDER AV BILEN (${carImgContent.length} stk) ===\nBruk bildene aktivt: vurder skadeomfang, deltype (stål/plast), tilgjengelighet (A/B), synlige skader som ikke er i taksten, og om taksten stemmer med det du ser.\n\nVIKTIG – SKADEMARKERINGER PÅ BILDER:\nTakstmannen markerer skadeområdet med PILER eller FIRKANTER tegnet direkte på bildet. Disse er som regel røde, men kan være svarte hvis bilen selv er rød (eller andre kontrastfarger). Markeringene er IKKE en del av bilen – de er takstmannens eget verktøy for å vise nøyaktig hvor skaden er.\n\nBRUK MARKERINGENE PRESIST:\n- Skaden er KUN der pilen/firkanten faktisk peker eller markerer – ikke der den "peker mot" eller "i nærheten av".\n- Hvis en pil er på forskjermen, er skaden på forskjermen – IKKE på A-stolpe, fordør eller andre nabodeler bare fordi de er nær.\n- Ikke ekstrapoler skadeområdet utover det markeringene faktisk dekker.\n- Bruk markeringens NØYAKTIGE posisjon til å avgjøre:\n  • Om skaden er nær dørkant (relevant for tilstøtende fordør ved retting av forskjerm)\n  • Om skaden er nær håndtak (relevant for HTT-vurdering)\n  • Om skaden er nær spesifikke detaljer (spyledeksel, sensorer osv.)\n  • Om kun et hjørne av en del er skadet (50%-lakkering) eller hele delen (full lakkering)\n- Hvis det IKKE er noen markeringer på bildene → vurder hele bildet, men ikke gjett – flagg gjerne at markeringer mangler hvis usikkert om skadeomfang.\n\nMarkeringene er en bevisst del av takstmannens dokumentasjon for forsikringsselskapet – de viser presist hvor skaden er og hjelper deg å gi treffsikre forslag.`
+      ? `\n\n=== BILDER AV BILEN (${carImgContent.length} stk) ===\nBruk bildene aktivt: vurder skadeomfang, deltype (stål/plast), tilgjengelighet (A/B), synlige skader som ikke er i taksten, og om taksten stemmer med det du ser.\n\nVIKTIG – SKADEMARKERINGER PÅ BILDER:\nTakstmannen markerer skadeområdet med PILER eller FIRKANTER tegnet direkte på bildet. Disse er som regel røde, men kan være svarte hvis bilen selv er rød (eller andre kontrastfarger). Markeringene er IKKE en del av bilen – de er takstmannens eget verktøy for å vise nøyaktig hvor skaden er.\n\nBRUK MARKERINGENE PRESIST:\n- Skaden er KUN der pilen/firkanten faktisk peker eller markerer – ikke der den "peker mot" eller "i nærheten av".\n- Hvis en pil er på forskjermen, er skaden på forskjermen – IKKE på A-stolpe, fordør eller andre nabodeler bare fordi de er nær.\n- Ikke ekstrapoler skadeområdet utover det markeringene faktisk dekker.\n- Bruk markeringens NØYAKTIGE posisjon til å avgjøre:\n  • Om skaden er nær dørkant (relevant for tilstøtende fordør ved retting av forskjerm)\n  • Om skaden er nær håndtak (relevant for HTT-vurdering)\n  • Om skaden er nær spesifikke detaljer (spyledeksel, sensorer osv.)\n  • Om kun et hjørne av en del er skadet (50%-lakkering) eller hele delen (full lakkering)\n- Hvis det IKKE er noen markeringer på bildene → vurder hele bildet, men ikke gjett – flagg gjerne at markeringer mangler hvis usikkert om skadeomfang.\n\nMarkeringene er en bevisst del av takstmannens dokumentasjon for forsikringsselskapet – de viser presist hvor skaden er og hjelper deg å gi treffsikre forslag.\\n\\nKRITISK – ALDRI DIKT OPP OBSERVASJONER: Skriv ALDRI en påstand som "bildene viser at..." eller "bildet bekrefter..." med mindre du er reelt sikker på at du faktisk ser akkurat det du beskriver på et av bildene. For detaljer du er usikker på (er det en rute der, er listen svart, er håndtaket lakkert) – still det som et NØYTRALT SPØRSMÅL i forslaget ("Sjekk om ...", "Vurder om ...") i stedet for å hevde et konkret svar du ikke faktisk har verifisert. En feilaktig påstått observasjon er verre enn å innrømme usikkerhet, fordi takstmannen kan stole blindt på en påstand som "bildet viser X" uten å sjekke selv.`
       : '';
 
     const prompt=`Du er AutoPell, et norsk takst-assistentverktøy for bilverksted (DBS-system).
