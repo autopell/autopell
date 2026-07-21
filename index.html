@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.23 – Smart kontroll av takster</title>
+<title>AutoPell v2.24 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.23</div>
+    <div class="version-badge">v2.24</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,7 +260,14 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-/* AutoPell v2.23 – endringer fra v2.22:
+/* AutoPell v2.24 – endringer fra v2.23:
+   - FIX: Konsept-dedupe gjort GLOBAL i stedet for per del – per-del-nøkkelen kunne bomme når
+     Claude formulerte "del"-labelen litt ulikt mellom to nesten-identiske punkter
+   - FIX: Sikkerhetsnett-filteret (v2.18) fjernet feilaktig legitime funn som bare nevnte et
+     DELSTATUS-delnavn i forbifarten (f.eks. "tilstøtende ved kanal mot bakskjerm" ble borte
+     siden den nevnte "bakskjerm"). Filteret krever nå at teksten OGSÅ matcher et kjent
+     DELSTATUS-konseptord før den fjernes som duplikat
+   endringer fra v2.22:
    - Tilstøtende ved kanal splittet etter kanalens optype: kanal N spør om A-stolpe, B-stolpe
      OG bakskjerm; kanal G (retting) spør kun om bakskjerm (B-stolpe sjeldnere relevant der)
    - Løftetape ved bakskjerm-retting strammet inn: spør KUN hvis rute er tydelig synlig på
@@ -2219,24 +2226,24 @@ BILDER – bruk i bakgrunnen:
       if(!Array.isArray(parsed.sammendrag.dbs_handlinger))parsed.sammendrag.dbs_handlinger=[];
       if(!Array.isArray(parsed.resultater))parsed.resultater=[];
       const injisertTekst=new Set();
-      // v2.21: Konsept-basert dedupe PER DEL – Claude skriver av og til samme regelpunkt to
-      // ganger med ulik ordlyd (kort variant + detaljert/hedget variant). Eksakt tekst-match
-      // fanger ikke dette, så vi matcher på kjente nøkkelbegreper i stedet.
-      const konseptNøkler=['hjulbueliste','tankluk','bensinluk','løftetape','loftetape','polere flikk','dørhåndtak','ladeluke','rustbeskyttelse','dokumentasjon','karosserilim','blanderør','diagnose','kalibrer','tilstøtende'];
-      const delKonseptSett={};
+      // v2.24: Konsept-basert dedupe GLOBALT (ikke per del) – Claude skriver av og til samme
+      // regelpunkt to ganger med ulik ordlyd (kort variant + detaljert/hedget variant), og
+      // "del"-labelen kan variere nok (parenteser vs braketter, ulik ordlyd) til at per-del-
+      // nøkkelen ikke matcher. Global dedupe er tryggere siden kollisjon på tvers av ulike
+      // deler med samme konsept er sjelden sammenlignet med hvor ofte duplikat-buggen oppstår.
+      const konseptNøkler=['hjulbueliste','tankluk','bensinluk','løftetape','loftetape','polere flikk','dørhåndtak','ladeluke','rustbeskyttelse','dokumentasjon','karosserilim','blanderør','diagnose','kalibrer'];
+      const brukteKonsepter=new Set();
       parsed.delsjekk.forEach(d=>{
-        const delNavn=(d.del||'ukjent').replace(/\s*\[.*?\]\s*/g,'').trim().toLowerCase();
-        if(!delKonseptSett[delNavn])delKonseptSett[delNavn]=new Set();
         (d.punkter||[]).forEach(p=>{
           if((p.status==='foreslått'||p.status==='usikker')&&p.forslag){
             const forslagLower=p.forslag.toLowerCase();
             const punktLower=(p.punkt||'').toLowerCase();
             const konsept=konseptNøkler.find(k=>forslagLower.includes(k)||punktLower.includes(k));
-            const konseptDuplikat=konsept&&delKonseptSett[delNavn].has(konsept);
+            const konseptDuplikat=konsept&&brukteKonsepter.has(konsept);
             const alleredeMed=parsed.sammendrag.dbs_handlinger.some(x=>x.toLowerCase()===forslagLower)
               || parsed.resultater.some(r=>(r.melding||'').toLowerCase().includes(forslagLower));
             if(!alleredeMed&&!konseptDuplikat){
-              if(konsept)delKonseptSett[delNavn].add(konsept);
+              if(konsept)brukteKonsepter.add(konsept);
               injisertTekst.add(forslagLower);
               parsed.sammendrag.dbs_handlinger.push(p.forslag);
               parsed.resultater.push({
@@ -2246,14 +2253,16 @@ BILDER – bruk i bakgrunnen:
                 plassering:d.del||''
               });
             }else if(konseptDuplikat){
-              console.log('[POST-FILTER] Hoppet over konsept-duplikat i delsjekk ("'+p.punkt+'") for '+delNavn);
+              console.log('[POST-FILTER] Hoppet over konsept-duplikat i delsjekk ("'+p.punkt+'")');
             }
           }
         });
       });
-      // v2.18: Sikkerhetsnett mot duplikater – hvis Claude likevel skriver et EKSTRA funn om en
-      // DELSTATUS-del (samme sak, annen ordlyd) direkte i resultater/dbs_handlinger i strid med
-      // instruksen, fjern det heuristisk basert på delnavn – kun de faktisk injiserte skal stå igjen.
+      // v2.18/v2.24: Sikkerhetsnett mot duplikater – hvis Claude likevel skriver et EKSTRA funn
+      // om en DELSTATUS-del (samme sak, annen ordlyd) direkte i resultater/dbs_handlinger i
+      // strid med instruksen, fjern det. v2.24: kun hvis teksten OGSÅ matcher et kjent konsept-
+      // nøkkelord – ellers risikerer vi å fjerne helt andre, legitime regler som bare nevner
+      // delnavnet i forbifarten (f.eks. "tilstøtende ved kanal" som nevner bakskjerm).
       const delBaseNavn=parsed.delsjekk
         .map(d=>(d.del||'').replace(/\s*\[.*?\]\s*/g,'').trim().toLowerCase())
         .filter(n=>n.length>2);
@@ -2263,7 +2272,8 @@ BILDER – bruk i bakgrunnen:
           if(injisertTekst.has(meldingLower))return true;
           const tekst=((r.tittel||'')+' '+(r.melding||'')+' '+(r.plassering||'')).toLowerCase();
           const matcherDel=delBaseNavn.some(navn=>tekst.includes(navn));
-          if(matcherDel){
+          const matcherKonsept=konseptNøkler.some(k=>tekst.includes(k));
+          if(matcherDel&&matcherKonsept){
             console.log('[POST-FILTER] Fjernet duplikat-resultat for DELSTATUS-del ("'+r.tittel+'") – skal kun komme fra delsjekk');
             return false;
           }
@@ -2273,7 +2283,8 @@ BILDER – bruk i bakgrunnen:
           const lower=txt.toLowerCase();
           if(injisertTekst.has(lower))return true;
           const matcherDel=delBaseNavn.some(navn=>lower.includes(navn));
-          return !matcherDel;
+          const matcherKonsept=konseptNøkler.some(k=>lower.includes(k));
+          return !(matcherDel&&matcherKonsept);
         });
       }
     }
