@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.21 – Smart kontroll av takster</title>
+<title>AutoPell v2.22 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.21</div>
+    <div class="version-badge">v2.22</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,7 +260,12 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-/* AutoPell v2.21 – endringer fra v2.20:
+/* AutoPell v2.22 – endringer fra v2.21:
+   - FIX: Konsept-dedupe brukte rå "del"-streng som nøkkel, så to del-oppføringer for samme
+     fysiske del med litt ulik label (f.eks. "V Bakskjerm [G]" vs "V Bakskjerm") ble ikke
+     matchet mot hverandre. Normalisert nøkkelen (fjerner [optype], lowercase/trim) slik at
+     dedupe fungerer på tvers av slike variasjoner
+   endringer fra v2.20:
    - FIX (rotårsak til gjenstående duplikater): Claude skrev av og til samme regelpunkt to
      ganger INNI delsjekk selv (kort variant + detaljert/hedget variant), som omgikk v2.18-
      sikkerhetsnettet siden det kun fanget duplikater UTENFOR delsjekk. Ny konsept-basert
@@ -2212,7 +2217,7 @@ BILDER – bruk i bakgrunnen:
       const konseptNøkler=['hjulbueliste','tankluk','bensinluk','løftetape','loftetape','polere flikk','dørhåndtak','ladeluke','rustbeskyttelse','dokumentasjon','karosserilim','blanderør','diagnose','kalibrer','tilstøtende'];
       const delKonseptSett={};
       parsed.delsjekk.forEach(d=>{
-        const delNavn=d.del||'ukjent';
+        const delNavn=(d.del||'ukjent').replace(/\s*\[.*?\]\s*/g,'').trim().toLowerCase();
         if(!delKonseptSett[delNavn])delKonseptSett[delNavn]=new Set();
         (d.punkter||[]).forEach(p=>{
           if((p.status==='foreslått'||p.status==='usikker')&&p.forslag){
