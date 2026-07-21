@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.18 – Smart kontroll av takster</title>
+<title>AutoPell v2.19 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.18</div>
+    <div class="version-badge">v2.19</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -229,9 +229,6 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
           <div class="tag-grid" id="kalib-tags"></div>
         </div>
       </div>
-    </div>
-  </div>
-</div>
 
       <!-- GMAIL PANEL -->
       <div class="panel" id="tab-gmail">
@@ -245,6 +242,9 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
           💡 Send takster fra DBS til <strong><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="7b1a0e0f140b1e17170f1a10080f3b1c161a121755181416">[email&#160;protected]</a></strong> – de vises her automatisk. Klikk på en e-post for å laste inn taksten direkte i AutoPell.
         </div>
       </div>
+    </div>
+  </div>
+</div>
 
 <!-- API MODAL -->
 <div class="modal-overlay" id="api-modal">
@@ -260,7 +260,11 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-/* AutoPell v2.18 – endringer fra v2.17:
+/* AutoPell v2.19 – endringer fra v2.18:
+   - FIX: Gmail-panelet lå strukturelt UTENFOR .content/.main/.layout-wrapperen i HTML-en (lukke-tagger
+     stod feil plassert), så det rendret langt nede på siden med stort tomrom over. Flyttet
+     lukke-taggene til riktig sted – Gmail-knappen vises nå normalt øverst i panelet.
+   endringer fra v2.17:
    - FIX: Duplikat-funn for DELSTATUS-deler (samme sak skrevet to ganger med ulik ordlyd) fjernes
      nå med et heuristisk sikkerhetsnett basert på delnavn, siden eksakt tekst-dedupe ikke fanget
      omformuleringer
