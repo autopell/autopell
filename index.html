@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.22 – Smart kontroll av takster</title>
+<title>AutoPell v2.23 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.22</div>
+    <div class="version-badge">v2.23</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,7 +260,12 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-/* AutoPell v2.22 – endringer fra v2.21:
+/* AutoPell v2.23 – endringer fra v2.22:
+   - Tilstøtende ved kanal splittet etter kanalens optype: kanal N spør om A-stolpe, B-stolpe
+     OG bakskjerm; kanal G (retting) spør kun om bakskjerm (B-stolpe sjeldnere relevant der)
+   - Løftetape ved bakskjerm-retting strammet inn: spør KUN hvis rute er tydelig synlig på
+     bilder, og ALDRI på varebiler (kun personbiler)
+   endringer fra v2.21:
    - FIX: Konsept-dedupe brukte rå "del"-streng som nøkkel, så to del-oppføringer for samme
      fysiske del med litt ulik label (f.eks. "V Bakskjerm [G]" vs "V Bakskjerm") ble ikke
      matchet mot hverandre. Normalisert nøkkelen (fjerner [optype], lowercase/trim) slik at
@@ -560,7 +565,7 @@ Ved retting eller lakkering av bakskjerm, sjekk alltid:
 - Spør om tilstøtende mot bakdør er aktuelt
 - Hjulbueliste: HTT 15p hvis lakkerbar. Still som NØYTRALT spørsmål ("Sjekk om V bakskjerm har lakkerbar hjulbueliste") – ikke hevd at bildene viser et bestemt svar
 - Tankluke/bensinluke: hvis den sitter på bakskjermen, vurder tilstøtende. Still som NØYTRALT spørsmål ("Sjekk om tankluken på V bakskjerm bør vurderes som tilstøtende") – ikke hevd et bestemt svar
-- Løftetape 20p – still som spørsmål: "Sjekk om pakningen på bakruten må løftes for tilkomst" (KUN aktuelt hvis bakskjermen faktisk har en rute mot bakruten – varebiler har ofte ingen rute her; ikke anta at ruten finnes). KUN ved retting, ikke ved skift – ved skift må ruten alltid ut
+- Løftetape 20p – KUN spør om dette hvis det er TYDELIG synlig på bildene at bakskjermen faktisk har en rute. Har bilen ingen synlig rute der, eller er det en varebil – ikke spør i det hele tatt. Løftetape på siderute gjelder ALDRI på varebiler, kun personbiler. Hvis du spør: "Sjekk om pakningen på bakruten må løftes for tilkomst". KUN ved retting, ikke ved skift – ved skift må ruten alltid ut
 - Polere flikk 20p – hvis takstolpe ikke lakkes helt ut. KUN på bakskjerm, ALDRI på dør
 Ved skift (N = ny) av bakskjerm, sjekk alltid:
 - Rustbeskyttelse 3p (skrudd detalj)
@@ -1578,18 +1583,21 @@ function takstSammendrag(t){
     s+=`  Flaterette-kostnad finnes (${flateretteKr} kr) men UB IKKE ført\n`;
     s+=`     → Retting av stål/alu-deler utløser normalt underbygg (UB, 120kr pr. del). Vurder om UB mangler.\n`;
   }
-  // v2.9: Tilstøtende ved kanal. Ved kanal (N eller G) skal det minnes om tilstøtende
-  // A-stolpe, B-stolpe og bakskjerm. Hopp over de som alt er ført som tilstøtende (T).
-  const harKanalLakk=t.lakkspes.some(d=>!d.tillegg&&(d.optype==='N'||d.optype==='G')&&d.navn&&/\bkanal\b/i.test(d.navn));
-  if(harKanalLakk){
+  // v2.9: Tilstøtende ved kanal. Ved kanal N skal det minnes om tilstøtende A-stolpe, B-stolpe
+  // og bakskjerm. Ved kanal G (retting) er kun bakskjerm relevant (B-stolpe er mye sjeldnere).
+  // Hopp over de som alt er ført som tilstøtende (T).
+  const kanalOptype=(t.lakkspes.find(d=>!d.tillegg&&(d.optype==='N'||d.optype==='G')&&d.navn&&/\bkanal\b/i.test(d.navn))||{}).optype;
+  if(kanalOptype){
     // hvilke tilstøtende-deler er alt ført (optype T eller tilstøtende-flagg)?
     const alleredeT=n=>t.lakkspes.some(d=>(d.optype==='T'||d.tilstøtende)&&d.navn&&new RegExp('\\b'+n+'\\b','i').test(d.navn));
     const mangler=[];
-    if(!alleredeT('a-?stolpe'))mangler.push('A-stolpe');
-    if(!alleredeT('b-?stolpe'))mangler.push('B-stolpe');
+    if(kanalOptype==='N'){
+      if(!alleredeT('a-?stolpe'))mangler.push('A-stolpe');
+      if(!alleredeT('b-?stolpe'))mangler.push('B-stolpe');
+    }
     if(!alleredeT('bakskjerm'))mangler.push('bakskjerm');
     if(mangler.length){
-      s+=`  Kanal lakkeres (N/G) – tilstøtende ikke ført for: ${mangler.join(', ')}\n`;
+      s+=`  Kanal lakkeres (${kanalOptype}) – tilstøtende ikke ført for: ${mangler.join(', ')}\n`;
       s+=`     → Vurder tilstøtende flate (arealavhengig) mot ${mangler.join(', ')} ved kanalskift/-retting. Legg eventuelt til i lakkspes.\n`;
     }
   }
@@ -1883,7 +1891,7 @@ Du SKAL følge disse reglene UTEN UNNTAK:
 • Hvis HURTIGFAKTA viser "Spylervæske ført i taksten: JA" → IKKE foreslå spylervæske. Den er allerede med.
 • Hvis HURTIGFAKTA viser "Folie nevnt i taksten: JA" → behandle farge-avvik MYKT. Nevn at bilen er foliert og at fargekoden sannsynligvis er riktig. IKKE flagg "sjekk fargekode" som en hard mangel.
 • Hvis HURTIGFAKTA viser "Flaterette-kostnad finnes ... men UB IKKE ført" → foreslå å vurdere UB (underbygg, 120kr pr. del), siden retting av stål/alu normalt utløser UB.
-• Hvis HURTIGFAKTA viser "Kanal lakkeres (N/G) – tilstøtende ikke ført for: ..." → foreslå å vurdere tilstøtende flate mot de nevnte delene (A-stolpe/B-stolpe/bakskjerm) ved kanalskift/-retting.
+• Hvis HURTIGFAKTA viser "Kanal lakkeres (N/G) – tilstøtende ikke ført for: ..." → foreslå å vurdere tilstøtende flate mot de nevnte delene ved kanalskift/-retting. Ved kanal N gjelder dette potensielt A-stolpe, B-stolpe og bakskjerm; ved kanal G (retting) er det normalt kun bakskjerm som er aktuelt (B-stolpe er sjeldnere relevant ved ren retting).
 • Hvis HURTIGFAKTA viser "DELSTATUS PER HOVEDDEL" → dette er en OBLIGATORISK huskeliste. For HVER linje der: finn det navngitte regelavsnittet i INNEBYGDE REGLER og gå gjennom HVERT punkt i det avsnittet mot taksten – ikke bare de punktene du husker eller anser som mest sannsynlige. Hopp aldri over en linje i DELSTATUS uten å ha sjekket det tilhørende avsnittet. For detaljer sjekklisten spør om (f.eks. hjulbueliste, tankluke/dekklokk) som IKKE er synlige i det strukturerte sammendraget – søk også i RÅ PDF-TEKST (spesielt Detaljspesifikasjon-siden) før du konkluderer med at detaljen mangler eller ikke finnes.
 • Du er PLIKTIG til å fylle ut feltet "delsjekk" i JSON-svaret (se format lenger ned) for HVER linje i DELSTATUS – én oppføring per punkt i det tilhørende regelavsnittet, med eksplisitt status. Dette er ikke valgfritt: hvis du hopper over et punkt i delsjekk, har du også hoppet over å vurdere det for taksten, og det regnes som en feil.
 • Hvis HURTIGFAKTA viser "Tesla bakdør: JA → folie/tape-montering 50p" → Foreslå 50p folie/tape-montering i annetbildet. Ikke ignorer denne instruksjonen.
