@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.17 – Smart kontroll av takster</title>
+<title>AutoPell v2.18 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.17</div>
+    <div class="version-badge">v2.18</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,7 +260,15 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-/* AutoPell v2.17 – endringer fra v2.16:
+/* AutoPell v2.18 – endringer fra v2.17:
+   - FIX: Duplikat-funn for DELSTATUS-deler (samme sak skrevet to ganger med ulik ordlyd) fjernes
+     nå med et heuristisk sikkerhetsnett basert på delnavn, siden eksakt tekst-dedupe ikke fanget
+     omformuleringer
+   - FIX: Bilder skal nå ALLTID slå generell bilkunnskap/modellgjetting for farge/lakkerbarhet på
+     håndtak, speil og lister – Claude skal ikke lenger hevde som fakta at en bestemt modell "har
+     lakkerte håndtak" med mindre det faktisk er sett på bilde eller står i BILSPESIFIKKE REGLER
+   - List/P-list lagt til i sjekklisten for svart/ulakkert plast (samme kategori som håndtak/speil)
+   endringer fra v2.16:
    - Rotårsak funnet for "delsjekk sier foreslått, men forslaget kom aldri med": Claude skulle
      duplisere DELSTATUS-funn inn i to separate lister (delsjekk og resultater/dbs_handlinger),
      og disse kunne drifte fra hverandre
@@ -1974,8 +1982,10 @@ Vurder alltid følgende basert på bilens merke/modell/årsmodell:
 - Håndtak: Er håndtakene krom, svart ulakkert plast eller lakkert? Krom og svart ulakkert plast lakkes IKKE og får IKKE HTT. Kun lakkerte håndtak får HTT 15p.
   Eksempel: Nissan Leaf har krom håndtak → ingen HTT. Tesla Model 3 har svarte håndtak → ingen HTT. VW Golf har lakkerte håndtak → HTT 15p.
 - Speil/speildeksel: Er de lakkerte eller svart ulakkert plast? Svart ulakkert plast lakkes ikke og får ikke HTT.
+- List/P-list: Er listen lakkert i bilens farge, eller svart/grå ulakkert plast (svært vanlig på varebiler og lavere trim-nivåer)? Kun lakkert list får HTT.
 - Andre detaljer som typisk er krom, svart plast eller ulakkert på akkurat denne modellen.
 
+KRITISK – BILDER SLÅR BILKUNNSKAP: Hvis bilder er lastet opp og delen er synlig på et av dem, skal du ALLTID bruke det du faktisk SER på bildet fremfor generell modellkunnskap eller antakelser om trim-nivå. Ikke hevd som fakta at "denne modellen har lakkerte håndtak" hvis bildet viser noe annet – bildet vinner. Skriv ALDRI en påstand om at en bestemt modell har lakkerte/ulakkerte deler med mindre du enten (a) faktisk ser det på et opplastet bilde, eller (b) det er eksplisitt oppført i BILSPESIFIKKE REGLER under. Generell "de fleste biler av denne typen har..."-gjetting skal IKKE fremstilles som en bekreftet modellfakta.
 VIKTIG: Hvis du er usikker på om en detalj er lakkert eller ikke for denne spesifikke modellen/årsmodellen – IKKE flagg HTT. Bedre å misse ett funn enn å flagge feil.
 
 === DEBITERINGSFAKTORER ===
@@ -2174,12 +2184,14 @@ BILDER – bruk i bakgrunnen:
       if(!parsed.sammendrag)parsed.sammendrag={};
       if(!Array.isArray(parsed.sammendrag.dbs_handlinger))parsed.sammendrag.dbs_handlinger=[];
       if(!Array.isArray(parsed.resultater))parsed.resultater=[];
+      const injisertTekst=new Set();
       parsed.delsjekk.forEach(d=>{
         (d.punkter||[]).forEach(p=>{
           if((p.status==='foreslått'||p.status==='usikker')&&p.forslag){
             const alleredeMed=parsed.sammendrag.dbs_handlinger.some(x=>x.toLowerCase()===p.forslag.toLowerCase())
               || parsed.resultater.some(r=>(r.melding||'').toLowerCase().includes(p.forslag.toLowerCase()));
             if(!alleredeMed){
+              injisertTekst.add(p.forslag.toLowerCase());
               parsed.sammendrag.dbs_handlinger.push(p.forslag);
               parsed.resultater.push({
                 tittel:p.punkt||d.del,
@@ -2191,6 +2203,31 @@ BILDER – bruk i bakgrunnen:
           }
         });
       });
+      // v2.18: Sikkerhetsnett mot duplikater – hvis Claude likevel skriver et EKSTRA funn om en
+      // DELSTATUS-del (samme sak, annen ordlyd) direkte i resultater/dbs_handlinger i strid med
+      // instruksen, fjern det heuristisk basert på delnavn – kun de faktisk injiserte skal stå igjen.
+      const delBaseNavn=parsed.delsjekk
+        .map(d=>(d.del||'').replace(/\s*\[.*?\]\s*/g,'').trim().toLowerCase())
+        .filter(n=>n.length>2);
+      if(delBaseNavn.length){
+        parsed.resultater=parsed.resultater.filter(r=>{
+          const meldingLower=(r.melding||'').toLowerCase();
+          if(injisertTekst.has(meldingLower))return true;
+          const tekst=((r.tittel||'')+' '+(r.melding||'')+' '+(r.plassering||'')).toLowerCase();
+          const matcherDel=delBaseNavn.some(navn=>tekst.includes(navn));
+          if(matcherDel){
+            console.log('[POST-FILTER] Fjernet duplikat-resultat for DELSTATUS-del ("'+r.tittel+'") – skal kun komme fra delsjekk');
+            return false;
+          }
+          return true;
+        });
+        parsed.sammendrag.dbs_handlinger=parsed.sammendrag.dbs_handlinger.filter(txt=>{
+          const lower=txt.toLowerCase();
+          if(injisertTekst.has(lower))return true;
+          const matcherDel=delBaseNavn.some(navn=>lower.includes(navn));
+          return !matcherDel;
+        });
+      }
     }
 
     // ============================================================
