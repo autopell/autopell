@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.20 – Smart kontroll av takster</title>
+<title>AutoPell v2.21 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.20</div>
+    <div class="version-badge">v2.21</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,7 +260,14 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-/* AutoPell v2.20 – endringer fra v2.19:
+/* AutoPell v2.21 – endringer fra v2.20:
+   - FIX (rotårsak til gjenstående duplikater): Claude skrev av og til samme regelpunkt to
+     ganger INNI delsjekk selv (kort variant + detaljert/hedget variant), som omgikk v2.18-
+     sikkerhetsnettet siden det kun fanget duplikater UTENFOR delsjekk. Ny konsept-basert
+     dedupe i koden matcher på nøkkelbegreper (hjulbueliste, tankluke, løftetape, polere flikk,
+     dørhåndtak osv.) per del og hopper over gjentakelser, pluss eksplisitt instruks om at
+     hvert regelpunkt kun skal skrives én gang
+   endringer fra v2.19:
    - FIX: Claude fabrikkerte selvsikre "bildene viser..."-observasjoner som ikke stemte (feil
      håndtakfarge, feil hjulbueliste-premiss, påstått bakrute som ikke fantes). Bilde-baserte
      spørsmål (hjulbueliste, tankluke, løftetape) er nå omskrevet til NØYTRALE spørsmål
@@ -2155,6 +2162,7 @@ SVAR KUN MED GYLDIG JSON. INGEN ANNEN TEKST. IKKE SKRIV NOE FØR ELLER ETTER JSO
   "resultater": [{"tittel":"...","melding":"[Taksten sier]: ... [Regel]: ...","farge":"rød|gul|lilla","plassering":"..."}]
 }
 KRITISK OM "delsjekk": Dette feltet er OBLIGATORISK når HURTIGFAKTA inneholder "DELSTATUS PER HOVEDDEL". Ett objekt per linje i DELSTATUS. Under "punkter": ett element for HVERT punkt i det tilhørende regelavsnittet i INNEBYGDE REGLER – ikke bare punktene du husker, men ALLE punktene i avsnittet, punktert opp én og én. status="allerede ført" betyr at taksten allerede dekker det (skal IKKE foreslås på nytt). status="ikke relevant" betyr at punktet ikke gjelder denne bilen/skaden (f.eks. bilen har ikke hjulbueliste). status="usikker" betyr at du er usikker på om det gjelder – skriv likevel et forslag/spørsmål i "forslag" med farge "gul". Denne listen er en tvungen sjekkliste – den skal IKKE forkortes eller hoppes over selv om svaret blir langt.
+KRITISK – HVERT REGELPUNKT KUN ÉN GANG: Hvert regelpunkt fra avsnittet skal ha NØYAKTIG ÉN oppføring i "punkter" for en gitt del, aldri to. Ikke skriv en kort versjon OG en detaljert/hedget versjon av samme sak som to separate punkter – velg det ene, beste forslaget og skriv det én gang. Før du avslutter "punkter" for en del: se over listen og fjern eventuelle punkter som dekker samme underliggende sak (f.eks. to punkter om hjulbueliste, eller to om tankluke) – behold kun det beste.
 KRITISK – DELSJEKK ER ENESTE KILDE FOR DISSE FUNNENE: Hvis status="foreslått" eller "usikker", MÅ feltet "forslag" inneholde den fullstendige forslagsteksten (samme "Vurder å..."-format som ellers). IKKE skriv i tillegg en duplikatoppføring for det samme punktet i "resultater" eller "dbs_handlinger" – koden legger automatisk delsjekk-forslagene inn der. "resultater" og "dbs_handlinger" skal KUN inneholde funn som ikke stammer fra et DELSTATUS-punkt (f.eks. generiske regler som grunning topplakk, sveisemateriell, diagnose osv.).
 rød=mangler påkrevd tillegg/feil, gul=anbefalt/sjekk, lilla=kalibrering/koding påkrevd.
 Plassering=nøyaktig hvor i DBS dette legges inn.
@@ -2198,13 +2206,25 @@ BILDER – bruk i bakgrunnen:
       if(!Array.isArray(parsed.sammendrag.dbs_handlinger))parsed.sammendrag.dbs_handlinger=[];
       if(!Array.isArray(parsed.resultater))parsed.resultater=[];
       const injisertTekst=new Set();
+      // v2.21: Konsept-basert dedupe PER DEL – Claude skriver av og til samme regelpunkt to
+      // ganger med ulik ordlyd (kort variant + detaljert/hedget variant). Eksakt tekst-match
+      // fanger ikke dette, så vi matcher på kjente nøkkelbegreper i stedet.
+      const konseptNøkler=['hjulbueliste','tankluk','bensinluk','løftetape','loftetape','polere flikk','dørhåndtak','ladeluke','rustbeskyttelse','dokumentasjon','karosserilim','blanderør','diagnose','kalibrer','tilstøtende'];
+      const delKonseptSett={};
       parsed.delsjekk.forEach(d=>{
+        const delNavn=d.del||'ukjent';
+        if(!delKonseptSett[delNavn])delKonseptSett[delNavn]=new Set();
         (d.punkter||[]).forEach(p=>{
           if((p.status==='foreslått'||p.status==='usikker')&&p.forslag){
-            const alleredeMed=parsed.sammendrag.dbs_handlinger.some(x=>x.toLowerCase()===p.forslag.toLowerCase())
-              || parsed.resultater.some(r=>(r.melding||'').toLowerCase().includes(p.forslag.toLowerCase()));
-            if(!alleredeMed){
-              injisertTekst.add(p.forslag.toLowerCase());
+            const forslagLower=p.forslag.toLowerCase();
+            const punktLower=(p.punkt||'').toLowerCase();
+            const konsept=konseptNøkler.find(k=>forslagLower.includes(k)||punktLower.includes(k));
+            const konseptDuplikat=konsept&&delKonseptSett[delNavn].has(konsept);
+            const alleredeMed=parsed.sammendrag.dbs_handlinger.some(x=>x.toLowerCase()===forslagLower)
+              || parsed.resultater.some(r=>(r.melding||'').toLowerCase().includes(forslagLower));
+            if(!alleredeMed&&!konseptDuplikat){
+              if(konsept)delKonseptSett[delNavn].add(konsept);
+              injisertTekst.add(forslagLower);
               parsed.sammendrag.dbs_handlinger.push(p.forslag);
               parsed.resultater.push({
                 tittel:p.punkt||d.del,
@@ -2212,6 +2232,8 @@ BILDER – bruk i bakgrunnen:
                 farge:p.farge||(p.status==='usikker'?'gul':'rød'),
                 plassering:d.del||''
               });
+            }else if(konseptDuplikat){
+              console.log('[POST-FILTER] Hoppet over konsept-duplikat i delsjekk ("'+p.punkt+'") for '+delNavn);
             }
           }
         });
