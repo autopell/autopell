@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.38 – Smart kontroll av takster</title>
+<title>AutoPell v2.39 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.38</div>
+    <div class="version-badge">v2.39</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,12 +260,32 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-/* AutoPell v2.38 – endringer fra v2.37:
+/* AutoPell v2.39 – endringer fra v2.38 (ID-system FASE 3+4 – migrering fullført):
+   FASE 3 (UB/rustbeskyttelse/maskering):
+   - UB og rustbeskyttelse er nå fullt DETERMINISTISKE: koden finner selv UB-relevante deler
+     (stål/alu N/G, ikke tilstøtende/plast) og sjekker om UB/rustbeskyttelse er ført i
+     sammenstillingen – injiserer ett samlet forslag per type (DET_UB_MANGLER hopper over
+     hvis DET_UB_VED_FLATERETTE alt er injisert). Alle del-spesifikke *_RUST/*_UB-ID-er
+     konvertert til deterministisk:true (borte fra DELSTATUS-listene).
+   - Maskering grill/nedre del: ny delsjekk-ID STOTFANGER_MASKERING_GRILL (regel 14 → ID).
+   FASE 4 (resten):
+   - Klips: deterministisk (DET_KLIPS) – dør/støtfanger N eller D/M og klips ikke i taksten.
+     STOTFANGER_KLIPS konvertert til deterministisk:true.
+   - Beskyttelsesfolie (DET_BESKYTTELSESFOLIE), trekketårn ved skadeklasse 1 (DET_TREKKETARN),
+     Mercedes ripefast klarlakk (DET_MERCEDES_RIPEFAST): deterministiske.
+   - Speildeksel: ny delsjekk-ID FORDOR_SPEILDEKSEL (regel 12 → ID).
+   - Nagling (regel 13) → dekkes av BAKSKJERM_N_KAROSSERILIM.
+   - Regler 3/4/10/12/13/14/15/16, Mercedes-linjen, P-lister/klipssett/rust-prosa omskrevet
+     til auto/referanse. Tonfyller/kitting/hengsler/løftetape-ruter står som referanseinfo
+     (sjeldne skjønnsting uten deterministisk trigger – eneste gjenværende fritekst-kilder
+     sammen med bilspesifikk HTT-kunnskap som styrer delsjekk-statuser).
+
+/* AutoPell v2.39 – endringer fra v2.37:
    - FJERNET: STOTFANGER_SVART_HJORNE fra ID-registeret + "Svart hjørne nede"-prosalinjen.
      Regelen havnet i sjekklisten for HVER støtfanger-takst og genererte gjentatte
      "skade på svart del"-forslag uten grunnlag. Fjernet på Martins beskjed.
 
-/* AutoPell v2.38 – endringer fra v2.36 (ID-KONSEPT-FJERNING – strukturell innstramming):
+/* AutoPell v2.39 – endringer fra v2.36 (ID-KONSEPT-FJERNING – strukturell innstramming):
    - Sidedør-hullet fra Porsche-testen tettet: Claude omgikk sikkerhetsnettet ved å skrive
      frie varianter UTEN delnavn ("grunning ... i plastspesifikasjonen") eller med konsepter
      som manglet i nøkkelordlisten (spylevæske, svart hjørne).
@@ -275,7 +295,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
      med stoppord-filter og ordgrense-match) – ingen manuell nøkkelordliste å glemme å
      vedlikeholde lenger.
 
-/* AutoPell v2.38 – endringer fra v2.35 (ID-system FASE 2: diagnose + kalibrering):
+/* AutoPell v2.39 – endringer fra v2.35 (ID-system FASE 2: diagnose + kalibrering):
    - Kalibrering/koding ved SKIFT av sensor/kamera/lyskaster er nå DETERMINISTISK: koden leser
      karosseri_skift, ekskluderer p-radar/parkeringssensor, sjekker om kalibrering alt er ført,
      og injiserer funn direkte (filskiftesensor, radar, frontkamera, lyskaster-koding).
@@ -289,7 +309,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    - STOTFANGER_DIAGNOSE og FORDOR_DIAGNOSE_AIRBAG forblir delsjekk-ID-er (krever skjønn om
      De/Mo-status som ikke er 100% deterministisk i parseren).
 
-/* AutoPell v2.38 – endringer fra v2.34 (OPPRYDNING – kun ID-systemet):
+/* AutoPell v2.39 – endringer fra v2.34 (OPPRYDNING – kun ID-systemet):
    - Full gjennomgang for å eliminere parallelle resultat-veier. Deterministiske parser-
      betingelser (SMÅDEL PÅ 50%, BRUKT DEL SOM N, Tesla bakdør folie/tape, UB-ved-flaterette,
      kanal-tilstøtende) injiseres nå DIREKTE av koden med egne ID-er (DET_*) – Claude er ikke
@@ -299,7 +319,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
      automatisk av koden". HURTIGFAKTA-tekstene myknet fra "Flagg som mangel" til informativ.
    - DET_*-ID-er vises aldri i DELSTATUS-ID-listene (deterministisk:true-flagg).
 
-/* AutoPell v2.38 – endringer fra v2.33:
+/* AutoPell v2.39 – endringer fra v2.33:
    - FIX: To flere "HURTIGFAKTA – ABSOLUTTE REGLER"-instrukser (50%-lakk polere flikk og
      SMÅDEL PÅ 50%) instruerte fortsatt Claude til å flagge direkte, parallelt med de nye
      STOTFANGER_50_POLERE_FLIKK/STOTFANGER_50_SMADELER-ID-ene – forklarer smådel-duplikatet
@@ -581,6 +601,7 @@ LØFTETAPE RUTER: 20p per maskert del
 HENGSLER OG BRAKETTER løse: 9p per del
 
 === RUSTBESKYTTELSE ===
+(Referanseinfo – rustbeskyttelse og UB håndteres automatisk av koden (v2.39), ikke skriv egne forslag. Suppresjons-reglene under gjelder fortsatt deg.)
 Skift av sveiset detalj: 9p | Skift av skrudd detalj: 3p | Rettet detalj: 3p
 Forskjerm er alltid skrudd detalj → 3p rustbeskyttelse ved skift (aldri 9p)
 ALDRI rustbeskyttelse på plast (støtfangere, speil, lister, griller)
@@ -633,7 +654,7 @@ Kalibrering (kun referanseinfo – skift-utløst kalibrering håndteres automati
 - Kamera skiftet → kalibrering ca 400p
 - Parkeringssensorer → INGEN kalibrering
 - Filskiftesensorer (ytterst H/V i bakre støtfanger eller på bakplate) → 300p ved skift
-Klipssett: KUN ved faktisk skift (N) eller demontering (D/M) av støtfanger eller dør. ALDRI ved tilstøtende lakk eller når delen kun har tilstøtende-post (f.eks. "H Fordør, under begrensning"). Sjekk Op.Type (N/G), De/Mo-fanen (D/M huket av) og om delen står som "under begrensning" før forslag.
+Klipssett: håndteres automatisk av koden (v2.39) – kun ved faktisk skift (N) eller demontering (D/M) av støtfanger eller dør, aldri ved tilstøtende. Ikke skriv egne klips-forslag.
 
 === TAK – RETTING OG LAKKERING ===
 Ved retting eller lakkering av tak, sjekk alltid:
@@ -709,7 +730,7 @@ Sveisetepper: ca 1 time arbeid
 Innhente dokumentasjon: 100p
 
 === P-LISTER ===
-Ved demontering → klips i annet bilde
+(Referanseinfo – klips ved demontering håndteres automatisk av koden, ikke skriv egne forslag)
 Veiledende pris: 18,80kr per klips – antall og pris sjekkes per bilmodell
 
 === HJULBUELISTER ===
@@ -1483,28 +1504,28 @@ function takstSammendrag(t){
   // Scope v2.30: bakskjerm, forskjerm, panser, dør (fordør/bakdør), tak.
   // IKKE migrert ennå: støtfanger/plastrep/50%-regelen (egen, større jobb – tas i neste runde).
   if(!window.REGEL_REGISTRY)window.REGEL_REGISTRY={
-    TAK_RUST:{kat:/\btak\b/i,optype:['N','G'],navn:'Rustbeskyttelse',mal:'Vurder å legge til rustbeskyttelse 3p (rettet detalj)',farge:'rød'},
+    TAK_RUST:{deterministisk:true,navn:'Rustbeskyttelse',mal:'',farge:'rød'},
     TAK_DEMO:{kat:/\btak\b/i,optype:['N','G'],navn:'De/Mo innvendige detaljer',mal:'Vurder å legge til De/Mo innvendige detaljer (himling)',farge:'rød'},
     TAK_TILST_TAKRENNE:{kat:/\btak\b/i,optype:['N','G'],navn:'Tilstøtende takrenne/A-stolpe',mal:'Vurder å ta med tilstøtende flate mot takrenne/A-stolpe begge sider (fargeavhengig)',farge:'gul'},
     TAK_UB_INNVENDIG:{kat:/\btak\b/i,optype:['N','G'],navn:'UB innvendig tak',mal:'Vurder å legge til UB understellsbehandling innvendig tak (150kr)',farge:'rød'},
     TAK_TAKRAILS:{kat:/\btak\b/i,optype:['N','G'],navn:'Takrails/skinner',mal:'Sjekk om takrails/skinner må demonteres',farge:'gul'},
     TAK_ANTENNER:{kat:/\btak\b/i,optype:['N','G'],navn:'Antenner',mal:'Sjekk om antenner må demonteres',farge:'gul'},
 
-    FORSKJERM_N_RUST:{kat:/forskjerm/i,optype:['N'],navn:'Rustbeskyttelse',mal:'Vurder å legge til rustbeskyttelse 3p (skrudd detalj)',farge:'rød'},
-    FORSKJERM_N_UB:{kat:/forskjerm/i,optype:['N'],navn:'UB',mal:'Vurder å legge til UB (understellsbehandling) i DBS under Verksteddata → Materialforbruk/understellsbehandling',farge:'rød'},
+    FORSKJERM_N_RUST:{deterministisk:true,navn:'Rustbeskyttelse',mal:'',farge:'rød'},
+    FORSKJERM_N_UB:{deterministisk:true,navn:'UB',mal:'',farge:'rød'},
     FORSKJERM_N_TILST_FORDOR:{kat:/forskjerm/i,optype:['N'],navn:'Tilstøtende fordør',mal:'Vurder å ta med tilstøtende flate mot fordør, hvis fordør ikke lakkes i taksten',farge:'gul'},
     FORSKJERM_N_TILST_ASTOLPE:{kat:/forskjerm/i,optype:['N'],navn:'Tilstøtende A-stolpe',mal:'Vurder å legge til tilstøtende flate mot A-stolpe',farge:'rød'},
     FORSKJERM_N_HTT_LOSE:{kat:/forskjerm/i,optype:['N'],navn:'HTT løse deler',mal:'Sjekk løse deler på forskjerm i lakklisten for manglende HTT',farge:'gul'},
 
-    PANSER_RUST:{kat:/\bpanser\b/i,optype:['N','G'],navn:'Rustbeskyttelse',mal:'Vurder å legge til rustbeskyttelse (rettet/sveiset/skrudd detalj etter type)',farge:'rød'},
+    PANSER_RUST:{deterministisk:true,navn:'Rustbeskyttelse',mal:'',farge:'rød'},
     PANSER_DEMO:{kat:/\bpanser\b/i,optype:['N','G'],navn:'De/Mo innvendige detaljer',mal:'Vurder å legge til De/Mo innvendige detaljer (pansermatte)',farge:'rød'},
     PANSER_TILST_ASTOLPE:{kat:/\bpanser\b/i,optype:['N','G'],navn:'Tilstøtende A-stolpe',mal:'Vurder å ta med tilstøtende flate mot A-stolpe begge sider (fargeavhengig)',farge:'gul'},
     PANSER_TILST_FORSKJERM:{kat:/\bpanser\b/i,optype:['N','G'],navn:'Tilstøtende forskjerm',mal:'Vurder å ta med tilstøtende flate mot forskjerm begge sider (fargeavhengig)',farge:'gul'},
     PANSER_EMBLEM:{kat:/\bpanser\b/i,optype:['N','G'],navn:'Emblem',mal:'Sjekk om emblem på panser må bestilles nytt',farge:'gul'},
 
-    DOR_FELLES_RUST:{kat:/\bfordør\b|\bbakdør\b/i,optype:['N','G'],navn:'Rustbeskyttelse',mal:'Vurder å legge til rustbeskyttelse 3p (rettet detalj)',farge:'rød'},
+    DOR_FELLES_RUST:{deterministisk:true,navn:'Rustbeskyttelse',mal:'',farge:'rød'},
     DOR_FELLES_DEMO:{kat:/\bfordør\b|\bbakdør\b/i,optype:['N','G'],navn:'De/Mo innvendige detaljer',mal:'Vurder å legge til De/Mo innvendige detaljer (vindusheis, dørtrekk)',farge:'rød'},
-    DOR_FELLES_UB:{kat:/\bfordør\b|\bbakdør\b/i,optype:['N','G'],navn:'UB',mal:'Vurder å legge til UB (understellsbehandling) i DBS under Verksteddata → Materialforbruk/understellsbehandling',farge:'rød'},
+    DOR_FELLES_UB:{deterministisk:true,navn:'UB',mal:'',farge:'rød'},
     DOR_FELLES_HTT_HANDTAK:{kat:/\bfordør\b|\bbakdør\b/i,optype:['N','G'],navn:'HTT dørhåndtak',mal:'Sjekk om dørhåndtaket er lakkert – i så fall vurder HTT 15p i annetbildet',farge:'gul'},
     FORDOR_DIAGNOSE_AIRBAG:{kat:/\bfordør\b/i,optype:['N','G'],navn:'Diagnose airbag',mal:'Vurder å legge til diagnose (slette airbag-feilkoder, 50p)',farge:'gul'},
     FORDOR_TILST_BAKDOR:{kat:/\bfordør\b/i,optype:['N','G'],navn:'Tilstøtende bakdør',mal:'Vurder å ta med tilstøtende flate mot bakdør',farge:'gul'},
@@ -1513,17 +1534,17 @@ function takstSammendrag(t){
     BAKDOR_TILST_FORDOR:{kat:/\bbakdør\b/i,optype:['N','G'],navn:'Tilstøtende fordør',mal:'Vurder å ta med tilstøtende flate mot fordør',farge:'gul'},
     BAKDOR_HJULBUELISTE:{kat:/\bbakdør\b/i,optype:['N','G'],navn:'HTT hjulbueliste',mal:'Sjekk om hjulbueliste er lakkerbar – i så fall vurder HTT 15p',farge:'gul'},
 
-    BAKSKJERM_G_RUST:{kat:/bakskjerm/i,optype:['G'],navn:'Rustbeskyttelse',mal:'Vurder å legge til rustbeskyttelse 3p (rettet detalj)',farge:'rød'},
+    BAKSKJERM_G_RUST:{deterministisk:true,navn:'Rustbeskyttelse',mal:'',farge:'rød'},
     BAKSKJERM_G_DEMO:{kat:/bakskjerm/i,optype:['G'],navn:'De/Mo innvendige detaljer',mal:'Vurder å legge til De/Mo innvendige detaljer',farge:'rød'},
-    BAKSKJERM_G_UB:{kat:/bakskjerm/i,optype:['G'],navn:'UB',mal:'Vurder å legge til UB (understellsbehandling) i DBS under Verksteddata → Materialforbruk/understellsbehandling',farge:'rød'},
+    BAKSKJERM_G_UB:{deterministisk:true,navn:'UB',mal:'',farge:'rød'},
     BAKSKJERM_G_TILST_BAKDOR:{kat:/bakskjerm/i,optype:['G'],navn:'Tilstøtende bakdør',mal:'Spør om tilstøtende mot bakdør er aktuelt',farge:'gul'},
     BAKSKJERM_G_HJULBUELISTE:{kat:/bakskjerm/i,optype:['G'],navn:'HTT hjulbueliste',mal:'Sjekk om bakskjerm har lakkerbar hjulbueliste',farge:'gul'},
     BAKSKJERM_G_TANKLUKE:{kat:/bakskjerm/i,optype:['G'],navn:'Tankluke',mal:'Sjekk om tankluken på bakskjerm bør vurderes som tilstøtende',farge:'gul'},
     BAKSKJERM_G_LOFTETAPE:{kat:/bakskjerm/i,optype:['G'],navn:'Løftetape',mal:'Sjekk om det finnes en synlig rute mot bakskjerm som krever løftetape 20p (kun personbil, ikke varebil)',farge:'gul'},
     BAKSKJERM_G_POLERE_FLIKK:{kat:/bakskjerm/i,optype:['G'],navn:'Polere flikk',mal:'Vurder polere flikk 20p hvis takstolpe ikke lakkes helt ut',farge:'gul'},
 
-    BAKSKJERM_N_RUST:{kat:/bakskjerm/i,optype:['N'],navn:'Rustbeskyttelse',mal:'Vurder å legge til rustbeskyttelse 3p (skrudd detalj)',farge:'rød'},
-    BAKSKJERM_N_UB:{kat:/bakskjerm/i,optype:['N'],navn:'UB',mal:'Vurder å legge til UB (understellsbehandling) i DBS under Verksteddata → Materialforbruk/understellsbehandling',farge:'rød'},
+    BAKSKJERM_N_RUST:{deterministisk:true,navn:'Rustbeskyttelse',mal:'',farge:'rød'},
+    BAKSKJERM_N_UB:{deterministisk:true,navn:'UB',mal:'',farge:'rød'},
     BAKSKJERM_N_TILST_BAKDOR:{kat:/bakskjerm/i,optype:['N'],navn:'Tilstøtende bakdør',mal:'Vurder å ta med tilstøtende flate mot bakdør',farge:'gul'},
     BAKSKJERM_N_TILST_KANAL:{kat:/bakskjerm/i,optype:['N'],navn:'Tilstøtende kanal',mal:'Spør om tilstøtende bakskjerm eller arealavhengig lakk av kanal er aktuelt',farge:'gul'},
     BAKSKJERM_N_POLERE_FLIKK:{kat:/bakskjerm/i,optype:['N'],navn:'Polere flikk',mal:'Vurder polere flikk 20p hvis takstolpe/kanal ikke lakkes helt frem',farge:'gul'},
@@ -1536,7 +1557,7 @@ function takstSammendrag(t){
     // v2.32 – Fase 1: Støtfanger/plastrep/50%-regelen
     STOTFANGER_HTT_LOSE:{kat:/støtfanger/i,optype:['N','G'],navn:'HTT løse deler',mal:'Sjekk løse deler montert på støtfangeren (lokk, lister osv.) for manglende HTT 15p per del',farge:'gul'},
     STOTFANGER_DIAGNOSE:{kat:/støtfanger/i,optype:['N','G'],navn:'Diagnose (feilkoder)',mal:'Vurder å legge til diagnose (slette feilkoder, 100p) – støtfanger er demontert',farge:'gul'},
-    STOTFANGER_KLIPS:{kat:/støtfanger/i,optype:['N','G'],navn:'Klips',mal:'Vurder å ta med klipssett for støtfangeren i annetbildet',farge:'gul'},
+    STOTFANGER_KLIPS:{deterministisk:true,navn:'Klips',mal:'',farge:'gul'},
     STOTFANGER_SVEISEMATERIELL:{kat:/støtfanger/i,optype:['N','G'],navn:'Sveisemateriell plastrep',mal:'Vurder å legge til kostnad for sveisemateriell plastrep – gjelder KUN hvis "ut og innvendig skade" er huket av i plastspesifikasjonen, og kun ved reparasjon (ikke ved skift)',farge:'gul'},
     STOTFANGER_GRUNNING_TOPPLAKK:{kat:/støtfanger/i,optype:['N','G'],navn:'Grunning for topplakk',mal:'Vurder å legge til grunning for topplakk i annetbilde',farge:'rød'},
     STOTFANGER_FORAN_KALIBRERING_RADAR:{deterministisk:true,navn:'Kalibrering radar',mal:'',farge:'lilla'},
@@ -1558,6 +1579,14 @@ function takstSammendrag(t){
     DET_SMADEL_50:{deterministisk:true,navn:'Smådel på 50%',mal:'',farge:'rød'},
     DET_FRONTKAMERA_KALIBRERING:{deterministisk:true,navn:'Kalibrering frontkamera',mal:'',farge:'lilla'},
     DET_LYSKASTER_KODING:{deterministisk:true,navn:'Lyskaster koding',mal:'',farge:'lilla'},
+    DET_UB_MANGLER:{deterministisk:true,navn:'UB mangler',mal:'',farge:'rød'},
+    DET_RUSTBESKYTTELSE:{deterministisk:true,navn:'Rustbeskyttelse mangler',mal:'',farge:'rød'},
+    DET_KLIPS:{deterministisk:true,navn:'Klipssett',mal:'',farge:'gul'},
+    DET_BESKYTTELSESFOLIE:{deterministisk:true,navn:'Beskyttelsesfolie',mal:'',farge:'gul'},
+    DET_TREKKETARN:{deterministisk:true,navn:'Trekketårn/rigging',mal:'',farge:'gul'},
+    DET_MERCEDES_RIPEFAST:{deterministisk:true,navn:'Mercedes ripefast klarlakk',mal:'',farge:'gul'},
+    STOTFANGER_MASKERING_GRILL:{kat:/støtfanger/i,optype:['N','G'],navn:'Maskering grill/nedre del',mal:'Vurder å legge til maskering av grill og nedre del av støtfanger i annetbildet – dekkes ikke av standard hoveddel-maskering',farge:'gul'},
+    FORDOR_SPEILDEKSEL:{kat:/\bfordør\b/i,optype:['N','G'],navn:'Speildeksel',mal:'Sjekk om speildeksel må demonteres fra døren – i så fall vurder tillegg',farge:'gul'},
   };
   const REGEL_REGISTRY=window.REGEL_REGISTRY;
 
@@ -2198,7 +2227,7 @@ Dette er en av de viktigste regelene. ALDRI hopp over en del som er reparert ute
 - Nissan Ariya: lakkerte håndtak – HTT gjelder
 - Alle Tesla-modeller (Model 3, Y, S, X): ALDRI HTT håndtak – ingen Tesla har lakkerte håndtak
 - Tesla Model 3 og Y: ingen P-lister → aldri flagg klips
-- Mercedes etter 2007: ripefast klarlakk kan settes som lakktype 4 (kode 6770) – flagg som spørsmål (gul)
+- Mercedes etter 2007: ripefast klarlakk (lakktype 4, kode 6770) – håndteres automatisk av koden (v2.39), ikke skriv eget forslag
 - VW ID.Buzz: lakkerte håndtak – HTT gjelder
 - Svart bil: ALDRI tilstøtende flate
 
@@ -2284,12 +2313,10 @@ For hver del i taksten – sjekk disse punktene:
    - Tilstøtende foreslås KUN mot deler som IKKE allerede lakkes/rettes/poleres OG som IKKE allerede har tilstøtende-post i taksten.
 
 3. RUSTBESKYTTELSE:
-   - Kun ståldetaljer som rettes eller skiftes – ALDRI på plast
+   - Håndteres automatisk av koden (v2.39) – ikke skriv egne forslag. Suppresjon som fortsatt gjelder deg: ALDRI rustbeskyttelse på plast.
 
 4. UB (understellsbehandling):
-   - 120kr ved skift eller retting av ståldeler OG aluminiumsdeler
-   - Aluminium korroderer innvendig – UB gjelder likevel
-   - Ved FLERE ståldetaljer: ett samlet forslag, ikke per del
+   - Håndteres automatisk av koden (v2.39) – ikke skriv egne UB-forslag. Suppresjon som fortsatt gjelder deg: ALDRI UB på plast eller tilstøtende-deler.
    - DBS: Verksteddata → Materialforbruk/understellsbehandling
    - ALDRI på plastdeler
 
@@ -2350,28 +2377,22 @@ For hver del i taksten – sjekk disse punktene:
    - Lakk: HTT, tilstøtende, polere flikk og alt lakkarbeid
    - Karosseri/mekanisk: diagnose, kalibrering, karosseriarbeid
 
-10. P-LISTER: demontert → klips i annet bilde
+10. P-LISTER: klips ved demontering håndteres automatisk av koden (v2.39) – ikke skriv egne klips-forslag.
 
 11. KANALSKIFT:
     - Alltid sveist/naglet/limt
     - Spør om arealavhengig tilstøtende mot A-stolpe, B-stolpe og bakskjerm (gul)
     - Arealavhengig = pris beregnes basert på faktisk areal i DBS, ikke fast pris
 
-12. SPEILDEKSEL:
-    - Hvis speildeksel skal demonteres fra hoveddelen → flagg tillegg (gul)
+12. SPEILDEKSEL: ID-migrert (v2.39) – bruk FORDOR_SPEILDEKSEL fra delsjekk, ikke fritekst.
 
-13. NAGLING:
-    - Sjekk at nagling er betalt i taksten – ligger sjelden i DBS automatisk (gul)
+13. NAGLING: dekkes av BAKSKJERM_N_KAROSSERILIM-ID-en (lim og/eller nagler) – ikke skriv eget nagling-forslag.
 
-14. MASKERING STØTFANGER:
-    - Grill og nedre del av støtfanger dekkes kun av hoveddel 1 del i DBS
-    - Flagg tillegg: 40p + 50kr fine line teip (gul)
+14. MASKERING STØTFANGER (grill/nedre del): ID-migrert (v2.39) – bruk STOTFANGER_MASKERING_GRILL fra delsjekk, ikke fritekst. (Bakgrunn: grill og nedre del dekkes kun av hoveddel 1 del i DBS.)
 
-15. BESKYTTELSESFOLIE:
-    - Hvis beskyttelsesfolie over 5cm på del som lakkes → flagg 50p i annet bilde (gul)
+15. BESKYTTELSESFOLIE: håndteres automatisk av koden (v2.39) – ikke skriv eget forslag.
 
-16. TREKKETÅRN:
-    - Skadeklasse 1 → flagg 50p rigging (gul)
+16. TREKKETÅRN: håndteres automatisk av koden (v2.39) – ikke skriv eget forslag.
 
 17. Spesialregler for merke kun hvis relevant
 
@@ -2532,6 +2553,46 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
               injiserDeterministisk(kat.id,kat.tekst(treffNavn.join(' og ')),'Arbeidsspesifikasjon');
             }
           });
+        }
+        // v2.39 Fase 3: UB og rustbeskyttelse – deterministisk. Samme del-filter som
+        // "UB-relevante deler" i HURTIGFAKTA (stål/alu N/G, ikke tilstøtende, ikke plast).
+        const ubRelevantePF=(parserData.lakkspes||[]).filter(d=>{
+          if(d.tillegg)return false;
+          if(d.tilstøtende||d.optype==='T')return false;
+          if(!d.optype||(d.optype!=='N'&&d.optype!=='G'))return false;
+          const mat=(d.materialhint||'').toLowerCase();
+          if(mat.includes('plast'))return false;
+          const navn=(d.navn||'').toLowerCase();
+          if(/støtfanger|hengsel|lokk|håndtak|spoiler|spyledyse|p-list|gitter|liste|speil/.test(navn))return false;
+          return true;
+        }).map(d=>`${d.navn} (${d.optype})`);
+        if(ubRelevantePF.length&&!(parserData.sammenstilling&&parserData.sammenstilling.ub_kr)&&!brukteIDer.has('DET_UB_VED_FLATERETTE')){
+          injiserDeterministisk('DET_UB_MANGLER',`Vurder å legge til UB (understellsbehandling) i DBS under Verksteddata → Materialforbruk/understellsbehandling – gjelder ${ubRelevantePF.join(', ')}`,'Verksteddata → Materialforbruk');
+        }
+        const rustFørtPF=parserData.sammenstilling&&parserData.sammenstilling['Rustbeskyttelse'];
+        if(ubRelevantePF.length&&!rustFørtPF){
+          injiserDeterministisk('DET_RUSTBESKYTTELSE',`Vurder å legge til rustbeskyttelse for ${ubRelevantePF.join(', ')} – 3p skrudd/rettet detalj, 9p sveiset detalj`,'Arbeidsspesifikasjon');
+        }
+        // v2.39 Fase 4: Klips – dør/støtfanger skiftes (N) eller demonteres (D/M), klips ikke nevnt
+        const dørStøtfangerSkiftes=(parserData.lakkspes||[]).some(d=>!d.tillegg&&d.optype==='N'&&!d.tilstøtende&&d.navn&&/fordør|bakdør|støtfanger/i.test(d.navn))
+          ||(parserData.karosseri_skift||[]).some(d=>d.navn&&d.tiltak==='Skift'&&/dør|støtfanger/i.test(d.navn))
+          ||(parserData.dm_av||[]).some(d=>/dør|støtfanger/i.test(d.navn||''));
+        if(dørStøtfangerSkiftes&&!/klips/i.test(parserData.raw||'')){
+          injiserDeterministisk('DET_KLIPS','Vurder å ta med klipssett i annetbildet – dør/støtfanger skiftes eller demonteres','Annetbildet');
+        }
+        // v2.39 Fase 4: Beskyttelsesfolie – folie nevnt i taksten og deler lakkes
+        const harNGdelerPF=(parserData.lakkspes||[]).some(d=>!d.tillegg&&(d.optype==='N'||d.optype==='G')&&!d.tilstøtende);
+        if(/folie|foliert|wrap/i.test(parserData.raw||'')&&harNGdelerPF){
+          injiserDeterministisk('DET_BESKYTTELSESFOLIE','Sjekk om beskyttelsesfolie over 5cm finnes på del som lakkes – i så fall vurder tillegg i annetbildet','Annetbildet');
+        }
+        // v2.39 Fase 4: Trekketårn/rigging – skadeklasse 1
+        if(/skadeklasse\s*1\b/i.test(parserData.raw||'')){
+          injiserDeterministisk('DET_TREKKETARN','Vurder å legge til rigging/trekketårn i annetbildet – taksten har skadeklasse 1','Annetbildet');
+        }
+        // v2.39 Fase 4: Mercedes ripefast klarlakk (lakktype 4, kode 6770)
+        const erMercedesPF=parserData.bil&&parserData.bil.modell&&/mercedes/i.test(parserData.bil.modell);
+        if(erMercedesPF&&harNGdelerPF){
+          injiserDeterministisk('DET_MERCEDES_RIPEFAST','Sjekk om ripefast klarlakk kan settes som lakktype 4 (kode 6770) – Mercedes etter 2007','Lakkspesifikasjon');
         }
       }
       parsed.delsjekk.forEach(d=>{
