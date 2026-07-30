@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.32 – Smart kontroll av takster</title>
+<title>AutoPell v2.33 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.32</div>
+    <div class="version-badge">v2.33</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,7 +260,14 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-/* AutoPell v2.32 – endringer fra v2.31:
+/* AutoPell v2.33 – endringer fra v2.32:
+   - FIX: Fant og fjernet gamle "Ordlyd EKSAKT"/"flagg som mangel: ..."-instrukser i regel 5d
+     (grunning topplakk) og regel 6 (maskering, polere flikk ved 50%) som fortsatt instruerte
+     Claude til å skrive direkte til resultater UAVHENGIG av det nye ID-systemet. Dette var
+     rotårsaken til at grunning topplakk fortsatt duplisertes rett etter støtfanger-migreringen
+     i v2.32 – to konkurrerende kilder for samme funn. Omskrevet til å peke til
+     STOTFANGER_GRUNNING_TOPPLAKK/STOTFANGER_50_MASKERING/STOTFANGER_50_POLERE_FLIKK-ID-ene.
+   endringer fra v2.31:
    - ID-system FASE 1: Støtfanger/plastrep/50%-regelen migrert til Regel-ID-systemet (14 nye
      ID-er: HTT løse deler, diagnose, klips, sveisemateriell, grunning topplakk, kalibrering
      radar/filskiftesensor, tilstøtende forskjerm/bakskjerm ved 3-sjikt, maskering/polere
@@ -2247,15 +2254,13 @@ For hver del i taksten – sjekk disse punktene:
       - ALDRI hvis skadetype mangler (da skal i stedet 5a flagges).
       - Føres i annetbildet.
    c) UB PÅ PLAST: ALDRI. Støtfangere er plast. Sjekk regel 3 og 4 før du foreslår UB.
-   d) GRUNNING FOR TOPPLAKK (alltid foreslås når plastreparasjon er aktivert):
-      - Hvis plastreparasjon er aktivert (se gjenkjennings-kriterier øverst i regel 5) → foreslå ALLTID som mangel: "Forslag: Vurder å legge til grunning for topplakk i annetbilde."
-      - HVORDAN SJEKKE: I plastreparasjon-vinduet finnes feltet "Grunning for topplakk" under "Kostnadssammenligning" – verdien står i dm². Hvis verdien er 0 eller blank → grunning er IKKE tatt med → flagg som mangel.
-      - Hvis verdien er satt (f.eks. 4 dm²) → grunning ER tatt med → IKKE flagg.
-      - Ordlyd EKSAKT: "Forslag: Vurder å legge til grunning for topplakk i annetbilde."
-      - Skal foreslås uansett størrelse på reparert flate, uansett gruppe og uansett skadetype – så lenge plastreparasjon er aktivert OG grunning-feltet står på 0.
-      - Ved ren lakkering av støtfanger UTEN plastreparasjon i taksten → IKKE foreslå grunning for topplakk.
-      - Hvis du ikke kan se plastrep-vinduet eller grunning-feltet eksplisitt: foreslå likevel som forsiktig påminnelse, siden grunning ofte glemmes.
-      - Ordlyd EKSAKT: "Forslag: Vurder å legge til grunning for topplakk i annetbilde."
+   d) GRUNNING FOR TOPPLAKK (alltid vurderes når plastreparasjon er aktivert):
+      - Dette punktet er ID-migrert (v2.33): bruk ID-en STOTFANGER_GRUNNING_TOPPLAKK fra delsjekk for støtfangeren – IKKE skriv et eget forslag her i regel 5d. Denne teksten er kun til hjelp for HVORDAN du avgjør status på den ID-en.
+      - HVORDAN SJEKKE: I plastreparasjon-vinduet finnes feltet "Grunning for topplakk" under "Kostnadssammenligning" – verdien står i dm². Hvis verdien er 0 eller blank → status="foreslått" for STOTFANGER_GRUNNING_TOPPLAKK.
+      - Hvis verdien er satt (f.eks. 4 dm²) → grunning ER tatt med → status="allerede ført".
+      - Gjelder uansett størrelse på reparert flate, uansett gruppe og uansett skadetype – så lenge plastreparasjon er aktivert.
+      - Ved ren lakkering av støtfanger UTEN plastreparasjon i taksten → status="ikke relevant".
+      - Hvis du ikke kan se plastrep-vinduet eller grunning-feltet eksplisitt: status="usikker" (still som forsiktig påminnelse, siden grunning ofte glemmes).
 
 6. 50% STØTFANGER (gjelder KUN støtfanger foran/bak – ikke andre deler):
    - SJEKK FRADRAG LAKK: Hvis kolonnen "Fradrag lakk → Delvis erstatning for utvendig flate (%)" er satt til en verdi (f.eks. 50%) for støtfanger foran eller bak → da skal maskering-boksen på samme linje i utvendig lakk-tabellen være huket av.
@@ -2263,13 +2268,10 @@ For hver del i taksten – sjekk disse punktene:
      • Egen kolonne "Maskering" i utvendig lakk-tabellen med ✅ eller tom firkant
      • Linje i taksten som "1) Maskering av plast" under tiltak/sammendrag
      • Tekst "Maskering" eller "Maskering av plast" i lakkspesifikasjonen
-   - Hvis maskering vises på NOEN av disse måtene → maskering ER på plass, IKKE flagg.
-   - HVIS fradrag er satt OG ingen tegn til maskering finnes i taksten → flagg som mangel: "Vurder å legge til maskering på støtfanger foran/bak (huk av maskering-boksen i utvendig lakk-tabellen)."
-   - VED USIKKERHET (kan ikke se klart om maskering er der eller ikke): IKKE flagg. Bedre å droppe forslaget enn å foreslå noe som allerede er der.
-   - IKKE bruk formuleringer som ikke er i denne regelen – hold deg til ordlyden over. Ikke finn på "fine line teip", "grill/nedre støtfanger" eller andre detaljer som ikke er regel-spesifikke.
+   - Dette punktet er ID-migrert (v2.33): bruk ID-en STOTFANGER_50_MASKERING fra delsjekk. Hvis maskering vises på NOEN av måtene over → status="allerede ført". HVIS fradrag er satt OG ingen tegn til maskering finnes → status="foreslått". VED USIKKERHET → status="ikke relevant" (bedre å droppe enn å foreslå noe som allerede er der).
    - Maskering-regelen gjelder KUN støtfangere (foran/bak) – ikke andre deler med fradrag lakk.
-   - Polere flikk 20p: ALLTID ved 50%-lakkering av støtfanger – flagges som mangel uansett om maskering er huket av eller ikke. Sjekk om "polere flikk" eller "flikk" allerede står i taksten – hvis ja, ikke flagg.
-   - Smådeler satt til 50% i DBS skal lakkes 100% – beregn differanse.
+   - Polere flikk ved 50%: ID-migrert (v2.33), bruk STOTFANGER_50_POLERE_FLIKK. ALLTID relevant ved 50%-lakkering av støtfanger. Sjekk om "polere flikk" eller "flikk" allerede står i taksten – hvis ja, status="allerede ført".
+   - Smådeler satt til 50% i DBS skal lakkes 100% – beregn differanse. ID-migrert (v2.33): bruk STOTFANGER_50_SMADELER.
    - HTT-vurdering ved 50%: Hvis bilder er tilgjengelige, bruk bildene aktivt til å sjekke hvilke løse detaljer (spyledeksel, parkeringssensorlokk, slepekrok-deksel, tåkelyslokk osv.) som finnes på den siden som faktisk lakkes. ALDRI gjett ut fra bilmodell alene når bilder finnes.
    - HTT-side ved 50%: KUN den siden som lakkes – ALDRI motsatt side.
 
@@ -2286,8 +2288,9 @@ For hver del i taksten – sjekk disse punktene:
    - Lyskaster Bi-Xenon/adaptiv/LED: koding ved skift (N).
 
 8. DIAGNOSE STØTFANGER:
-   - KUN hvis støtfanger faktisk er i taksten og demonteres
-   - ALDRI flagg hvis støtfanger ikke er nevnt i taksten
+   - ID-migrert (v2.33): bruk STOTFANGER_DIAGNOSE fra delsjekk.
+   - KUN status="foreslått" hvis støtfanger faktisk er i taksten og demonteres
+   - status="ikke relevant" hvis støtfanger ikke er nevnt i taksten
    - Spørsmål (gul) – etter 2014: 100p, før 2014: 50p
    - Debiteringsfaktor karosseri/mekanisk
 
