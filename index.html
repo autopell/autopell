@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.30 – Smart kontroll av takster</title>
+<title>AutoPell v2.32 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.30</div>
+    <div class="version-badge">v2.32</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,7 +260,21 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-/* AutoPell v2.30 – endringer fra v2.29:
+/* AutoPell v2.32 – endringer fra v2.31:
+   - ID-system FASE 1: Støtfanger/plastrep/50%-regelen migrert til Regel-ID-systemet (14 nye
+     ID-er: HTT løse deler, diagnose, klips, sveisemateriell, grunning topplakk, kalibrering
+     radar/filskiftesensor, tilstøtende forskjerm/bakskjerm ved 3-sjikt, maskering/polere
+     flikk/smådeler ved 50%, svart hjørne). Dette var nettopp delen som fortsatt hadde
+     duplikat-problemer etter v2.30 (grunning+diagnose duplisert i test) – bør nå være
+     strukturelt umulig, samme som bakskjerm/forskjerm/panser/dør/tak.
+   - Gjenstår (neste faser, ikke bygget): diagnose/kalibrering generelt, UB/rustbeskyttelse
+     generisk, maskering/beskyttelsesfolie/trekketårn/nagling/speildeksel, kanal-tilstøtende,
+     hjulstilling/tonfyller/kitting/hengsler/P-lister, bilspesifikke regler.
+   endringer fra v2.30:
+   - NYTT: Hvis ingen bilder er lastet opp, flagges dette nå alltid deterministisk (gult varsel)
+     – bildebaserte sjekker (håndtak, hjulbueliste, tankluke, løftetape osv.) kunne ikke
+     utføres. Garantert av kode, ikke avhengig av at Claude husker å nevne det.
+   endringer fra v2.29:
    - STORT: Regel-ID-system innført for DELSTATUS-delene (bakskjerm, forskjerm, panser, dør,
      tak). Hvert regelpunkt har nå en fast, unik ID (f.eks. BAKSKJERM_N_HJULBUELISTE). DELSTATUS
      gir Claude en eksakt liste med ID-er å ta stilling til per del, i stedet for å peke til et
@@ -1462,13 +1476,28 @@ function takstSammendrag(t){
     BAKSKJERM_N_INNV_LAKK:{kat:/bakskjerm/i,optype:['N'],navn:'Innvendig lakkering bakskjermkant',mal:'Vurder å legge til innvendig lakkering bakskjermkant (fremre 62p + bakre 19p)',farge:'rød'},
     BAKSKJERM_N_KAROSSERILIM:{kat:/bakskjerm/i,optype:['N'],navn:'Karosserilim/blanderør',mal:'Vurder å legge til kostnad karosserilim og/eller blanderør hvis dette skal brukes',farge:'gul'},
     BAKSKJERM_N_DOKUMENTASJON:{kat:/bakskjerm/i,optype:['N'],navn:'Dokumentasjon',mal:'Vurder å ta med kostnad for innhenting av dokumentasjon for skift av bakskjerm',farge:'gul'},
+
+    // v2.32 – Fase 1: Støtfanger/plastrep/50%-regelen
+    STOTFANGER_HTT_LOSE:{kat:/støtfanger/i,optype:['N','G'],navn:'HTT løse deler',mal:'Sjekk løse deler montert på støtfangeren (lokk, lister osv.) for manglende HTT 15p per del',farge:'gul'},
+    STOTFANGER_DIAGNOSE:{kat:/støtfanger/i,optype:['N','G'],navn:'Diagnose (feilkoder)',mal:'Vurder å legge til diagnose (slette feilkoder, 100p) – støtfanger er demontert',farge:'gul'},
+    STOTFANGER_KLIPS:{kat:/støtfanger/i,optype:['N','G'],navn:'Klips',mal:'Vurder å ta med klipssett for støtfangeren i annetbildet',farge:'gul'},
+    STOTFANGER_SVEISEMATERIELL:{kat:/støtfanger/i,optype:['N','G'],navn:'Sveisemateriell plastrep',mal:'Vurder å legge til kostnad for sveisemateriell plastrep – gjelder KUN hvis "ut og innvendig skade" er huket av i plastspesifikasjonen, og kun ved reparasjon (ikke ved skift)',farge:'gul'},
+    STOTFANGER_GRUNNING_TOPPLAKK:{kat:/støtfanger/i,optype:['N','G'],navn:'Grunning for topplakk',mal:'Vurder å legge til grunning for topplakk i annetbilde',farge:'rød'},
+    STOTFANGER_FORAN_KALIBRERING_RADAR:{kat:/støtfanger foran/i,optype:['N'],navn:'Kalibrering radar',mal:'Vurder å legge til kalibrering (ca 400p) – radar i støtfanger foran er skiftet',farge:'lilla'},
+    STOTFANGER_FORAN_SPYLEVAESKE:{kat:/støtfanger foran/i,optype:['N','G'],navn:'Spylevæske',mal:'Vurder å legge til kostnad for spylevæske (100kr) – bilen har lyktespylere som demonteres',farge:'gul'},
+    STOTFANGER_BAK_FILSKIFTESENSOR:{kat:/støtfanger bak/i,optype:['N'],navn:'Filskiftesensor',mal:'Vurder å legge til kalibrering av filskiftesensor (300p) – sensor i støtfanger bak er skiftet',farge:'lilla'},
+    STOTFANGER_FORAN_TILST_FORSKJERM:{kat:/støtfanger foran/i,optype:['N','G'],navn:'Tilstøtende forskjerm (3-sjikt)',mal:'Vurder å ta med tilstøtende flate mot forskjerm – 3-sjikts farge',farge:'gul'},
+    STOTFANGER_BAK_TILST_BAKSKJERM:{kat:/støtfanger bak/i,optype:['N','G'],navn:'Tilstøtende bakskjerm (3-sjikt)',mal:'Vurder å ta med tilstøtende flate mot bakskjerm – 3-sjikts farge',farge:'gul'},
+    STOTFANGER_50_MASKERING:{kat:/støtfanger/i,optype:['N','G'],navn:'Maskering ved 50%',mal:'Vurder å huke av maskering-boksen i utvendig lakk-tabellen – støtfangeren er satt til 50% lakk',farge:'rød'},
+    STOTFANGER_50_POLERE_FLIKK:{kat:/støtfanger/i,optype:['N','G'],navn:'Polere flikk ved 50%',mal:'Vurder polere flikk 20p i annetbildet – påkrevd ved 50%-lakkering av støtfanger',farge:'gul'},
+    STOTFANGER_50_SMADELER:{kat:/støtfanger/i,optype:['N','G'],navn:'Smådeler feilaktig 50%',mal:'Sjekk om tilknyttede smådeler (p-sensorer, lokk osv.) er feilaktig satt til 50% i DBS – disse skal lakkes 100% og differansen legges til',farge:'rød'},
+    STOTFANGER_SVART_HJORNE:{kat:/støtfanger/i,optype:['N','G'],navn:'Svart hjørne nede',mal:'Vurder å legge til kostnad for svart hjørne nede (ca 2000kr) i annet bilde',farge:'gul'},
   };
   const REGEL_REGISTRY=window.REGEL_REGISTRY;
 
-  // Fallback for deler IKKE migrert til ID-systemet ennå (kun støtfanger per v2.30)
-  const delReglerFallback=[
-    {re:/støtfanger/i, N:'Ved lakkering av støtfanger', G:'Ved lakkering av støtfanger'},
-  ];
+  // Fallback for deler IKKE migrert til ID-systemet ennå (ingen igjen etter v2.32 fase 1 –
+  // beholdes tom som struktur for fremtidige ikke-migrerte deltyper)
+  const delReglerFallback=[];
   const delstatusLinjer=[];
   t.lakkspes.forEach(d=>{
     if(d.tillegg||d.tilstøtende||d.optype==='T'||!d.navn)return;
@@ -2312,9 +2341,9 @@ SVAR KUN MED GYLDIG JSON. INGEN ANNEN TEKST. IKKE SKRIV NOE FØR ELLER ETTER JSO
   "kandidater": ["RÅ liste over ALT du har funnet, FØR duplikat-sjekk – kan inneholde ting som betyr det samme skrevet ulikt. Denne listen skal IKKE vises til brukeren, den er kun et mellomsteg for deg selv."],
   "resultater": [{"tittel":"...","melding":"[Taksten sier]: ... [Regel]: ...","farge":"rød|gul|lilla","plassering":"..."}]
 }
-KRITISK OM "delsjekk" OG REGEL-ID-SYSTEMET (v2.30): Dette feltet er OBLIGATORISK når HURTIGFAKTA inneholder "DELSTATUS PER HOVEDDEL". For HVER linje i DELSTATUS som viser "bruk disse ID-ene: X, Y, Z" – ett objekt i "punkter" per ID i den listen, med feltet "id" satt til NØYAKTIG den ID-strengen (kopier den, ikke finn opp egne ID-er eller endre stavemåten). Dette er ikke lenger fritekst-tolkning – du skal bare ta stilling til hver oppgitte ID: er den foreslått, allerede ført, ikke relevant, eller usikker. IKKE hopp over noen ID i listen. For deler som IKKE er ID-migrert ennå (viser "→ sjekk avsnittet ... i reglene" i stedet for ID-liste, gjelder foreløpig kun støtfanger) – bruk gammelt format: sett "id" til tom streng, og bruk i stedet fritekst "punkt" (kort navn) hentet fra det navngitte avsnittet i INNEBYGDE REGLER, ett per regelpunkt i avsnittet.
+KRITISK OM "delsjekk" OG REGEL-ID-SYSTEMET (v2.30, utvidet v2.32): Dette feltet er OBLIGATORISK når HURTIGFAKTA inneholder "DELSTATUS PER HOVEDDEL". For HVER linje i DELSTATUS som viser "bruk disse ID-ene: X, Y, Z" – ett objekt i "punkter" per ID i den listen, med feltet "id" satt til NØYAKTIG den ID-strengen (kopier den, ikke finn opp egne ID-er eller endre stavemåten). Dette er ikke lenger fritekst-tolkning – du skal bare ta stilling til hver oppgitte ID: er den foreslått, allerede ført, ikke relevant, eller usikker. IKKE hopp over noen ID i listen. Bakskjerm, forskjerm, panser, dør, tak og støtfanger er nå ID-migrert. For deler som eventuelt IKKE er ID-migrert (viser "→ sjekk avsnittet ... i reglene" i stedet for ID-liste) – bruk gammelt format: sett "id" til tom streng, og bruk i stedet fritekst "punkt" (kort navn) hentet fra det navngitte avsnittet i INNEBYGDE REGLER, ett per regelpunkt i avsnittet.
 KRITISK OM DEDUPE VED ID: Siden hver ID er unik og fast, kan aldri to punkter med SAMME id begge være status="foreslått" for samme "del" – hvis du ser at du allerede har tatt stilling til en ID, ikke gjør det igjen. Dette gjør duplikat-problemet strukturelt umulig for ID-migrerte deler, forutsatt at du faktisk bruker ID-en fra listen og ikke skriver et nytt, ekvivalent punkt med annen ID eller uten ID.
-KRITISK – DELSJEKK ER ENESTE KILDE FOR DISSE FUNNENE: Hvis status="foreslått" eller "usikker", MÅ feltet "forslag" inneholde den fullstendige forslagsteksten (samme "Vurder å..."-format som ellers). IKKE skriv i tillegg en duplikatoppføring for det samme punktet i "resultater" eller "dbs_handlinger" – koden legger automatisk delsjekk-forslagene inn der. "resultater" og "dbs_handlinger" skal KUN inneholde funn som ikke stammer fra et DELSTATUS-punkt (f.eks. generiske regler som grunning topplakk, sveisemateriell, diagnose, støtfanger/plastrep osv. – disse er ikke ID-migrert ennå).
+KRITISK – DELSJEKK ER ENESTE KILDE FOR DISSE FUNNENE: Hvis status="foreslått" eller "usikker", MÅ feltet "forslag" inneholde den fullstendige forslagsteksten (samme "Vurder å..."-format som ellers). IKKE skriv i tillegg en duplikatoppføring for det samme punktet i "resultater" eller "dbs_handlinger" – koden legger automatisk delsjekk-forslagene inn der. "resultater" og "dbs_handlinger" skal KUN inneholde funn som ikke stammer fra et ID-registrert punkt (f.eks. bilspesifikke regler, kanal-tilstøtende og andre generiske regler som ikke er ID-migrert ennå).
 KRITISK OM "kandidater" og TO-STEGS DUPLIKAT-SJEKK: Dette gjelder KUN funn som ikke er ID-migrert (siden ID-systemet allerede forhindrer duplikater strukturelt for de delene). Du skal ALDRI skrive rett til "resultater" for disse. Gå gjennom i to steg:
 STEG A – Bygg "kandidater": skriv ALT du finner her først (ikke-ID-migrerte funn), én setning per funn, uten å bekymre deg for duplikater ennå.
 STEG B – Fra "kandidater" til "resultater": Les gjennom HELE kandidat-listen på nytt, par for par. For hver kandidat: spør deg selv "betyr denne setningen det samme som en jeg allerede har tatt med?" – ikke se etter identisk ordlyd, men samme underliggende sak. Slå sammen slike par til ÉN oppføring i "resultater" (behold den klareste formuleringen). Kun genuint FORSKJELLIGE saker skal ha hver sin oppføring i "resultater" og "dbs_handlinger". Dette duplikat-steget er like obligatorisk som delsjekk – ikke hopp over det for å spare tid, selv om svaret blir langt.
@@ -2759,6 +2788,23 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
       }
     }
     // ============================================================
+
+    // v2.31: Manglende bilder – flagg alltid deterministisk, ikke avhengig av at Claude
+    // husker å nevne det. Bildebaserte sjekker (håndtak-farge, hjulbueliste, tankluke,
+    // løftetape/rute osv.) kan ikke gjennomføres uten bilder – takstmannen bør vite dette.
+    if(!hasCarImages){
+      if(!parsed.sammendrag)parsed.sammendrag={};
+      if(!Array.isArray(parsed.sammendrag.dbs_handlinger))parsed.sammendrag.dbs_handlinger=[];
+      if(!Array.isArray(parsed.resultater))parsed.resultater=[];
+      const bildeVarsel='Ingen bilder er lastet opp for denne kontrollen. Bildebaserte sjekker (håndtak-farge, hjulbueliste, tankluke/bensinluke, løftetape/rute, skadeomfang) kunne ikke utføres – vurder å laste opp bilder for en mer fullstendig kontroll.';
+      parsed.sammendrag.dbs_handlinger.push(bildeVarsel);
+      parsed.resultater.push({
+        tittel:'Ingen bilder lastet opp',
+        melding:bildeVarsel,
+        farge:'gul',
+        plassering:'Bilder av bilen'
+      });
+    }
 
     const r=parsed.resultater||[];
     const s=parsed.sammendrag||{};
