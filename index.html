@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.28 – Smart kontroll av takster</title>
+<title>AutoPell v2.29 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.28</div>
+    <div class="version-badge">v2.29</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,7 +260,16 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-/* AutoPell v2.28 – endringer fra v2.27:
+/* AutoPell v2.29 – endringer fra v2.28:
+   - NYTT: Tvunget to-stegs duplikat-sjekk i JSON-svaret. Claude bygger nå "kandidater" (rå liste,
+     kan inneholde duplikater) FØR "resultater" – og MÅ eksplisitt lese gjennom kandidat-listen
+     par for par og slå sammen setninger som betyr det samme, uansett ordlyd, før endelig liste
+     skrives. Samme forcing-prinsipp som delsjekk, men for semantisk forståelse istedenfor
+     nøkkelord-matching.
+   - FIX: "maskering" lagt til i konsept-dedupe-nøkkelordlisten (bekreftet hull)
+   - FIX: Del-navn-matching i sikkerhetsnett-filteret er nå kategori-basert i tillegg til literal
+     match – "støtfanger" matcher nå "støtfanger foran øvre" osv., ikke bare eksakt samme navn
+   endringer fra v2.27:
    - FIX: "understellsbehandling" (UB) manglet i konsept-dedupe-nøkkelordlisten, så UB-duplikater
      (samme UB-funn skrevet både samlet og separat per del) ble ikke fanget av sikkerhetsnettet.
      Lagt til – samme mønster som hjulbueliste/tankluke/dørhåndtak osv.
@@ -2226,11 +2235,15 @@ SVAR KUN MED GYLDIG JSON. INGEN ANNEN TEKST. IKKE SKRIV NOE FØR ELLER ETTER JSO
     "kroner_funnet": 0,
     "dbs_handlinger": ["hva som skal gjøres i DBS uten perioder eller kroner – KUN funn som IKKE allerede er dekket av delsjekk (se under)"]
   },
+  "kandidater": ["RÅ liste over ALT du har funnet, FØR duplikat-sjekk – kan inneholde ting som betyr det samme skrevet ulikt. Denne listen skal IKKE vises til brukeren, den er kun et mellomsteg for deg selv."],
   "resultater": [{"tittel":"...","melding":"[Taksten sier]: ... [Regel]: ...","farge":"rød|gul|lilla","plassering":"..."}]
 }
 KRITISK OM "delsjekk": Dette feltet er OBLIGATORISK når HURTIGFAKTA inneholder "DELSTATUS PER HOVEDDEL". Ett objekt per linje i DELSTATUS. Under "punkter": ett element for HVERT punkt i det tilhørende regelavsnittet i INNEBYGDE REGLER – ikke bare punktene du husker, men ALLE punktene i avsnittet, punktert opp én og én. status="allerede ført" betyr at taksten allerede dekker det (skal IKKE foreslås på nytt). status="ikke relevant" betyr at punktet ikke gjelder denne bilen/skaden (f.eks. bilen har ikke hjulbueliste). status="usikker" betyr at du er usikker på om det gjelder – skriv likevel et forslag/spørsmål i "forslag" med farge "gul". Denne listen er en tvungen sjekkliste – den skal IKKE forkortes eller hoppes over selv om svaret blir langt.
 KRITISK – HVERT REGELPUNKT KUN ÉN GANG: Hvert regelpunkt fra avsnittet skal ha NØYAKTIG ÉN oppføring i "punkter" for en gitt del, aldri to. Ikke skriv en kort versjon OG en detaljert/hedget versjon av samme sak som to separate punkter – velg det ene, beste forslaget og skriv det én gang. Før du avslutter "punkter" for en del: se over listen og fjern eventuelle punkter som dekker samme underliggende sak (f.eks. to punkter om hjulbueliste, eller to om tankluke) – behold kun det beste.
 KRITISK – DELSJEKK ER ENESTE KILDE FOR DISSE FUNNENE: Hvis status="foreslått" eller "usikker", MÅ feltet "forslag" inneholde den fullstendige forslagsteksten (samme "Vurder å..."-format som ellers). IKKE skriv i tillegg en duplikatoppføring for det samme punktet i "resultater" eller "dbs_handlinger" – koden legger automatisk delsjekk-forslagene inn der. "resultater" og "dbs_handlinger" skal KUN inneholde funn som ikke stammer fra et DELSTATUS-punkt (f.eks. generiske regler som grunning topplakk, sveisemateriell, diagnose osv.).
+KRITISK OM "kandidater" og TO-STEGS DUPLIKAT-SJEKK: Du skal ALDRI skrive rett til "resultater". Gå gjennom i to steg:
+STEG A – Bygg "kandidater": skriv ALT du finner her først, én setning per funn, uten å bekymre deg for duplikater ennå. Inkluder alt fra delsjekk-forslagene og alle generelle regelfunn.
+STEG B – Fra "kandidater" til "resultater": Les gjennom HELE kandidat-listen på nytt, par for par. For hver kandidat: spør deg selv "betyr denne setningen det samme som en jeg allerede har tatt med?" – ikke se etter identisk ordlyd, men samme underliggende sak (f.eks. "diagnose slette feilkoder" og "diagnose (slette feilkoder) – støtfanger er ført som De/Mo" er SAMME sak, bare forklart ulikt). Slå sammen slike par til ÉN oppføring i "resultater" (behold den klareste formuleringen). Kun genuint FORSKJELLIGE saker skal ha hver sin oppføring i "resultater" og "dbs_handlinger". Dette duplikat-steget er like obligatorisk som delsjekk – ikke hopp over det for å spare tid, selv om svaret blir langt.
 rød=mangler påkrevd tillegg/feil, gul=anbefalt/sjekk, lilla=kalibrering/koding påkrevd.
 Plassering=nøyaktig hvor i DBS dette legges inn.
 DBS-handlinger: KUN hva som skal gjøres, ingen perioder eller kroner.
@@ -2281,7 +2294,7 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
       // "del"-labelen kan variere nok (parenteser vs braketter, ulik ordlyd) til at per-del-
       // nøkkelen ikke matcher. Global dedupe er tryggere siden kollisjon på tvers av ulike
       // deler med samme konsept er sjelden sammenlignet med hvor ofte duplikat-buggen oppstår.
-      const konseptNøkler=['hjulbueliste','tankluk','bensinluk','løftetape','loftetape','polere flikk','dørhåndtak','ladeluke','rustbeskyttelse','dokumentasjon','karosserilim','blanderør','diagnose','kalibrer','understellsbehandling'];
+      const konseptNøkler=['hjulbueliste','tankluk','bensinluk','løftetape','loftetape','polere flikk','dørhåndtak','ladeluke','rustbeskyttelse','dokumentasjon','karosserilim','blanderør','diagnose','kalibrer','understellsbehandling','maskering'];
       const brukteKonsepter=new Set();
       parsed.delsjekk.forEach(d=>{
         (d.punkter||[]).forEach(p=>{
@@ -2316,12 +2329,18 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
       const delBaseNavn=parsed.delsjekk
         .map(d=>(d.del||'').replace(/\s*\[.*?\]\s*/g,'').trim().toLowerCase())
         .filter(n=>n.length>2);
+      // v2.29: Kategori-basert fallback – "støtfanger foran øvre" i delsjekk skal også matche en
+      // duplikat-tekst som bare sier "støtfanger" (uten posisjon). Literal delBaseNavn-match
+      // bommer på dette siden hele det spesifikke navnet ikke er en delstreng av den kortere
+      // teksten. Bruk samme kategori-mønster som DELSTATUS selv bruker for å utlede del-typen.
+      const delKategoriMønstre=[/bakskjerm/i,/forskjerm/i,/\bpanser\b/i,/\bfordør\b/i,/\bbakdør\b/i,/\btak\b/i,/støtfanger/i];
+      const delKategorier=delKategoriMønstre.filter(re=>delBaseNavn.some(navn=>re.test(navn)));
       if(delBaseNavn.length){
         parsed.resultater=parsed.resultater.filter(r=>{
           const meldingLower=(r.melding||'').toLowerCase();
           if(injisertTekst.has(meldingLower))return true;
           const tekst=((r.tittel||'')+' '+(r.melding||'')+' '+(r.plassering||'')).toLowerCase();
-          const matcherDel=delBaseNavn.some(navn=>tekst.includes(navn));
+          const matcherDel=delBaseNavn.some(navn=>tekst.includes(navn))||delKategorier.some(re=>re.test(tekst));
           const matcherKonsept=konseptNøkler.some(k=>tekst.includes(k));
           if(matcherDel&&matcherKonsept){
             console.log('[POST-FILTER] Fjernet duplikat-resultat for DELSTATUS-del ("'+r.tittel+'") – skal kun komme fra delsjekk');
@@ -2332,7 +2351,7 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
         parsed.sammendrag.dbs_handlinger=parsed.sammendrag.dbs_handlinger.filter(txt=>{
           const lower=txt.toLowerCase();
           if(injisertTekst.has(lower))return true;
-          const matcherDel=delBaseNavn.some(navn=>lower.includes(navn));
+          const matcherDel=delBaseNavn.some(navn=>lower.includes(navn))||delKategorier.some(re=>re.test(lower));
           const matcherKonsept=konseptNøkler.some(k=>lower.includes(k));
           return !(matcherDel&&matcherKonsept);
         });
