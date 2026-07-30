@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.25 – Smart kontroll av takster</title>
+<title>AutoPell v2.26 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.25</div>
+    <div class="version-badge">v2.26</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,7 +260,17 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-/* AutoPell v2.25 – endringer fra v2.24:
+/* AutoPell v2.26 – endringer fra v2.25:
+   - FIX (bekreftet reell hendelse): en hoveddel skiftet (N) i arbeidsspesifikasjonen som HELT
+     MANGLER egen post i lakkspesifikasjonen ble ikke fanget av noen eksisterende sjekk.
+     DELSTATUS bygges kun fra lakkspes-rader (så delen vises aldri der hvis raden mangler),
+     og den gamle "reparasjon uten lakk"-sjekken dekket kun plastrep/flaterett/grunning-kilder,
+     ikke rene N-skift fra arbeidsspesifikasjonen.
+   - Ny deterministisk krysssjekk (kode + HURTIGFAKTA-flagg + post-filter-sikkerhetsnett) som
+     sammenligner skiftede hoveddeler (forskjerm, bakskjerm, panser, dør, tak, støtfanger) i
+     arbeidsspesifikasjonen mot lakkspesifikasjonen, og flagger som garantert rød mangel hvis
+     lakk-raden mangler fullstendig
+   endringer fra v2.24:
    - Temperature senket fra 0.1 til 0.0 for å redusere tilfeldig variasjon mellom kjøringer
      (samme takst kunne gi forskjellig duplikat-mønster fra gang til gang). Dedupe-systemet
      fra v2.18–v2.24 er fortsatt hovedsikkerhetsnettet, siden Claude aldri blir 100% deterministisk
@@ -1390,6 +1400,25 @@ function takstSammendrag(t){
     s+=`DELSTATUS PER HOVEDDEL (bruk til å finne riktig sjekkliste-avsnitt i reglene – ikke hopp over noen av disse):\n${delstatusLinjer.join('\n')}\n`;
   }
 
+  // v2.26: KRITISK – hoveddel skiftet i arbeidsspes men HELT FRAVÆRENDE i lakkspesifikasjonen.
+  // DELSTATUS (over) bygges KUN fra lakkspes-rader – så hvis en hoveddel mangler lakk-post
+  // fullstendig (ikke bare ufullstendig), vises den ALDRI i DELSTATUS og blir usynlig for
+  // både Claude og den eldre "reparasjon uten lakk"-sjekken (som kun ser plastrep/flaterett/
+  // grunning-kilder, ikke rene N-skift fra arbeidsspesifikasjonen). Denne sjekken tetter gapet.
+  const lakkspesNavnLower=t.lakkspes.filter(d=>!d.tillegg).map(d=>(d.navn||'').toLowerCase());
+  const skiftetUtenLakkspesRad=[];
+  (t.karosseri_skift||[]).forEach(d=>{
+    if(!d.navn||d.tiltak!=='Skift')return;
+    const match=delRegler.find(r=>r.re.test(d.navn));
+    if(!match)return; // kun kjente lakkerbare hoveddeltyper
+    const finnesILakkspes=lakkspesNavnLower.some(l=>match.re.test(l));
+    if(!finnesILakkspes)skiftetUtenLakkspesRad.push(d.navn);
+  });
+  if(skiftetUtenLakkspesRad.length){
+    s+=`  🚨 KRITISK – HOVEDDEL SKIFTET MEN MANGLER HELT I LAKKSPESIFIKASJONEN: ${skiftetUtenLakkspesRad.join('; ')}\n`;
+    s+=`     Disse delene er skiftet (N) i arbeidsspesifikasjonen, men har INGEN post i det hele tatt i lakkspesifikasjonen. Flagg som rød mangel: delen må ha egen lakk-post lagt til.\n`;
+  }
+
   // === KRITISK KONSISTENS-SJEKK: REPARASJON UTEN LAKK ===
   // Hvis en del har plastrep, flaterett eller skift → MÅ ha lakk-post (N eller G)
   // Hvis ikke → rød mangel
@@ -1906,6 +1935,7 @@ Du SKAL følge disse reglene UTEN UNNTAK:
 • Hvis HURTIGFAKTA viser "DELSTATUS PER HOVEDDEL" → dette er en OBLIGATORISK huskeliste. For HVER linje der: finn det navngitte regelavsnittet i INNEBYGDE REGLER og gå gjennom HVERT punkt i det avsnittet mot taksten – ikke bare de punktene du husker eller anser som mest sannsynlige. Hopp aldri over en linje i DELSTATUS uten å ha sjekket det tilhørende avsnittet. For detaljer sjekklisten spør om (f.eks. hjulbueliste, tankluke/dekklokk) som IKKE er synlige i det strukturerte sammendraget – søk også i RÅ PDF-TEKST (spesielt Detaljspesifikasjon-siden) før du konkluderer med at detaljen mangler eller ikke finnes.
 • Du er PLIKTIG til å fylle ut feltet "delsjekk" i JSON-svaret (se format lenger ned) for HVER linje i DELSTATUS – én oppføring per punkt i det tilhørende regelavsnittet, med eksplisitt status. Dette er ikke valgfritt: hvis du hopper over et punkt i delsjekk, har du også hoppet over å vurdere det for taksten, og det regnes som en feil.
 • Hvis HURTIGFAKTA viser "Tesla bakdør: JA → folie/tape-montering 50p" → Foreslå 50p folie/tape-montering i annetbildet. Ikke ignorer denne instruksjonen.
+• Hvis HURTIGFAKTA viser "🚨 KRITISK – HOVEDDEL SKIFTET MEN MANGLER HELT I LAKKSPESIFIKASJONEN" → dette er en HARD, GARANTERT mangel. Delen er skiftet men har ingen lakk-post overhodet – flagg ALLTID som rød mangel, uansett hva DELSTATUS ellers viser (delen vises kanskje ikke der siden DELSTATUS bygges fra lakkspesifikasjonen, som nettopp er det som mangler her).
 
 Disse er ikke forslag eller hint. Disse er HARDE LÅSER.
 Hvis du føler trang til å foreslå noe HURTIGFAKTA sier er ført – stopp. Ikke foreslå det. Posten er der allerede.
@@ -2563,6 +2593,46 @@ BILDER – bruk i bakgrunnen:
               plassering:'Lakkspesifikasjon'
             });
             console.log(`[POST-FILTER] LAGT TIL kritisk mangel: "${m.del}" har ${m.type} men ingen lakk-post`);
+          }
+        });
+      }
+
+      // v2.26 NY – Hoveddel skiftet i arbeidsspes men HELT FRAVÆRENDE i lakkspesifikasjonen.
+      // Samme gap som over, men her mangler lakk-raden fullstendig (ikke bare et delfelt) –
+      // fanges verken av manglendeLakk (som kun ser plastrep/flaterett/grunning) eller av
+      // DELSTATUS (som kun bygges fra eksisterende lakkspes-rader).
+      const delReglerPF=[
+        {re:/bakskjerm/i},{re:/forskjerm/i},{re:/\bpanser\b/i},
+        {re:/\bfordør\b/i},{re:/\bbakdør\b/i},{re:/\btak\b/i},{re:/støtfanger/i},
+      ];
+      const lakkspesNavnLowerPF=parserData.lakkspes.filter(d=>!d.tillegg).map(d=>(d.navn||'').toLowerCase());
+      const skiftetUtenLakkspesRadPF=[];
+      (parserData.karosseri_skift||[]).forEach(d=>{
+        if(!d.navn||d.tiltak!=='Skift')return;
+        const match=delReglerPF.find(r=>r.re.test(d.navn));
+        if(!match)return;
+        const finnesILakkspes=lakkspesNavnLowerPF.some(l=>match.re.test(l));
+        if(!finnesILakkspes)skiftetUtenLakkspesRadPF.push(d.navn);
+      });
+      if(skiftetUtenLakkspesRadPF.length){
+        if(!parsed.sammendrag)parsed.sammendrag={};
+        if(!Array.isArray(parsed.sammendrag.dbs_handlinger))parsed.sammendrag.dbs_handlinger=[];
+        if(!Array.isArray(parsed.resultater))parsed.resultater=[];
+        skiftetUtenLakkspesRadPF.forEach(delNavn=>{
+          const forslagTekst=`KRITISK MANGEL: ${delNavn} er skiftet (N) i arbeidsspesifikasjonen, men har INGEN post i det hele tatt i lakkspesifikasjonen. Delen må ha egen lakk-post lagt til.`;
+          const alleredeFlagget=parsed.sammendrag.dbs_handlinger.some(d=>{
+            const lc=d.toLowerCase();
+            return lc.includes(delNavn.toLowerCase().substring(0,15))&&lc.includes('lakk');
+          });
+          if(!alleredeFlagget){
+            parsed.sammendrag.dbs_handlinger.unshift(forslagTekst);
+            parsed.resultater.unshift({
+              tittel:`Skiftet del mangler helt i lakkspesifikasjonen: ${delNavn}`,
+              melding:forslagTekst,
+              farge:'rød',
+              plassering:'Lakkspesifikasjon'
+            });
+            console.log(`[POST-FILTER] LAGT TIL kritisk mangel: "${delNavn}" skiftet men helt fraværende i lakkspesifikasjonen`);
           }
         });
       }
