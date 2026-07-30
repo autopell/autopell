@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.33 – Smart kontroll av takster</title>
+<title>AutoPell v2.35 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.33</div>
+    <div class="version-badge">v2.35</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,6 +260,26 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+/* AutoPell v2.35 – endringer fra v2.34 (OPPRYDNING – kun ID-systemet):
+   - Full gjennomgang for å eliminere parallelle resultat-veier. Deterministiske parser-
+     betingelser (SMÅDEL PÅ 50%, BRUKT DEL SOM N, Tesla bakdør folie/tape, UB-ved-flaterette,
+     kanal-tilstøtende) injiseres nå DIREKTE av koden med egne ID-er (DET_*) – Claude er ikke
+     lenger involvert i disse funnene i det hele tatt. ID-ene seedes i dedupe-settet slik at
+     eventuelle Claude-varianter av samme funn fjernes automatisk.
+   - Alle tilhørende "→ foreslå"-instrukser i prompten fjernet/omskrevet til "håndteres
+     automatisk av koden". HURTIGFAKTA-tekstene myknet fra "Flagg som mangel" til informativ.
+   - DET_*-ID-er vises aldri i DELSTATUS-ID-listene (deterministisk:true-flagg).
+
+/* AutoPell v2.35 – endringer fra v2.33:
+   - FIX: To flere "HURTIGFAKTA – ABSOLUTTE REGLER"-instrukser (50%-lakk polere flikk og
+     SMÅDEL PÅ 50%) instruerte fortsatt Claude til å flagge direkte, parallelt med de nye
+     STOTFANGER_50_POLERE_FLIKK/STOTFANGER_50_SMADELER-ID-ene – forklarer smådel-duplikatet
+     (linje 2+9) sett i testen. Omskrevet til å peke til ID-ene.
+   - Lagt til "grunning", "smådel", "klips", "sveisemateriell" i sikkerhetsnett-nøkkelordlisten
+     (grunning-duplikatet kom fortsatt fra Claude sin egen frie resonnering rundt "IKKE UTFYLT"-
+     visningen i HURTIGFAKTA, ikke en spesifikk konkurrerende instruks – sikkerhetsnettet er nå
+     bredere dekket som ekstra lag).
+
 /* AutoPell v2.33 – endringer fra v2.32:
    - FIX: Fant og fjernet gamle "Ordlyd EKSAKT"/"flagg som mangel: ..."-instrukser i regel 5d
      (grunning topplakk) og regel 6 (maskering, polere flikk ved 50%) som fortsatt instruerte
@@ -1499,6 +1519,15 @@ function takstSammendrag(t){
     STOTFANGER_50_POLERE_FLIKK:{kat:/støtfanger/i,optype:['N','G'],navn:'Polere flikk ved 50%',mal:'Vurder polere flikk 20p i annetbildet – påkrevd ved 50%-lakkering av støtfanger',farge:'gul'},
     STOTFANGER_50_SMADELER:{kat:/støtfanger/i,optype:['N','G'],navn:'Smådeler feilaktig 50%',mal:'Sjekk om tilknyttede smådeler (p-sensorer, lokk osv.) er feilaktig satt til 50% i DBS – disse skal lakkes 100% og differansen legges til',farge:'rød'},
     STOTFANGER_SVART_HJORNE:{kat:/støtfanger/i,optype:['N','G'],navn:'Svart hjørne nede',mal:'Vurder å legge til kostnad for svart hjørne nede (ca 2000kr) i annet bilde',farge:'gul'},
+
+    // v2.35 – Deterministiske parser-betingelser: injiseres DIREKTE av koden når parseren
+    // oppdager betingelsen. Claude er ikke involvert (deterministisk:true → vises aldri i
+    // DELSTATUS-ID-listene). Dette fjerner en hel klasse konkurrerende prompt-instrukser.
+    DET_BRUKT_DEL_SOM_N:{deterministisk:true,navn:'Brukt del som N',mal:'',farge:'rød'},
+    DET_TESLA_BAKDOR_FOLIE:{deterministisk:true,navn:'Tesla folie/tape-montering',mal:'Vurder å legge til folie/tape-montering 50p arbeid i annetbildet (Tesla-regel ved bakdør)',farge:'gul'},
+    DET_UB_VED_FLATERETTE:{deterministisk:true,navn:'UB ved flaterette',mal:'Vurder om UB (understellsbehandling) mangler – flaterette-kostnad finnes i taksten men UB er ikke ført. Retting av stål/alu utløser normalt UB.',farge:'gul'},
+    DET_KANAL_TILSTOTENDE:{deterministisk:true,navn:'Tilstøtende ved kanal',mal:'',farge:'gul'},
+    DET_SMADEL_50:{deterministisk:true,navn:'Smådel på 50%',mal:'',farge:'rød'},
   };
   const REGEL_REGISTRY=window.REGEL_REGISTRY;
 
@@ -1512,6 +1541,7 @@ function takstSammendrag(t){
     // Prøv ID-registeret først
     const idListe=Object.keys(REGEL_REGISTRY).filter(id=>{
       const r=REGEL_REGISTRY[id];
+      if(r.deterministisk)return false; // kode-injiserte betingelser – aldri i Claude sine ID-lister
       return r.kat.test(d.navn)&&r.optype.includes(d.optype);
     });
     if(idListe.length){
@@ -1792,7 +1822,7 @@ function takstSammendrag(t){
     if(halvSmaadeler.length){
       halvSmaadeler.forEach(d=>{
         const fullTid=d.tid?d.tid*2:null; // 50%-tid → 100%-tid (differanse = samme som halv tid)
-        s+=`     ⚠️ SMÅDEL PÅ 50%: ${d.navn} (${d.dm2}dm², ${d.tid}p) er en liten del som arver 50% fra hoveddelen – skal lakkes 100%. ${fullTid?'Full tid ≈ '+fullTid+'p, manglende ≈ '+d.tid+'p.':''} Flagg som mangel.\n`;
+        s+=`     ⚠️ SMÅDEL PÅ 50%: ${d.navn} (${d.dm2}dm², ${d.tid}p) er en liten del som arver 50% fra hoveddelen – skal lakkes 100%. ${fullTid?'Full tid ≈ '+fullTid+'p, manglende ≈ '+d.tid+'p.':''} (Håndteres automatisk av koden – ikke skriv eget forslag.)\n`;
       });
     }
   }
@@ -1814,7 +1844,7 @@ function takstSammendrag(t){
       });
       if(treff){
         if(treff.optype==='N'){
-          s+=`     ⚠️ BRUKT DEL SOM N: "${bd.navn}" er brukt reservedel, men lakk-linja "${treff.navn}" står som NY flate (N). Skal hukes av som GAMMEL flate (G). Flagg som mangel.\n`;
+          s+=`     ⚠️ BRUKT DEL SOM N: "${bd.navn}" er brukt reservedel, men lakk-linja "${treff.navn}" står som NY flate (N). Skal hukes av som GAMMEL flate (G). (Håndteres automatisk av koden – ikke skriv eget forslag.)\n`;
         }else{
           s+=`     OK: "${bd.navn}" → lakk-linje "${treff.navn}" er ${treff.optype} (ikke N).\n`;
         }
@@ -1834,7 +1864,7 @@ function takstSammendrag(t){
     const harBakdørSkift=t.karosseri_skift.some(d=>/bakdør/i.test(d.navn)&&d.tiltak==='Skift');
     if(harBakdørLakk||harBakdørSkift){
       s+=`  Tesla bakdør (N eller G): JA\n`;
-      s+=`     → Folie/tape-montering 50p arbeid i annetbildet skal foreslås (Tesla-regel)\n`;
+      s+=`     → Folie/tape-montering 50p (Tesla-regel) – håndteres automatisk av koden\n`;
     }
   }
 
@@ -2056,18 +2086,16 @@ Du SKAL følge disse reglene UTEN UNNTAK:
 • Hvis HURTIGFAKTA sier "UB-relevante deler: [liste]" → UB kan foreslås kun for delene i den listen, ALDRI for deler utenfor listen.
 • Hvis HURTIGFAKTA sier "Airbag-diagnose relevant: NEI" → IKKE foreslå airbag-diagnose i det hele tatt.
 • Hvis HURTIGFAKTA viser PLASTSPESIFIKASJON med en gitt Skadetype → Det er den eneste skadetypen som er valgt. IKKE påstå at det er konflikt eller andre skadetyper. IKKE foreslå "kontroller skadetype". Hvis du tror du ser noe i bildet eller PDF-en som motsier dette, stol på HURTIGFAKTA – den er strukturert og parset, bildene kan vise mer enn det som er valgt.
-• Hvis HURTIGFAKTA viser "50% lakk-deler: ..." og "polere flikk skal med, Status: NEI" → DETTE er en mangel (foreslå 20p polere flikk i annetbildet). Ikke ignorer denne instruksjonen.
-• Hvis HURTIGFAKTA viser "⚠️ SMÅDEL PÅ 50%" → DETTE er en mangel. Smådelen (<3 dm²) skal lakkes 100%, ikke 50%. Foreslå at den hukes av 100% og at differansen legges til.
-• Hvis HURTIGFAKTA viser "⚠️ BRUKT DEL SOM N" → DETTE er en mangel. Brukt reservedel skal lakkes som gammel flate (G), ikke ny (N). Foreslå at lakk-linja endres fra N til G.
+• Hvis HURTIGFAKTA viser "50% lakk-deler: ..." og "polere flikk skal med, Status: NEI" → dette bekrefter status="foreslått" for ID-en STOTFANGER_50_POLERE_FLIKK i delsjekk – IKKE lag et separat forslag her, kun bruk det til å avgjøre status på den ID-en.
+• SMÅDEL PÅ 50%, BRUKT DEL SOM N: håndteres automatisk av koden (v2.35) – ikke skriv egne forslag. Merk at STOTFANGER_50_SMADELER-ID-en i delsjekk skal settes til status="allerede ført" hvis koden alt har dekket saken (du ser det på HURTIGFAKTA-varselet), ellers vurderes normalt.
 • Hvis HURTIGFAKTA viser "💡 PÅMINNELSE ... løfteteip" → legg dette som en GUL påminnelse/huskeliste (IKKE rød mangel). Det er en vurdering, ikke et hardt krav.
 • Hvis HURTIGFAKTA viser "⛔ Dette er PARKERINGSSENSOR" → IKKE foreslå kalibrering for den sensoren. P-radar/parkeringssensor kalibreres aldri. Kun filskiftesensor/blindsone kalibreres.
 • Hvis HURTIGFAKTA viser "Spylervæske ført i taksten: JA" → IKKE foreslå spylervæske. Den er allerede med.
 • Hvis HURTIGFAKTA viser "Folie nevnt i taksten: JA" → behandle farge-avvik MYKT. Nevn at bilen er foliert og at fargekoden sannsynligvis er riktig. IKKE flagg "sjekk fargekode" som en hard mangel.
-• Hvis HURTIGFAKTA viser "Flaterette-kostnad finnes ... men UB IKKE ført" → foreslå å vurdere UB (underbygg, 120kr pr. del), siden retting av stål/alu normalt utløser UB.
-• Hvis HURTIGFAKTA viser "Kanal lakkeres (N/G) – tilstøtende ikke ført for: ..." → foreslå å vurdere tilstøtende flate mot de nevnte delene ved kanalskift/-retting. Ved kanal N gjelder dette potensielt A-stolpe, B-stolpe og bakskjerm; ved kanal G (retting) er det normalt kun bakskjerm som er aktuelt (B-stolpe er sjeldnere relevant ved ren retting).
+• Hvis HURTIGFAKTA viser "Flaterette-kostnad finnes ... men UB IKKE ført", "Kanal lakkeres ... tilstøtende ikke ført", "⚠️ SMÅDEL PÅ 50%", "⚠️ BRUKT DEL SOM N" eller "Tesla bakdør: JA" → disse håndteres nå AUTOMATISK av koden (v2.35, deterministiske funn med egne ID-er). IKKE skriv egne forslag for disse – de legges til av systemet selv, og dine varianter blir uansett fjernet som duplikater.
 • Hvis HURTIGFAKTA viser "DELSTATUS PER HOVEDDEL" → dette er en OBLIGATORISK huskeliste. For HVER linje der: finn det navngitte regelavsnittet i INNEBYGDE REGLER og gå gjennom HVERT punkt i det avsnittet mot taksten – ikke bare de punktene du husker eller anser som mest sannsynlige. Hopp aldri over en linje i DELSTATUS uten å ha sjekket det tilhørende avsnittet. For detaljer sjekklisten spør om (f.eks. hjulbueliste, tankluke/dekklokk) som IKKE er synlige i det strukturerte sammendraget – søk også i RÅ PDF-TEKST (spesielt Detaljspesifikasjon-siden) før du konkluderer med at detaljen mangler eller ikke finnes.
 • Du er PLIKTIG til å fylle ut feltet "delsjekk" i JSON-svaret (se format lenger ned) for HVER linje i DELSTATUS – én oppføring per punkt i det tilhørende regelavsnittet, med eksplisitt status. Dette er ikke valgfritt: hvis du hopper over et punkt i delsjekk, har du også hoppet over å vurdere det for taksten, og det regnes som en feil.
-• Hvis HURTIGFAKTA viser "Tesla bakdør: JA → folie/tape-montering 50p" → Foreslå 50p folie/tape-montering i annetbildet. Ikke ignorer denne instruksjonen.
+• Tesla bakdør folie/tape: håndteres automatisk av koden (v2.35) – ikke skriv eget forslag.
 • Hvis HURTIGFAKTA viser "🚨 KRITISK – HOVEDDEL SKIFTET MEN MANGLER HELT I LAKKSPESIFIKASJONEN" → dette er en HARD, GARANTERT mangel. Delen er skiftet men har ingen lakk-post overhodet – flagg ALLTID som rød mangel, uansett hva DELSTATUS ellers viser (delen vises kanskje ikke der siden DELSTATUS bygges fra lakkspesifikasjonen, som nettopp er det som mangler her).
 
 Disse er ikke forslag eller hint. Disse er HARDE LÅSER.
@@ -2400,12 +2428,67 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
       // "del"-labelen kan variere nok (parenteser vs braketter, ulik ordlyd) til at per-del-
       // nøkkelen ikke matcher. Global dedupe er tryggere siden kollisjon på tvers av ulike
       // deler med samme konsept er sjelden sammenlignet med hvor ofte duplikat-buggen oppstår.
-      const konseptNøkler=['hjulbueliste','tankluk','bensinluk','løftetape','loftetape','polere flikk','dørhåndtak','ladeluke','rustbeskyttelse','dokumentasjon','karosserilim','blanderør','diagnose','kalibrer','understellsbehandling','maskering'];
+      const konseptNøkler=['hjulbueliste','tankluk','bensinluk','løftetape','loftetape','polere flikk','dørhåndtak','ladeluke','rustbeskyttelse','dokumentasjon','karosserilim','blanderør','diagnose','kalibrer','understellsbehandling','maskering','grunning','smådel','klips','sveisemateriell'];
       const brukteKonsepter=new Set();
       // v2.30: ID-basert dedupe – primær og eksakt for ID-migrerte deler. Bruker en global
       // Set av brukte ID-er: siden hver ID er unik og fast (ikke fritekst Claude formulerer på
       // nytt), er "har vi allerede tatt med denne?" et enkelt oppslag, ikke en tolkningsoppgave.
       const brukteIDer=new Set();
+      // v2.35: DETERMINISTISKE PARSER-FUNN – injiseres direkte av koden, Claude ikke involvert.
+      // ID-en seedes i brukteIDer slik at eventuelle Claude-varianter av samme funn dedupes.
+      function injiserDeterministisk(id,melding,plassering){
+        const reg=window.REGEL_REGISTRY[id]||{};
+        brukteIDer.add(id);
+        injisertTekst.add(melding.toLowerCase());
+        parsed.sammendrag.dbs_handlinger.push(melding);
+        parsed.resultater.push({tittel:reg.navn||id,melding:melding,farge:reg.farge||'gul',plassering:plassering||''});
+      }
+      if(parserData){
+        // Smådeler på 50% (<3 dm²) – skal lakkes 100%
+        const halvSmaa=(parserData.lakkspes||[]).filter(d=>!d.tillegg&&d.navn&&/\(50\s*%?\s*\)/i.test(d.navn)&&typeof d.dm2==='number'&&d.dm2<3);
+        halvSmaa.forEach(d=>{
+          injiserDeterministisk('DET_SMADEL_50',`Vurder å endre ${d.navn} fra 50% til 100% lakk – smådeler (<3 dm²) skal lakkes 100%, differansen (≈${d.tid}p) legges til`,'Lakkspesifikasjon');
+        });
+        // Brukt reservedel ført som N – skal være G
+        (parserData.karosseri_skift||[]).filter(bd=>/brukt reservedel/i.test(((bd.tiltak||'')+' '+(bd.kommentar||'')+' '+(bd.navn||'')))).forEach(bd=>{
+          const norm=s2=>s2.toLowerCase().replace(/[^a-zæøå0-9\s]/g,' ').split(/\s+/).filter(w=>w&&w.length>1&&!/^(v|h)$/.test(w));
+          const bdOrd=norm(bd.navn);
+          const treff=(parserData.lakkspes||[]).find(d=>{
+            if(d.tillegg||!d.navn)return false;
+            const lOrd=norm(d.navn);
+            return bdOrd.filter(w=>lOrd.includes(w)).length>=2;
+          });
+          if(treff&&treff.optype==='N'){
+            injiserDeterministisk('DET_BRUKT_DEL_SOM_N',`Vurder å endre lakk-linjen "${treff.navn}" fra N til G – "${bd.navn}" er brukt reservedel og skal lakkes som gammel flate`,'Lakkspesifikasjon');
+          }
+        });
+        // Tesla bakdør (N/G eller skift) → folie/tape-montering
+        const erTesla=parserData.bil&&parserData.bil.modell&&/tesla/i.test(parserData.bil.modell);
+        if(erTesla){
+          const teslaBakdør=(parserData.lakkspes||[]).some(d=>!d.tillegg&&(d.optype==='N'||d.optype==='G')&&!d.tilstøtende&&d.navn&&/bakdør/i.test(d.navn))
+            ||(parserData.karosseri_skift||[]).some(d=>/bakdør/i.test(d.navn)&&d.tiltak==='Skift');
+          if(teslaBakdør)injiserDeterministisk('DET_TESLA_BAKDOR_FOLIE',window.REGEL_REGISTRY.DET_TESLA_BAKDOR_FOLIE.mal,'Annetbildet');
+        }
+        // Flaterette-kostnad finnes men UB ikke ført
+        const flateretteKr=parserData.sammenstilling&&parserData.sammenstilling['Karosseri - Flaterette'];
+        if(flateretteKr&&flateretteKr>0&&!(parserData.sammenstilling&&parserData.sammenstilling.ub_kr)){
+          injiserDeterministisk('DET_UB_VED_FLATERETTE',window.REGEL_REGISTRY.DET_UB_VED_FLATERETTE.mal,'Verksteddata → Materialforbruk/understellsbehandling');
+        }
+        // Kanal lakkeres men tilstøtende ikke ført (N: A-stolpe+B-stolpe+bakskjerm, G: kun bakskjerm)
+        const kanalOptypePF=((parserData.lakkspes||[]).find(d=>!d.tillegg&&(d.optype==='N'||d.optype==='G')&&d.navn&&/\bkanal\b/i.test(d.navn))||{}).optype;
+        if(kanalOptypePF){
+          const alleredeT=n=>(parserData.lakkspes||[]).some(d=>(d.optype==='T'||d.tilstøtende)&&d.navn&&new RegExp('\\b'+n+'\\b','i').test(d.navn));
+          const manglerPF=[];
+          if(kanalOptypePF==='N'){
+            if(!alleredeT('a-?stolpe'))manglerPF.push('A-stolpe');
+            if(!alleredeT('b-?stolpe'))manglerPF.push('B-stolpe');
+          }
+          if(!alleredeT('bakskjerm'))manglerPF.push('bakskjerm');
+          if(manglerPF.length){
+            injiserDeterministisk('DET_KANAL_TILSTOTENDE',`Vurder å ta med tilstøtende flate (arealavhengig) mot ${manglerPF.join(', ')} – kanal lakkeres (${kanalOptypePF}) uten at tilstøtende er ført`,'Lakkspesifikasjon');
+          }
+        }
+      }
       parsed.delsjekk.forEach(d=>{
         (d.punkter||[]).forEach(p=>{
           if((p.status==='foreslått'||p.status==='usikker')&&p.forslag){
