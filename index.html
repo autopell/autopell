@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.35 – Smart kontroll av takster</title>
+<title>AutoPell v2.36 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.35</div>
+    <div class="version-badge">v2.36</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,7 +260,21 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-/* AutoPell v2.35 – endringer fra v2.34 (OPPRYDNING – kun ID-systemet):
+/* AutoPell v2.36 – endringer fra v2.35 (ID-system FASE 2: diagnose + kalibrering):
+   - Kalibrering/koding ved SKIFT av sensor/kamera/lyskaster er nå DETERMINISTISK: koden leser
+     karosseri_skift, ekskluderer p-radar/parkeringssensor, sjekker om kalibrering alt er ført,
+     og injiserer funn direkte (filskiftesensor, radar, frontkamera, lyskaster-koding).
+   - STOTFANGER_FORAN_KALIBRERING_RADAR og STOTFANGER_BAK_FILSKIFTESENSOR konvertert til
+     deterministisk:true (fjernet fra Claude sine DELSTATUS-lister) – ellers kunne koden og
+     Claude foreslå samme kalibrering med hver sin ID (ny duplikat-vei).
+   - Nye ID-er: DET_FRONTKAMERA_KALIBRERING, DET_LYSKASTER_KODING.
+   - Regel 7 omskrevet: kun suppresjons-regler igjen for Claude. Lyskaster-koding-instruks og
+     filskiftesensor-HURTIGFAKTA-tekst omskrevet til "håndteres automatisk". Kalibrering-
+     prosaseksjonene markert som referanseinfo.
+   - STOTFANGER_DIAGNOSE og FORDOR_DIAGNOSE_AIRBAG forblir delsjekk-ID-er (krever skjønn om
+     De/Mo-status som ikke er 100% deterministisk i parseren).
+
+/* AutoPell v2.36 – endringer fra v2.34 (OPPRYDNING – kun ID-systemet):
    - Full gjennomgang for å eliminere parallelle resultat-veier. Deterministiske parser-
      betingelser (SMÅDEL PÅ 50%, BRUKT DEL SOM N, Tesla bakdør folie/tape, UB-ved-flaterette,
      kanal-tilstøtende) injiseres nå DIREKTE av koden med egne ID-er (DET_*) – Claude er ikke
@@ -270,7 +284,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
      automatisk av koden". HURTIGFAKTA-tekstene myknet fra "Flagg som mangel" til informativ.
    - DET_*-ID-er vises aldri i DELSTATUS-ID-listene (deterministisk:true-flagg).
 
-/* AutoPell v2.35 – endringer fra v2.33:
+/* AutoPell v2.36 – endringer fra v2.33:
    - FIX: To flere "HURTIGFAKTA – ABSOLUTTE REGLER"-instrukser (50%-lakk polere flikk og
      SMÅDEL PÅ 50%) instruerte fortsatt Claude til å flagge direkte, parallelt med de nye
      STOTFANGER_50_POLERE_FLIKK/STOTFANGER_50_SMADELER-ID-ene – forklarer smådel-duplikatet
@@ -571,7 +585,7 @@ ALDRI foreslå diagnose airbag hvis fordøren:
 - Kun har tilstøtende-lakk (overgangsflate fra forskjerm-skift)
 
 Tilstøtende lakk krever IKKE demontering av døren, og airbag kobles IKKE fra. Bakdør har normalt IKKE airbag – ikke flagg diagnose for bakdør med mindre taksten spesifikt nevner sidekollisjonspute i bakdør.
-Ved skift av lyskaster (Bi-Xenon, adaptiv, LED): koding mot bilen påkrevd → diagnosejobb
+Ved skift av lyskaster (Bi-Xenon, adaptiv, LED): koding mot bilen påkrevd → håndteres automatisk av koden (v2.36) – ikke skriv eget forslag
 - Gjelder spesielt: gamle BMW, Mercedes, alle moderne LED-lykter
 
 === STØTFANGER FORAN OG BAK – LAKKERING ===
@@ -600,7 +614,7 @@ Plastrep støtfanger:
 - Struktursprøyting brukes nesten aldri
 
 Lyktespylere: ved demontering → 100kr spylevæske
-Kalibrering:
+Kalibrering (kun referanseinfo – skift-utløst kalibrering håndteres automatisk av koden, ikke skriv egne forslag):
 - Radar skiftet → kalibrering ca 400p
 - Kamera skiftet → kalibrering ca 400p
 - Parkeringssensorer → INGEN kalibrering
@@ -830,6 +844,7 @@ Hjulstilling SUV: 150p
 Hjulstilling stor varebil/Sprinter: 250p
 
 === KALIBRERING ===
+(Referanseinfo – skift-utløst kalibrering/koding håndteres automatisk av koden, ikke skriv egne forslag)
 Frontkamera: ved frontrute-bytte
 Filskiftesensor: 300p ved skift
 Radar/kamera støtfanger: ca 400p ved skift
@@ -1510,9 +1525,9 @@ function takstSammendrag(t){
     STOTFANGER_KLIPS:{kat:/støtfanger/i,optype:['N','G'],navn:'Klips',mal:'Vurder å ta med klipssett for støtfangeren i annetbildet',farge:'gul'},
     STOTFANGER_SVEISEMATERIELL:{kat:/støtfanger/i,optype:['N','G'],navn:'Sveisemateriell plastrep',mal:'Vurder å legge til kostnad for sveisemateriell plastrep – gjelder KUN hvis "ut og innvendig skade" er huket av i plastspesifikasjonen, og kun ved reparasjon (ikke ved skift)',farge:'gul'},
     STOTFANGER_GRUNNING_TOPPLAKK:{kat:/støtfanger/i,optype:['N','G'],navn:'Grunning for topplakk',mal:'Vurder å legge til grunning for topplakk i annetbilde',farge:'rød'},
-    STOTFANGER_FORAN_KALIBRERING_RADAR:{kat:/støtfanger foran/i,optype:['N'],navn:'Kalibrering radar',mal:'Vurder å legge til kalibrering (ca 400p) – radar i støtfanger foran er skiftet',farge:'lilla'},
+    STOTFANGER_FORAN_KALIBRERING_RADAR:{deterministisk:true,navn:'Kalibrering radar',mal:'',farge:'lilla'},
     STOTFANGER_FORAN_SPYLEVAESKE:{kat:/støtfanger foran/i,optype:['N','G'],navn:'Spylevæske',mal:'Vurder å legge til kostnad for spylevæske (100kr) – bilen har lyktespylere som demonteres',farge:'gul'},
-    STOTFANGER_BAK_FILSKIFTESENSOR:{kat:/støtfanger bak/i,optype:['N'],navn:'Filskiftesensor',mal:'Vurder å legge til kalibrering av filskiftesensor (300p) – sensor i støtfanger bak er skiftet',farge:'lilla'},
+    STOTFANGER_BAK_FILSKIFTESENSOR:{deterministisk:true,navn:'Kalibrering filskiftesensor',mal:'',farge:'lilla'},
     STOTFANGER_FORAN_TILST_FORSKJERM:{kat:/støtfanger foran/i,optype:['N','G'],navn:'Tilstøtende forskjerm (3-sjikt)',mal:'Vurder å ta med tilstøtende flate mot forskjerm – 3-sjikts farge',farge:'gul'},
     STOTFANGER_BAK_TILST_BAKSKJERM:{kat:/støtfanger bak/i,optype:['N','G'],navn:'Tilstøtende bakskjerm (3-sjikt)',mal:'Vurder å ta med tilstøtende flate mot bakskjerm – 3-sjikts farge',farge:'gul'},
     STOTFANGER_50_MASKERING:{kat:/støtfanger/i,optype:['N','G'],navn:'Maskering ved 50%',mal:'Vurder å huke av maskering-boksen i utvendig lakk-tabellen – støtfangeren er satt til 50% lakk',farge:'rød'},
@@ -1528,6 +1543,8 @@ function takstSammendrag(t){
     DET_UB_VED_FLATERETTE:{deterministisk:true,navn:'UB ved flaterette',mal:'Vurder om UB (understellsbehandling) mangler – flaterette-kostnad finnes i taksten men UB er ikke ført. Retting av stål/alu utløser normalt UB.',farge:'gul'},
     DET_KANAL_TILSTOTENDE:{deterministisk:true,navn:'Tilstøtende ved kanal',mal:'',farge:'gul'},
     DET_SMADEL_50:{deterministisk:true,navn:'Smådel på 50%',mal:'',farge:'rød'},
+    DET_FRONTKAMERA_KALIBRERING:{deterministisk:true,navn:'Kalibrering frontkamera',mal:'',farge:'lilla'},
+    DET_LYSKASTER_KODING:{deterministisk:true,navn:'Lyskaster koding',mal:'',farge:'lilla'},
   };
   const REGEL_REGISTRY=window.REGEL_REGISTRY;
 
@@ -1762,7 +1779,7 @@ function takstSammendrag(t){
   }
   if(filskifteDeler.length){
     s+=`  Filskiftesensor/blindsone i taksten: ${filskifteDeler.join(', ')}\n`;
-    s+=`     → Filskiftesensor skal kalibreres (300p) ved skift. Sjekk om kalibrering er ført.\n`;
+    s+=`     → Filskiftesensor kalibreres ved skift – håndteres automatisk av koden\n`;
   }
   // v2.8: Spylervæske allerede ført? Hvis ordet finnes i takst-teksten, er den med.
   // Da skal Claude IKKE foreslå spylervæske ved demontering av støtfanger m/lyktespylere.
@@ -2304,16 +2321,10 @@ For hver del i taksten – sjekk disse punktene:
    - HTT-side ved 50%: KUN den siden som lakkes – ALDRI motsatt side.
 
 7. KALIBRERING:
-   - Kalibrering foreslås KUN ved faktisk SKIFT (N) av en kalibreringsdel.
-   - Kalibreringsdeler: frontkamera, radar (kollisjonsradar/p-radar i grill/støtfanger), filskiftesensor (ytterst i bakre støtfanger), adaptiv/LED-lyskaster.
-   - ALDRI foreslå kalibrering ved:
-     • Retting (G) av del som inneholder sensorer/radar
-     • Lakkering av sensorer/radar uten skift
-     • Tilstøtende lakk på del med sensorer
-     • Plastreparasjon av støtfanger uten skift av selve sensoren/radaren
-   - Parkeringssensorer (PDC): INGEN kalibrering, uansett.
-   - Sjekk Op.Type-kolonnen: kun N (Ny) på selve kalibreringsdelen utløser kalibrerings-forslag. Hvis sensoren bare står som T (tilstøtende) eller mangler N → IKKE foreslå kalibrering.
-   - Lyskaster Bi-Xenon/adaptiv/LED: koding ved skift (N).
+   - Håndteres AUTOMATISK av koden (v2.36): skift av filskiftesensor, radar, frontkamera eller lyskaster i arbeidsspesifikasjonen injiseres deterministisk med egne ID-er. IKKE skriv egne kalibrerings-/kodings-forslag i fritekst – de blir uansett fjernet som duplikater.
+   - Disse suppresjons-reglene gjelder fortsatt for DEG (så du aldri foreslår kalibrering på egen hånd):
+     • ALDRI foreslå kalibrering ved retting (G), lakkering uten skift, tilstøtende lakk, eller plastreparasjon uten skift av selve sensoren
+     • Parkeringssensorer (PDC/p-radar): INGEN kalibrering, uansett – disse ekskluderes også automatisk av koden
 
 8. DIAGNOSE STØTFANGER:
    - ID-migrert (v2.33): bruk STOTFANGER_DIAGNOSE fra delsjekk.
@@ -2487,6 +2498,27 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           if(manglerPF.length){
             injiserDeterministisk('DET_KANAL_TILSTOTENDE',`Vurder å ta med tilstøtende flate (arealavhengig) mot ${manglerPF.join(', ')} – kanal lakkeres (${kanalOptypePF}) uten at tilstøtende er ført`,'Lakkspesifikasjon');
           }
+        }
+        // v2.36 Fase 2: Kalibrering/koding – deterministisk ved SKIFT av sensor/kamera/lyskaster
+        // i arbeidsspesifikasjonen, kun når ingen kalibrering allerede er ført. P-radar/
+        // parkeringssensor kalibreres ALDRI og ekskluderes.
+        const kalibreringFørtPF=parserData.kalibreringer&&parserData.kalibreringer.length;
+        if(!kalibreringFørtPF){
+          const erPRadar=n=>/p-?radar|p-?sensor|parkeringssensor|parkerings-?radar/i.test(n);
+          const kalibKategorier=[
+            {id:'STOTFANGER_BAK_FILSKIFTESENSOR',re:/filskifte|blindsone|lane.?change/i,tekst:navn=>`Vurder å legge til kalibrering av filskiftesensor – ${navn} skiftes`},
+            {id:'STOTFANGER_FORAN_KALIBRERING_RADAR',re:/\bradar\b/i,tekst:navn=>`Vurder å legge til kalibrering av radar – ${navn} skiftes`},
+            {id:'DET_FRONTKAMERA_KALIBRERING',re:/kamera/i,tekst:navn=>`Vurder å legge til kalibrering av frontkamera – ${navn} skiftes`},
+            {id:'DET_LYSKASTER_KODING',re:/lyskaster|hovedlys|frontlys/i,tekst:navn=>`Sjekk om lyskasteren krever koding mot bilen (Bi-Xenon/adaptiv/LED) – ${navn} skiftes`},
+          ];
+          kalibKategorier.forEach(kat=>{
+            const treffNavn=(parserData.karosseri_skift||[])
+              .filter(d=>d.navn&&d.tiltak==='Skift'&&kat.re.test(d.navn)&&!erPRadar(d.navn))
+              .map(d=>'"'+d.navn+'"');
+            if(treffNavn.length){
+              injiserDeterministisk(kat.id,kat.tekst(treffNavn.join(' og ')),'Arbeidsspesifikasjon');
+            }
+          });
         }
       }
       parsed.delsjekk.forEach(d=>{
