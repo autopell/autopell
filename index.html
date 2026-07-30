@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.27 – Smart kontroll av takster</title>
+<title>AutoPell v2.28 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.27</div>
+    <div class="version-badge">v2.28</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,7 +260,14 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-/* AutoPell v2.27 – endringer fra v2.26:
+/* AutoPell v2.28 – endringer fra v2.27:
+   - FIX: "understellsbehandling" (UB) manglet i konsept-dedupe-nøkkelordlisten, så UB-duplikater
+     (samme UB-funn skrevet både samlet og separat per del) ble ikke fanget av sikkerhetsnettet.
+     Lagt til – samme mønster som hjulbueliste/tankluke/dørhåndtak osv.
+   - Uavklart: HTT-dørhåndtak-duplikat observert selv med "dørhåndtak" i nøkkelordlisten (som
+     skulle fanget det). Ingen kodebug funnet ved gjennomgang – følg med i nettleserkonsollen
+     ([POST-FILTER]-logger) neste gang dette skjer for å diagnostisere videre.
+   endringer fra v2.26:
    - Fjernet unødvendig sjekkliste-bullets fra "Ingenting å bemerke"-meldingen (0 funn) –
      viste seks generiske punkter om hva som ble sjekket, ga ingen verdi
    - Ny "SISTE STEG"-instruks: Claude skal lese gjennom hele resultat-listen én gang til før
@@ -2274,7 +2281,7 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
       // "del"-labelen kan variere nok (parenteser vs braketter, ulik ordlyd) til at per-del-
       // nøkkelen ikke matcher. Global dedupe er tryggere siden kollisjon på tvers av ulike
       // deler med samme konsept er sjelden sammenlignet med hvor ofte duplikat-buggen oppstår.
-      const konseptNøkler=['hjulbueliste','tankluk','bensinluk','løftetape','loftetape','polere flikk','dørhåndtak','ladeluke','rustbeskyttelse','dokumentasjon','karosserilim','blanderør','diagnose','kalibrer'];
+      const konseptNøkler=['hjulbueliste','tankluk','bensinluk','løftetape','loftetape','polere flikk','dørhåndtak','ladeluke','rustbeskyttelse','dokumentasjon','karosserilim','blanderør','diagnose','kalibrer','understellsbehandling'];
       const brukteKonsepter=new Set();
       parsed.delsjekk.forEach(d=>{
         (d.punkter||[]).forEach(p=>{
