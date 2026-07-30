@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.26 – Smart kontroll av takster</title>
+<title>AutoPell v2.27 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.26</div>
+    <div class="version-badge">v2.27</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,7 +260,13 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-/* AutoPell v2.26 – endringer fra v2.25:
+/* AutoPell v2.27 – endringer fra v2.26:
+   - Fjernet unødvendig sjekkliste-bullets fra "Ingenting å bemerke"-meldingen (0 funn) –
+     viste seks generiske punkter om hva som ble sjekket, ga ingen verdi
+   - Ny "SISTE STEG"-instruks: Claude skal lese gjennom hele resultat-listen én gang til før
+     svar og slå sammen punkter som betyr det samme men er ordlagt ulikt – supplerer den
+     kode-baserte konsept-dedupen med en semantisk sluttsjekk
+   endringer fra v2.25:
    - FIX (bekreftet reell hendelse): en hoveddel skiftet (N) i arbeidsspesifikasjonen som HELT
      MANGLER egen post i lakkspesifikasjonen ble ikke fanget av noen eksisterende sjekk.
      DELSTATUS bygges kun fra lakkspes-rader (så delen vises aldri der hvis raden mangler),
@@ -2245,7 +2251,10 @@ BILDER – bruk i bakgrunnen:
 • Bildene er BAKGRUNNSKUNNSKAP. Bruk dem til å vurdere skadeomfang, deltype og om noe mangler i taksten.
 • IKKE lag en egen liste med bilde-observasjoner. IKKE skriv "Bilde 1 viser...", "Bilde 2 viser..." e.l.
 • Hvis et bilde avdekker noe takst-relevant (f.eks. at skaden strekker seg til en nabodel som ikke er ført), legg det inn som et VANLIG forslag/mangel i "resultater" – uten å referere til bildenummer.
-• Bruk bildene stille: la dem skjerpe og begrunne forslagene, ikke produsere eget referat.`;
+• Bruk bildene stille: la dem skjerpe og begrunne forslagene, ikke produsere eget referat.
+
+=== SISTE STEG – FØR DU SVARER: SEMANTISK GJENNOMLESNING ===
+Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE listen én gang til som en helhet, uavhengig av hvor hvert punkt kom fra (delsjekk eller generelle regler). Se etter punkter som betyr DET SAMME selv om ordlyden er ulik – f.eks. to formuleringer av samme diagnose-forslag, eller samme HTT-vurdering skrevet på to måter. Slå disse sammen til ÉTT punkt (behold den beste/mest presise formuleringen) før du returnerer svaret. Dette er et bevisst siste kvalitetssjekk-steg, ikke noe du skal hoppe over for å spare tid.`;
 
     const data=await callClaude([{role:'user',content:[...takstContent,...carImgContent,{type:'text',text:prompt}]}]);
     const txt=data.content.map(c=>c.text||'').join('').trim().replace(/```json|```/g,'');
@@ -2682,15 +2691,7 @@ BILDER – bruk i bakgrunnen:
 
     if(!r.length){
       el.innerHTML='<div class="result-item result-green"><div class="result-title">✓ Ingenting å bemerke</div>'
-        +'<div class="result-sub">Taksten ser fullstendig ut mot veiledningene. AutoPell har kontrollert:</div>'
-        +'<div class="dbs-list" style="background:#eef7ee;border-color:#bcd8bc;margin-top:8px">'
-        +'<div class="dbs-item">• Lakk-konsistens – alle reparerte/skiftede deler har lakk-post</div>'
-        +'<div class="dbs-item">• Håndteringstillegg (HTT) og polere flikk ved 50%-lakk</div>'
-        +'<div class="dbs-item">• 50%-smådeler som skal til 100%, og brukte deler som skal være gammel flate (G)</div>'
-        +'<div class="dbs-item">• Underbygg (UB), grunning topplakk og maskering</div>'
-        +'<div class="dbs-item">• Kalibrering – filskiftesensor vs. parkeringssensor (p-radar)</div>'
-        +'<div class="dbs-item">• Airbag-diagnose og diagnose/feilkoder ved demontering</div>'
-        +'</div></div>';
+        +'<div class="result-sub">Taksten ser fullstendig ut mot veiledningene.</div></div>';
     }else{
       el.innerHTML=html;
     }
