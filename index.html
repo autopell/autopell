@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.37 – Smart kontroll av takster</title>
+<title>AutoPell v2.38 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.37</div>
+    <div class="version-badge">v2.38</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,7 +260,12 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-/* AutoPell v2.37 – endringer fra v2.36 (ID-KONSEPT-FJERNING – strukturell innstramming):
+/* AutoPell v2.38 – endringer fra v2.37:
+   - FJERNET: STOTFANGER_SVART_HJORNE fra ID-registeret + "Svart hjørne nede"-prosalinjen.
+     Regelen havnet i sjekklisten for HVER støtfanger-takst og genererte gjentatte
+     "skade på svart del"-forslag uten grunnlag. Fjernet på Martins beskjed.
+
+/* AutoPell v2.38 – endringer fra v2.36 (ID-KONSEPT-FJERNING – strukturell innstramming):
    - Sidedør-hullet fra Porsche-testen tettet: Claude omgikk sikkerhetsnettet ved å skrive
      frie varianter UTEN delnavn ("grunning ... i plastspesifikasjonen") eller med konsepter
      som manglet i nøkkelordlisten (spylevæske, svart hjørne).
@@ -270,7 +275,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
      med stoppord-filter og ordgrense-match) – ingen manuell nøkkelordliste å glemme å
      vedlikeholde lenger.
 
-/* AutoPell v2.37 – endringer fra v2.35 (ID-system FASE 2: diagnose + kalibrering):
+/* AutoPell v2.38 – endringer fra v2.35 (ID-system FASE 2: diagnose + kalibrering):
    - Kalibrering/koding ved SKIFT av sensor/kamera/lyskaster er nå DETERMINISTISK: koden leser
      karosseri_skift, ekskluderer p-radar/parkeringssensor, sjekker om kalibrering alt er ført,
      og injiserer funn direkte (filskiftesensor, radar, frontkamera, lyskaster-koding).
@@ -284,7 +289,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    - STOTFANGER_DIAGNOSE og FORDOR_DIAGNOSE_AIRBAG forblir delsjekk-ID-er (krever skjønn om
      De/Mo-status som ikke er 100% deterministisk i parseren).
 
-/* AutoPell v2.37 – endringer fra v2.34 (OPPRYDNING – kun ID-systemet):
+/* AutoPell v2.38 – endringer fra v2.34 (OPPRYDNING – kun ID-systemet):
    - Full gjennomgang for å eliminere parallelle resultat-veier. Deterministiske parser-
      betingelser (SMÅDEL PÅ 50%, BRUKT DEL SOM N, Tesla bakdør folie/tape, UB-ved-flaterette,
      kanal-tilstøtende) injiseres nå DIREKTE av koden med egne ID-er (DET_*) – Claude er ikke
@@ -294,7 +299,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
      automatisk av koden". HURTIGFAKTA-tekstene myknet fra "Flagg som mangel" til informativ.
    - DET_*-ID-er vises aldri i DELSTATUS-ID-listene (deterministisk:true-flagg).
 
-/* AutoPell v2.37 – endringer fra v2.33:
+/* AutoPell v2.38 – endringer fra v2.33:
    - FIX: To flere "HURTIGFAKTA – ABSOLUTTE REGLER"-instrukser (50%-lakk polere flikk og
      SMÅDEL PÅ 50%) instruerte fortsatt Claude til å flagge direkte, parallelt med de nye
      STOTFANGER_50_POLERE_FLIKK/STOTFANGER_50_SMADELER-ID-ene – forklarer smådel-duplikatet
@@ -620,7 +625,6 @@ DETTE MÅ ALLTID FLAGGES ved 50% støtfanger – ikke glem maskering og polere f
 
 Plastrep støtfanger:
 - Sjekk plastspesifikasjonen: hvis "ut og innvendig skade" → 300kr sveisemateriall i annet bilde
-- Svart hjørne nede: ca 2000kr, legges i annet bilde
 - Struktursprøyting brukes nesten aldri
 
 Lyktespylere: ved demontering → 100kr spylevæske
@@ -1543,7 +1547,6 @@ function takstSammendrag(t){
     STOTFANGER_50_MASKERING:{kat:/støtfanger/i,optype:['N','G'],navn:'Maskering ved 50%',mal:'Vurder å huke av maskering-boksen i utvendig lakk-tabellen – støtfangeren er satt til 50% lakk',farge:'rød'},
     STOTFANGER_50_POLERE_FLIKK:{kat:/støtfanger/i,optype:['N','G'],navn:'Polere flikk ved 50%',mal:'Vurder polere flikk 20p i annetbildet – påkrevd ved 50%-lakkering av støtfanger',farge:'gul'},
     STOTFANGER_50_SMADELER:{kat:/støtfanger/i,optype:['N','G'],navn:'Smådeler feilaktig 50%',mal:'Sjekk om tilknyttede smådeler (p-sensorer, lokk osv.) er feilaktig satt til 50% i DBS – disse skal lakkes 100% og differansen legges til',farge:'rød'},
-    STOTFANGER_SVART_HJORNE:{kat:/støtfanger/i,optype:['N','G'],navn:'Svart hjørne nede',mal:'Vurder å legge til kostnad for svart hjørne nede (ca 2000kr) i annet bilde',farge:'gul'},
 
     // v2.35 – Deterministiske parser-betingelser: injiseres DIREKTE av koden når parseren
     // oppdager betingelsen. Claude er ikke involvert (deterministisk:true → vises aldri i
