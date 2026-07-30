@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.36 – Smart kontroll av takster</title>
+<title>AutoPell v2.37 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.36</div>
+    <div class="version-badge">v2.37</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,7 +260,17 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-/* AutoPell v2.36 – endringer fra v2.35 (ID-system FASE 2: diagnose + kalibrering):
+/* AutoPell v2.37 – endringer fra v2.36 (ID-KONSEPT-FJERNING – strukturell innstramming):
+   - Sidedør-hullet fra Porsche-testen tettet: Claude omgikk sikkerhetsnettet ved å skrive
+     frie varianter UTEN delnavn ("grunning ... i plastspesifikasjonen") eller med konsepter
+     som manglet i nøkkelordlisten (spylevæske, svart hjørne).
+   - Nytt prinsipp: hvis et konsept allerede er dekket av en BRUKT ID i kjøringen, fjernes
+     ETHVERT fritekst-funn med samme konsept – uten krav om delnavn-match. Konseptordene
+     utledes AUTOMATISK fra registerets navn-felt for de brukte ID-ene (frase + enkeltord,
+     med stoppord-filter og ordgrense-match) – ingen manuell nøkkelordliste å glemme å
+     vedlikeholde lenger.
+
+/* AutoPell v2.37 – endringer fra v2.35 (ID-system FASE 2: diagnose + kalibrering):
    - Kalibrering/koding ved SKIFT av sensor/kamera/lyskaster er nå DETERMINISTISK: koden leser
      karosseri_skift, ekskluderer p-radar/parkeringssensor, sjekker om kalibrering alt er ført,
      og injiserer funn direkte (filskiftesensor, radar, frontkamera, lyskaster-koding).
@@ -274,7 +284,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    - STOTFANGER_DIAGNOSE og FORDOR_DIAGNOSE_AIRBAG forblir delsjekk-ID-er (krever skjønn om
      De/Mo-status som ikke er 100% deterministisk i parseren).
 
-/* AutoPell v2.36 – endringer fra v2.34 (OPPRYDNING – kun ID-systemet):
+/* AutoPell v2.37 – endringer fra v2.34 (OPPRYDNING – kun ID-systemet):
    - Full gjennomgang for å eliminere parallelle resultat-veier. Deterministiske parser-
      betingelser (SMÅDEL PÅ 50%, BRUKT DEL SOM N, Tesla bakdør folie/tape, UB-ved-flaterette,
      kanal-tilstøtende) injiseres nå DIREKTE av koden med egne ID-er (DET_*) – Claude er ikke
@@ -284,7 +294,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
      automatisk av koden". HURTIGFAKTA-tekstene myknet fra "Flagg som mangel" til informativ.
    - DET_*-ID-er vises aldri i DELSTATUS-ID-listene (deterministisk:true-flagg).
 
-/* AutoPell v2.36 – endringer fra v2.33:
+/* AutoPell v2.37 – endringer fra v2.33:
    - FIX: To flere "HURTIGFAKTA – ABSOLUTTE REGLER"-instrukser (50%-lakk polere flikk og
      SMÅDEL PÅ 50%) instruerte fortsatt Claude til å flagge direkte, parallelt med de nye
      STOTFANGER_50_POLERE_FLIKK/STOTFANGER_50_SMADELER-ID-ene – forklarer smådel-duplikatet
@@ -2587,6 +2597,51 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           const matcherDel=delBaseNavn.some(navn=>lower.includes(navn))||delKategorier.some(re=>re.test(lower));
           const matcherKonsept=konseptNøkler.some(k=>lower.includes(k));
           return !(matcherDel&&matcherKonsept);
+        });
+      }
+      // v2.37: ID-KONSEPT-FJERNING – strukturell innstramming. Hvis et konsept allerede er
+      // dekket av en BRUKT ID i denne kjøringen, fjernes ETHVERT fritekst-funn med samme
+      // konsept – uten krav om at delnavnet nevnes (Claude omgikk delnavn-kravet ved å skrive
+      // f.eks. "grunning ... i plastspesifikasjonen" uten ordet støtfanger). Konseptordene
+      // utledes AUTOMATISK fra registerets navn-felt for de brukte ID-ene, så nye ID-er
+      // dekkes uten manuell nøkkelord-vedlikehold ("glemt nøkkelord"-problemet forsvinner).
+      const stoppOrd=new Set(['løse','deler','flate','nede','foran','ført','lakk','ved']);
+      const idKonseptMønstre=[];
+      brukteIDer.forEach(id=>{
+        const reg=window.REGEL_REGISTRY[id];
+        if(!reg||!reg.navn)return;
+        const esc=s2=>s2.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+        const navnLower=reg.navn.toLowerCase().replace(/\(.*?\)/g,'').replace(/\s+/g,' ').trim();
+        if(navnLower.length>=6)idKonseptMønstre.push(new RegExp(esc(navnLower),'i'));
+        reg.navn.split(/\s+/).forEach(o=>{
+          const ol=o.toLowerCase().replace(/[^a-zæøå0-9]/g,'');
+          if(!ol||stoppOrd.has(ol))return;
+          if(ol.length>=4||(o===o.toUpperCase()&&ol.length>=2)){
+            idKonseptMønstre.push(new RegExp('\\b'+esc(ol)+'\\b','i'));
+          }
+        });
+      });
+      if(idKonseptMønstre.length){
+        parsed.resultater=parsed.resultater.filter(r=>{
+          const meldingLower=(r.melding||'').toLowerCase();
+          if(injisertTekst.has(meldingLower))return true;
+          const tekst=((r.tittel||'')+' '+(r.melding||'')).toLowerCase();
+          const treff=idKonseptMønstre.find(re=>re.test(tekst));
+          if(treff){
+            console.log('[POST-FILTER v2.37] Fjernet fritekst-funn med ID-dekket konsept ('+treff+'): "'+(r.tittel||'')+'"');
+            return false;
+          }
+          return true;
+        });
+        parsed.sammendrag.dbs_handlinger=parsed.sammendrag.dbs_handlinger.filter(txt=>{
+          const lower=txt.toLowerCase();
+          if(injisertTekst.has(lower))return true;
+          const treff=idKonseptMønstre.find(re=>re.test(lower));
+          if(treff){
+            console.log('[POST-FILTER v2.37] Fjernet fritekst-handling med ID-dekket konsept ('+treff+'): "'+txt.substring(0,60)+'..."');
+            return false;
+          }
+          return true;
         });
       }
     }
