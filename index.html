@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.43 – Smart kontroll av takster</title>
+<title>AutoPell v2.44 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.43</div>
+    <div class="version-badge">v2.44</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,7 +260,14 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-/* AutoPell v2.43 – endringer fra v2.42:
+/* AutoPell v2.44 – endringer fra v2.43:
+   FIX: Løftetape var feilaktig fremstilt som knyttet til rettearbeidet ("må løftes for
+   tilkomst", "KUN ved retting ... ved skift må ruten alltid ut"). Domenerettelse fra Martin:
+   løftetape brukes til å LØFTE (ikke løsne) pakningen rundt en rute for å få den ut/inn –
+   det har ingenting med selve rettearbeidet å gjøre. Rettet i BAKSKJERM_G_LOFTETAPE-malen
+   og i kildeteksten (Ved retting eller lakkering av bakskjerm-avsnittet).
+
+/* AutoPell v2.44 – endringer fra v2.42:
    NYTT: Skjevfordeling mot "usikker" på bildebaserte punkter. Martin observerte at bildebasert
    skjønn (rute i bakskjerm, lakkert/ulakkert hjulbueliste osv.) varierte mellom kjøringer på
    samme takst – noen ganger landet det på "ikke relevant" (stille, forsvinner) i stedet for
@@ -269,7 +276,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    at punktet faktisk ikke gjelder. Gjør feilmodus til "spør én gang for mye" i stedet for
    "forsvinner stille", uten ekstra kostnad.
 
-/* AutoPell v2.43 – endringer fra v2.41:
+/* AutoPell v2.44 – endringer fra v2.41:
    FIX: "Unterminated string in JSON"-feil ved kjøring. Rotårsak: Sonnet 5 har adaptive
    thinking påslått som standard, og tenke-tokens telles med i max_tokens sammen med selve
    svaret. Med max_tokens:8000 (satt for en modell uten tenkefase) kunne modellen bruke opp
@@ -277,12 +284,12 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    thinking:{type:'disabled'} i API-kallet – AutoPell trenger et ferdig JSON-svar, ikke synlig
    resonnering, så dette holder også kostnaden nede.
 
-/* AutoPell v2.43 – endringer fra v2.40:
+/* AutoPell v2.44 – endringer fra v2.40:
    FIX: API-kallet feilet med "`temperature` is deprecated for this model" etter bytte til
    claude-sonnet-5 i v2.40. Fjernet temperature-parameteren fra kallet (Sonnet 5 støtter den
    ikke på samme måte som 4-6 gjorde).
 
-/* AutoPell v2.43 – endringer fra v2.39 (samlet opp over flere tester):
+/* AutoPell v2.44 – endringer fra v2.39 (samlet opp over flere tester):
    FIX 1 – Mal-fallback: hvis Claude satt status="foreslått"/"usikker" i delsjekk men glemte
    å fylle ut "forslag", forsvant funnet sporløst (synlig som "foreslått" i punkt-for-punkt,
    men aldri i DBS-listen). Bruker nå registerets mal-tekst som fallback (kun ikke-tomme
@@ -303,7 +310,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    hvilken del det gjelder. Ny eksplisitt instruks mot å konstruere delsjekk-blokker for
    deler som ikke står i DELSTATUS i det hele tatt.
 
-/* AutoPell v2.43 – endringer fra v2.38 (ID-system FASE 3+4 – migrering fullført):
+/* AutoPell v2.44 – endringer fra v2.38 (ID-system FASE 3+4 – migrering fullført):
    FASE 3 (UB/rustbeskyttelse/maskering):
    - UB og rustbeskyttelse er nå fullt DETERMINISTISKE: koden finner selv UB-relevante deler
      (stål/alu N/G, ikke tilstøtende/plast) og sjekker om UB/rustbeskyttelse er ført i
@@ -323,12 +330,12 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
      (sjeldne skjønnsting uten deterministisk trigger – eneste gjenværende fritekst-kilder
      sammen med bilspesifikk HTT-kunnskap som styrer delsjekk-statuser).
 
-/* AutoPell v2.43 – endringer fra v2.37:
+/* AutoPell v2.44 – endringer fra v2.37:
    - FJERNET: STOTFANGER_SVART_HJORNE fra ID-registeret + "Svart hjørne nede"-prosalinjen.
      Regelen havnet i sjekklisten for HVER støtfanger-takst og genererte gjentatte
      "skade på svart del"-forslag uten grunnlag. Fjernet på Martins beskjed.
 
-/* AutoPell v2.43 – endringer fra v2.36 (ID-KONSEPT-FJERNING – strukturell innstramming):
+/* AutoPell v2.44 – endringer fra v2.36 (ID-KONSEPT-FJERNING – strukturell innstramming):
    - Sidedør-hullet fra Porsche-testen tettet: Claude omgikk sikkerhetsnettet ved å skrive
      frie varianter UTEN delnavn ("grunning ... i plastspesifikasjonen") eller med konsepter
      som manglet i nøkkelordlisten (spylevæske, svart hjørne).
@@ -338,7 +345,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
      med stoppord-filter og ordgrense-match) – ingen manuell nøkkelordliste å glemme å
      vedlikeholde lenger.
 
-/* AutoPell v2.43 – endringer fra v2.35 (ID-system FASE 2: diagnose + kalibrering):
+/* AutoPell v2.44 – endringer fra v2.35 (ID-system FASE 2: diagnose + kalibrering):
    - Kalibrering/koding ved SKIFT av sensor/kamera/lyskaster er nå DETERMINISTISK: koden leser
      karosseri_skift, ekskluderer p-radar/parkeringssensor, sjekker om kalibrering alt er ført,
      og injiserer funn direkte (filskiftesensor, radar, frontkamera, lyskaster-koding).
@@ -352,7 +359,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    - STOTFANGER_DIAGNOSE og FORDOR_DIAGNOSE_AIRBAG forblir delsjekk-ID-er (krever skjønn om
      De/Mo-status som ikke er 100% deterministisk i parseren).
 
-/* AutoPell v2.43 – endringer fra v2.34 (OPPRYDNING – kun ID-systemet):
+/* AutoPell v2.44 – endringer fra v2.34 (OPPRYDNING – kun ID-systemet):
    - Full gjennomgang for å eliminere parallelle resultat-veier. Deterministiske parser-
      betingelser (SMÅDEL PÅ 50%, BRUKT DEL SOM N, Tesla bakdør folie/tape, UB-ved-flaterette,
      kanal-tilstøtende) injiseres nå DIREKTE av koden med egne ID-er (DET_*) – Claude er ikke
@@ -362,7 +369,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
      automatisk av koden". HURTIGFAKTA-tekstene myknet fra "Flagg som mangel" til informativ.
    - DET_*-ID-er vises aldri i DELSTATUS-ID-listene (deterministisk:true-flagg).
 
-/* AutoPell v2.43 – endringer fra v2.33:
+/* AutoPell v2.44 – endringer fra v2.33:
    - FIX: To flere "HURTIGFAKTA – ABSOLUTTE REGLER"-instrukser (50%-lakk polere flikk og
      SMÅDEL PÅ 50%) instruerte fortsatt Claude til å flagge direkte, parallelt med de nye
      STOTFANGER_50_POLERE_FLIKK/STOTFANGER_50_SMADELER-ID-ene – forklarer smådel-duplikatet
@@ -750,7 +757,7 @@ Ved retting eller lakkering av bakskjerm, sjekk alltid:
 - Spør om tilstøtende mot bakdør er aktuelt
 - Hjulbueliste: HTT 15p hvis lakkerbar. Still som NØYTRALT spørsmål ("Sjekk om V bakskjerm har lakkerbar hjulbueliste") – ikke hevd at bildene viser et bestemt svar
 - Tankluke/bensinluke: hvis den sitter på bakskjermen, vurder tilstøtende. Still som NØYTRALT spørsmål ("Sjekk om tankluken på V bakskjerm bør vurderes som tilstøtende") – ikke hevd et bestemt svar
-- Løftetape 20p – KUN spør om dette hvis det er TYDELIG synlig på bildene at bakskjermen faktisk har en rute. Har bilen ingen synlig rute der, eller er det en varebil – ikke spør i det hele tatt. Løftetape på siderute gjelder ALDRI på varebiler, kun personbiler. Hvis du spør: "Sjekk om pakningen på bakruten må løftes for tilkomst". KUN ved retting, ikke ved skift – ved skift må ruten alltid ut
+- Løftetape 20p – KUN spør om dette hvis det er TYDELIG synlig på bildene at bakskjermen faktisk har en rute. Har bilen ingen synlig rute der, eller er det en varebil – ikke spør i det hele tatt. Løftetape på siderute gjelder ALDRI på varebiler, kun personbiler. Løftetape brukes til å løfte pakningen rundt ruten (derav navnet) – ikke knyttet til selve rettearbeidet. Hvis du spør: "Sjekk om det finnes en rute mot bakskjermen som krever løftetape"
 - Polere flikk 20p – hvis takstolpe ikke lakkes helt ut. KUN på bakskjerm, ALDRI på dør
 Ved skift (N = ny) av bakskjerm, sjekk alltid:
 - Rustbeskyttelse 3p (skrudd detalj)
@@ -1588,7 +1595,7 @@ function takstSammendrag(t){
     BAKSKJERM_G_TILST_BAKDOR:{kat:/bakskjerm/i,optype:['G'],navn:'Tilstøtende bakdør',mal:'Spør om tilstøtende mot bakdør er aktuelt',farge:'gul'},
     BAKSKJERM_G_HJULBUELISTE:{kat:/bakskjerm/i,optype:['G'],navn:'HTT hjulbueliste',mal:'Sjekk om bakskjerm har lakkerbar hjulbueliste',farge:'gul'},
     BAKSKJERM_G_TANKLUKE:{kat:/bakskjerm/i,optype:['G'],navn:'Tankluke',mal:'Sjekk om tankluken på bakskjerm bør vurderes som tilstøtende',farge:'gul'},
-    BAKSKJERM_G_LOFTETAPE:{kat:/bakskjerm/i,optype:['G'],navn:'Løftetape',mal:'Sjekk om det finnes en synlig rute mot bakskjerm som krever løftetape 20p (kun personbil, ikke varebil)',farge:'gul'},
+    BAKSKJERM_G_LOFTETAPE:{kat:/bakskjerm/i,optype:['G'],navn:'Løftetape',mal:'Sjekk om det finnes en synlig rute mot bakskjerm – løftetape (20p) brukes til å løfte pakningen rundt ruten (derav navnet), ikke knyttet til selve rettearbeidet (kun personbil, ikke varebil)',farge:'gul'},
     BAKSKJERM_G_POLERE_FLIKK:{kat:/bakskjerm/i,optype:['G'],navn:'Polere flikk',mal:'Vurder polere flikk 20p hvis takstolpe ikke lakkes helt ut',farge:'gul'},
 
     BAKSKJERM_N_RUST:{deterministisk:true,navn:'Rustbeskyttelse',mal:'',farge:'rød'},
