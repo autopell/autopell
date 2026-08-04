@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.42 – Smart kontroll av takster</title>
+<title>AutoPell v2.43 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.42</div>
+    <div class="version-badge">v2.43</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,7 +260,16 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-/* AutoPell v2.42 – endringer fra v2.41:
+/* AutoPell v2.43 – endringer fra v2.42:
+   NYTT: Skjevfordeling mot "usikker" på bildebaserte punkter. Martin observerte at bildebasert
+   skjønn (rute i bakskjerm, lakkert/ulakkert hjulbueliste osv.) varierte mellom kjøringer på
+   samme takst – noen ganger landet det på "ikke relevant" (stille, forsvinner) i stedet for
+   "usikker" (synlig, spør takstmannen). Lagt til eksplisitt instruks: ved tvil, ALLTID
+   "usikker", ALDRI "ikke relevant" – "ikke relevant" skal kun brukes når Claude er trygg på
+   at punktet faktisk ikke gjelder. Gjør feilmodus til "spør én gang for mye" i stedet for
+   "forsvinner stille", uten ekstra kostnad.
+
+/* AutoPell v2.43 – endringer fra v2.41:
    FIX: "Unterminated string in JSON"-feil ved kjøring. Rotårsak: Sonnet 5 har adaptive
    thinking påslått som standard, og tenke-tokens telles med i max_tokens sammen med selve
    svaret. Med max_tokens:8000 (satt for en modell uten tenkefase) kunne modellen bruke opp
@@ -268,12 +277,12 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    thinking:{type:'disabled'} i API-kallet – AutoPell trenger et ferdig JSON-svar, ikke synlig
    resonnering, så dette holder også kostnaden nede.
 
-/* AutoPell v2.42 – endringer fra v2.40:
+/* AutoPell v2.43 – endringer fra v2.40:
    FIX: API-kallet feilet med "`temperature` is deprecated for this model" etter bytte til
    claude-sonnet-5 i v2.40. Fjernet temperature-parameteren fra kallet (Sonnet 5 støtter den
    ikke på samme måte som 4-6 gjorde).
 
-/* AutoPell v2.42 – endringer fra v2.39 (samlet opp over flere tester):
+/* AutoPell v2.43 – endringer fra v2.39 (samlet opp over flere tester):
    FIX 1 – Mal-fallback: hvis Claude satt status="foreslått"/"usikker" i delsjekk men glemte
    å fylle ut "forslag", forsvant funnet sporløst (synlig som "foreslått" i punkt-for-punkt,
    men aldri i DBS-listen). Bruker nå registerets mal-tekst som fallback (kun ikke-tomme
@@ -294,7 +303,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    hvilken del det gjelder. Ny eksplisitt instruks mot å konstruere delsjekk-blokker for
    deler som ikke står i DELSTATUS i det hele tatt.
 
-/* AutoPell v2.42 – endringer fra v2.38 (ID-system FASE 3+4 – migrering fullført):
+/* AutoPell v2.43 – endringer fra v2.38 (ID-system FASE 3+4 – migrering fullført):
    FASE 3 (UB/rustbeskyttelse/maskering):
    - UB og rustbeskyttelse er nå fullt DETERMINISTISKE: koden finner selv UB-relevante deler
      (stål/alu N/G, ikke tilstøtende/plast) og sjekker om UB/rustbeskyttelse er ført i
@@ -314,12 +323,12 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
      (sjeldne skjønnsting uten deterministisk trigger – eneste gjenværende fritekst-kilder
      sammen med bilspesifikk HTT-kunnskap som styrer delsjekk-statuser).
 
-/* AutoPell v2.42 – endringer fra v2.37:
+/* AutoPell v2.43 – endringer fra v2.37:
    - FJERNET: STOTFANGER_SVART_HJORNE fra ID-registeret + "Svart hjørne nede"-prosalinjen.
      Regelen havnet i sjekklisten for HVER støtfanger-takst og genererte gjentatte
      "skade på svart del"-forslag uten grunnlag. Fjernet på Martins beskjed.
 
-/* AutoPell v2.42 – endringer fra v2.36 (ID-KONSEPT-FJERNING – strukturell innstramming):
+/* AutoPell v2.43 – endringer fra v2.36 (ID-KONSEPT-FJERNING – strukturell innstramming):
    - Sidedør-hullet fra Porsche-testen tettet: Claude omgikk sikkerhetsnettet ved å skrive
      frie varianter UTEN delnavn ("grunning ... i plastspesifikasjonen") eller med konsepter
      som manglet i nøkkelordlisten (spylevæske, svart hjørne).
@@ -329,7 +338,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
      med stoppord-filter og ordgrense-match) – ingen manuell nøkkelordliste å glemme å
      vedlikeholde lenger.
 
-/* AutoPell v2.42 – endringer fra v2.35 (ID-system FASE 2: diagnose + kalibrering):
+/* AutoPell v2.43 – endringer fra v2.35 (ID-system FASE 2: diagnose + kalibrering):
    - Kalibrering/koding ved SKIFT av sensor/kamera/lyskaster er nå DETERMINISTISK: koden leser
      karosseri_skift, ekskluderer p-radar/parkeringssensor, sjekker om kalibrering alt er ført,
      og injiserer funn direkte (filskiftesensor, radar, frontkamera, lyskaster-koding).
@@ -343,7 +352,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    - STOTFANGER_DIAGNOSE og FORDOR_DIAGNOSE_AIRBAG forblir delsjekk-ID-er (krever skjønn om
      De/Mo-status som ikke er 100% deterministisk i parseren).
 
-/* AutoPell v2.42 – endringer fra v2.34 (OPPRYDNING – kun ID-systemet):
+/* AutoPell v2.43 – endringer fra v2.34 (OPPRYDNING – kun ID-systemet):
    - Full gjennomgang for å eliminere parallelle resultat-veier. Deterministiske parser-
      betingelser (SMÅDEL PÅ 50%, BRUKT DEL SOM N, Tesla bakdør folie/tape, UB-ved-flaterette,
      kanal-tilstøtende) injiseres nå DIREKTE av koden med egne ID-er (DET_*) – Claude er ikke
@@ -353,7 +362,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
      automatisk av koden". HURTIGFAKTA-tekstene myknet fra "Flagg som mangel" til informativ.
    - DET_*-ID-er vises aldri i DELSTATUS-ID-listene (deterministisk:true-flagg).
 
-/* AutoPell v2.42 – endringer fra v2.33:
+/* AutoPell v2.43 – endringer fra v2.33:
    - FIX: To flere "HURTIGFAKTA – ABSOLUTTE REGLER"-instrukser (50%-lakk polere flikk og
      SMÅDEL PÅ 50%) instruerte fortsatt Claude til å flagge direkte, parallelt med de nye
      STOTFANGER_50_POLERE_FLIKK/STOTFANGER_50_SMADELER-ID-ene – forklarer smådel-duplikatet
@@ -2460,6 +2469,7 @@ SVAR KUN MED GYLDIG JSON. INGEN ANNEN TEKST. IKKE SKRIV NOE FØR ELLER ETTER JSO
   "resultater": [{"tittel":"...","melding":"[Taksten sier]: ... [Regel]: ...","farge":"rød|gul|lilla","plassering":"..."}]
 }
 KRITISK OM "delsjekk" OG REGEL-ID-SYSTEMET (v2.30, utvidet v2.32, v2.40): Dette feltet er OBLIGATORISK når HURTIGFAKTA inneholder "DELSTATUS PER HOVEDDEL". For HVER linje i DELSTATUS som viser "bruk disse ID-ene: X, Y, Z" – ett objekt i "punkter" per ID i den listen, med feltet "id" satt til NØYAKTIG den ID-strengen (kopier den, ikke finn opp egne ID-er eller endre stavemåten). Dette er ikke lenger fritekst-tolkning – du skal bare ta stilling til hver oppgitte ID: er den foreslått, allerede ført, ikke relevant, eller usikker. IKKE hopp over noen ID i listen. Bakskjerm, forskjerm, panser, dør, tak og støtfanger er nå ID-migrert. For deler som eventuelt IKKE er ID-migrert (viser "→ sjekk avsnittet ... i reglene" i stedet for ID-liste) – bruk gammelt format: sett "id" til tom streng, og bruk i stedet fritekst "punkt" (kort navn) hentet fra det navngitte avsnittet i INNEBYGDE REGLER, ett per regelpunkt i avsnittet. KRITISK: opprett ALDRI et "delsjekk"-objekt for en del som ikke er nevnt i DELSTATUS-listen i det hele tatt (f.eks. en tilstøtende-post eller en del du kjenner igjen fra egen kunnskap) – hvis delen ikke står i DELSTATUS, la den være helt utenfor delsjekk.
+KRITISK OM USIKKERHET PÅ BILDEBASERTE PUNKTER (v2.43): For ID-er som avhenger av å tolke bilder (f.eks. er det en rute i bakskjermen, er hjulbuelisten lakkert eller ulakkert plast, er en detalj synlig som løs) – hvis du er i TVIL mellom status="ikke relevant" og status="usikker", velg ALLTID "usikker", ALDRI "ikke relevant". Begrunnelse: "ikke relevant" gjør at funnet forsvinner helt og takstmannen aldri får sjansen til å vurdere det selv – "usikker" viser det som et spørsmål takstmannen kan avgjøre på ett sekund. Det er alltid tryggere å spørre én gang for mye enn å la noe forsvinne stille. Bruk "ikke relevant" KUN når du er trygg på at punktet faktisk ikke gjelder (f.eks. bilen er tydelig en varebil og punktet gjelder kun personbil, eller regelen eksplisitt utelukker denne bilen/situasjonen) – ikke som standardvalg når bildene rett og slett ikke gir et klart svar.
 KRITISK OM DEDUPE VED ID: Siden hver ID er unik og fast, kan aldri to punkter med SAMME id begge være status="foreslått" for samme "del" – hvis du ser at du allerede har tatt stilling til en ID, ikke gjør det igjen. Dette gjør duplikat-problemet strukturelt umulig for ID-migrerte deler, forutsatt at du faktisk bruker ID-en fra listen og ikke skriver et nytt, ekvivalent punkt med annen ID eller uten ID.
 KRITISK – DELSJEKK ER ENESTE KILDE FOR DISSE FUNNENE: Hvis status="foreslått" eller "usikker", MÅ feltet "forslag" inneholde den fullstendige forslagsteksten (samme "Vurder å..."-format som ellers). IKKE skriv i tillegg en duplikatoppføring for det samme punktet i "resultater" eller "dbs_handlinger" – koden legger automatisk delsjekk-forslagene inn der. "resultater" og "dbs_handlinger" skal KUN inneholde funn som ikke stammer fra et ID-registrert punkt (f.eks. bilspesifikke regler, kanal-tilstøtende og andre generiske regler som ikke er ID-migrert ennå).
 KRITISK OM "kandidater" og TO-STEGS DUPLIKAT-SJEKK: Dette gjelder KUN funn som ikke er ID-migrert (siden ID-systemet allerede forhindrer duplikater strukturelt for de delene). Du skal ALDRI skrive rett til "resultater" for disse. Gå gjennom i to steg:
