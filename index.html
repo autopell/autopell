@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.44 – Smart kontroll av takster</title>
+<title>AutoPell v2.45 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.44</div>
+    <div class="version-badge">v2.45</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,14 +260,29 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
-/* AutoPell v2.44 – endringer fra v2.43:
+/* AutoPell v2.45 – endringer fra v2.44 (4 samlede punkter):
+   1. STRUKTURFIX (viktigst): koden avviser nå HELE delsjekk-blokker for deler som ikke
+      faktisk står i DELSTATUS-listen denne kjøringen (window.DELSTATUS_GYLDIGE_DELNAVN),
+      ikke bare ugyldige enkelt-ID-er (v2.40). Bekreftet på Porsche Cayenne ("Bakluke") og
+      Audi A3 ("V Forskjerm [G]", "V Fordør [G]", "V Håndtak fordør [T]") – Claude fabrikkerte
+      egne delsjekk-blokker for deler DELSTATUS aldri ga noen ID-liste for, og disse
+      dupliserte funn den deterministiske koden allerede hadde fanget. Punkt-for-punkt-
+      visningen viser nå fabrikkerte blokker med rød "[AVVIST]"-merking i stedet for å skjule
+      dem stille, slik at man kan verifisere at fixen fungerer.
+   2. Speildeksel: presisert eksplisitt at tilstøtende-flate ALDRI skal vurderes, kun HTT.
+   3. Nyansert tilstøtende-flate-vurdering: mørk farge langt fra selve grensen kan senke
+      terskelen noe, men aldri stille undertrykkelse – fortsatt "usikker" ved noe tvil.
+   4. Reg.nr vises nå over resultatene ved kjøring, for lettere å bekrefte riktig takst.
+   IKKE bygget: Lakktype→3-sjikt-sjekk (venter fortsatt på hvilken verdi som betyr 3-sjikt).
+
+/* AutoPell v2.45 – endringer fra v2.43:
    FIX: Løftetape var feilaktig fremstilt som knyttet til rettearbeidet ("må løftes for
    tilkomst", "KUN ved retting ... ved skift må ruten alltid ut"). Domenerettelse fra Martin:
    løftetape brukes til å LØFTE (ikke løsne) pakningen rundt en rute for å få den ut/inn –
    det har ingenting med selve rettearbeidet å gjøre. Rettet i BAKSKJERM_G_LOFTETAPE-malen
    og i kildeteksten (Ved retting eller lakkering av bakskjerm-avsnittet).
 
-/* AutoPell v2.44 – endringer fra v2.42:
+/* AutoPell v2.45 – endringer fra v2.42:
    NYTT: Skjevfordeling mot "usikker" på bildebaserte punkter. Martin observerte at bildebasert
    skjønn (rute i bakskjerm, lakkert/ulakkert hjulbueliste osv.) varierte mellom kjøringer på
    samme takst – noen ganger landet det på "ikke relevant" (stille, forsvinner) i stedet for
@@ -276,7 +291,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    at punktet faktisk ikke gjelder. Gjør feilmodus til "spør én gang for mye" i stedet for
    "forsvinner stille", uten ekstra kostnad.
 
-/* AutoPell v2.44 – endringer fra v2.41:
+/* AutoPell v2.45 – endringer fra v2.41:
    FIX: "Unterminated string in JSON"-feil ved kjøring. Rotårsak: Sonnet 5 har adaptive
    thinking påslått som standard, og tenke-tokens telles med i max_tokens sammen med selve
    svaret. Med max_tokens:8000 (satt for en modell uten tenkefase) kunne modellen bruke opp
@@ -284,12 +299,12 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    thinking:{type:'disabled'} i API-kallet – AutoPell trenger et ferdig JSON-svar, ikke synlig
    resonnering, så dette holder også kostnaden nede.
 
-/* AutoPell v2.44 – endringer fra v2.40:
+/* AutoPell v2.45 – endringer fra v2.40:
    FIX: API-kallet feilet med "`temperature` is deprecated for this model" etter bytte til
    claude-sonnet-5 i v2.40. Fjernet temperature-parameteren fra kallet (Sonnet 5 støtter den
    ikke på samme måte som 4-6 gjorde).
 
-/* AutoPell v2.44 – endringer fra v2.39 (samlet opp over flere tester):
+/* AutoPell v2.45 – endringer fra v2.39 (samlet opp over flere tester):
    FIX 1 – Mal-fallback: hvis Claude satt status="foreslått"/"usikker" i delsjekk men glemte
    å fylle ut "forslag", forsvant funnet sporløst (synlig som "foreslått" i punkt-for-punkt,
    men aldri i DBS-listen). Bruker nå registerets mal-tekst som fallback (kun ikke-tomme
@@ -310,7 +325,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    hvilken del det gjelder. Ny eksplisitt instruks mot å konstruere delsjekk-blokker for
    deler som ikke står i DELSTATUS i det hele tatt.
 
-/* AutoPell v2.44 – endringer fra v2.38 (ID-system FASE 3+4 – migrering fullført):
+/* AutoPell v2.45 – endringer fra v2.38 (ID-system FASE 3+4 – migrering fullført):
    FASE 3 (UB/rustbeskyttelse/maskering):
    - UB og rustbeskyttelse er nå fullt DETERMINISTISKE: koden finner selv UB-relevante deler
      (stål/alu N/G, ikke tilstøtende/plast) og sjekker om UB/rustbeskyttelse er ført i
@@ -330,12 +345,12 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
      (sjeldne skjønnsting uten deterministisk trigger – eneste gjenværende fritekst-kilder
      sammen med bilspesifikk HTT-kunnskap som styrer delsjekk-statuser).
 
-/* AutoPell v2.44 – endringer fra v2.37:
+/* AutoPell v2.45 – endringer fra v2.37:
    - FJERNET: STOTFANGER_SVART_HJORNE fra ID-registeret + "Svart hjørne nede"-prosalinjen.
      Regelen havnet i sjekklisten for HVER støtfanger-takst og genererte gjentatte
      "skade på svart del"-forslag uten grunnlag. Fjernet på Martins beskjed.
 
-/* AutoPell v2.44 – endringer fra v2.36 (ID-KONSEPT-FJERNING – strukturell innstramming):
+/* AutoPell v2.45 – endringer fra v2.36 (ID-KONSEPT-FJERNING – strukturell innstramming):
    - Sidedør-hullet fra Porsche-testen tettet: Claude omgikk sikkerhetsnettet ved å skrive
      frie varianter UTEN delnavn ("grunning ... i plastspesifikasjonen") eller med konsepter
      som manglet i nøkkelordlisten (spylevæske, svart hjørne).
@@ -345,7 +360,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
      med stoppord-filter og ordgrense-match) – ingen manuell nøkkelordliste å glemme å
      vedlikeholde lenger.
 
-/* AutoPell v2.44 – endringer fra v2.35 (ID-system FASE 2: diagnose + kalibrering):
+/* AutoPell v2.45 – endringer fra v2.35 (ID-system FASE 2: diagnose + kalibrering):
    - Kalibrering/koding ved SKIFT av sensor/kamera/lyskaster er nå DETERMINISTISK: koden leser
      karosseri_skift, ekskluderer p-radar/parkeringssensor, sjekker om kalibrering alt er ført,
      og injiserer funn direkte (filskiftesensor, radar, frontkamera, lyskaster-koding).
@@ -359,7 +374,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    - STOTFANGER_DIAGNOSE og FORDOR_DIAGNOSE_AIRBAG forblir delsjekk-ID-er (krever skjønn om
      De/Mo-status som ikke er 100% deterministisk i parseren).
 
-/* AutoPell v2.44 – endringer fra v2.34 (OPPRYDNING – kun ID-systemet):
+/* AutoPell v2.45 – endringer fra v2.34 (OPPRYDNING – kun ID-systemet):
    - Full gjennomgang for å eliminere parallelle resultat-veier. Deterministiske parser-
      betingelser (SMÅDEL PÅ 50%, BRUKT DEL SOM N, Tesla bakdør folie/tape, UB-ved-flaterette,
      kanal-tilstøtende) injiseres nå DIREKTE av koden med egne ID-er (DET_*) – Claude er ikke
@@ -369,7 +384,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
      automatisk av koden". HURTIGFAKTA-tekstene myknet fra "Flagg som mangel" til informativ.
    - DET_*-ID-er vises aldri i DELSTATUS-ID-listene (deterministisk:true-flagg).
 
-/* AutoPell v2.44 – endringer fra v2.33:
+/* AutoPell v2.45 – endringer fra v2.33:
    - FIX: To flere "HURTIGFAKTA – ABSOLUTTE REGLER"-instrukser (50%-lakk polere flikk og
      SMÅDEL PÅ 50%) instruerte fortsatt Claude til å flagge direkte, parallelt med de nye
      STOTFANGER_50_POLERE_FLIKK/STOTFANGER_50_SMADELER-ID-ene – forklarer smådel-duplikatet
@@ -1641,7 +1656,7 @@ function takstSammendrag(t){
     DET_TREKKETARN:{deterministisk:true,navn:'Trekketårn/rigging',mal:'',farge:'gul'},
     DET_MERCEDES_RIPEFAST:{deterministisk:true,navn:'Mercedes ripefast klarlakk',mal:'',farge:'gul'},
     STOTFANGER_MASKERING_GRILL:{kat:/støtfanger/i,optype:['N','G'],navn:'Maskering grill/nedre del',mal:'Vurder å legge til maskering av grill og nedre del av støtfanger i annetbildet – dekkes ikke av standard hoveddel-maskering',farge:'gul'},
-    FORDOR_SPEILDEKSEL:{kat:/\bfordør\b/i,optype:['N','G'],navn:'Speildeksel',mal:'Sjekk om speildeksel må demonteres fra døren – i så fall vurder tillegg',farge:'gul'},
+    FORDOR_SPEILDEKSEL:{kat:/\bfordør\b/i,optype:['N','G'],navn:'Speildeksel',mal:'Sjekk om speildeksel må demonteres fra døren – hvis det er lakkert i bilens farge, vurder HTT som løs lakkert detalj. Speildeksel skal ALDRI vurderes for tilstøtende-flate, kun HTT.',farge:'gul'},
   };
   const REGEL_REGISTRY=window.REGEL_REGISTRY;
 
@@ -1650,6 +1665,7 @@ function takstSammendrag(t){
   const delReglerFallback=[];
   const delstatusLinjer=[];
   window.DELSTATUS_GYLDIGE_IDER=new Set(); // v2.40: sikkerhetsnett mot at Claude finner opp hele del-blokker
+  window.DELSTATUS_GYLDIGE_DELNAVN=new Set(); // v2.45: samme prinsipp for HELE del-blokker uten ID
   t.lakkspes.forEach(d=>{
     if(d.tillegg||d.tilstøtende||d.optype==='T'||!d.navn)return;
     if(d.optype!=='N'&&d.optype!=='G')return;
@@ -1661,6 +1677,7 @@ function takstSammendrag(t){
     });
     if(idListe.length){
       idListe.forEach(id=>window.DELSTATUS_GYLDIGE_IDER.add(id));
+      window.DELSTATUS_GYLDIGE_DELNAVN.add(d.navn.toLowerCase().trim());
       delstatusLinjer.push(`  • ${d.navn} [${d.optype} = ${d.optype==='N'?'SKIFTET':'RETTET/LAKKERT'}] – bruk disse ID-ene: ${idListe.join(', ')}`);
       return;
     }
@@ -1668,7 +1685,10 @@ function takstSammendrag(t){
     const match=delReglerFallback.find(r=>r.re.test(d.navn));
     if(match){
       const seksjon=d.optype==='N'?match.N:match.G;
-      if(seksjon)delstatusLinjer.push(`  • ${d.navn} [${d.optype} = ${d.optype==='N'?'SKIFTET':'RETTET/LAKKERT'}] → sjekk avsnittet "${seksjon}" i reglene (IKKE ID-migrert ennå – bruk fritekst-punkt/avsnitt-format)`);
+      if(seksjon){
+        window.DELSTATUS_GYLDIGE_DELNAVN.add(d.navn.toLowerCase().trim());
+        delstatusLinjer.push(`  • ${d.navn} [${d.optype} = ${d.optype==='N'?'SKIFTET':'RETTET/LAKKERT'}] → sjekk avsnittet "${seksjon}" i reglene (IKKE ID-migrert ennå – bruk fritekst-punkt/avsnitt-format)`);
+      }
     }
   });
   if(delstatusLinjer.length){
@@ -2477,6 +2497,7 @@ SVAR KUN MED GYLDIG JSON. INGEN ANNEN TEKST. IKKE SKRIV NOE FØR ELLER ETTER JSO
 }
 KRITISK OM "delsjekk" OG REGEL-ID-SYSTEMET (v2.30, utvidet v2.32, v2.40): Dette feltet er OBLIGATORISK når HURTIGFAKTA inneholder "DELSTATUS PER HOVEDDEL". For HVER linje i DELSTATUS som viser "bruk disse ID-ene: X, Y, Z" – ett objekt i "punkter" per ID i den listen, med feltet "id" satt til NØYAKTIG den ID-strengen (kopier den, ikke finn opp egne ID-er eller endre stavemåten). Dette er ikke lenger fritekst-tolkning – du skal bare ta stilling til hver oppgitte ID: er den foreslått, allerede ført, ikke relevant, eller usikker. IKKE hopp over noen ID i listen. Bakskjerm, forskjerm, panser, dør, tak og støtfanger er nå ID-migrert. For deler som eventuelt IKKE er ID-migrert (viser "→ sjekk avsnittet ... i reglene" i stedet for ID-liste) – bruk gammelt format: sett "id" til tom streng, og bruk i stedet fritekst "punkt" (kort navn) hentet fra det navngitte avsnittet i INNEBYGDE REGLER, ett per regelpunkt i avsnittet. KRITISK: opprett ALDRI et "delsjekk"-objekt for en del som ikke er nevnt i DELSTATUS-listen i det hele tatt (f.eks. en tilstøtende-post eller en del du kjenner igjen fra egen kunnskap) – hvis delen ikke står i DELSTATUS, la den være helt utenfor delsjekk.
 KRITISK OM USIKKERHET PÅ BILDEBASERTE PUNKTER (v2.43): For ID-er som avhenger av å tolke bilder (f.eks. er det en rute i bakskjermen, er hjulbuelisten lakkert eller ulakkert plast, er en detalj synlig som løs) – hvis du er i TVIL mellom status="ikke relevant" og status="usikker", velg ALLTID "usikker", ALDRI "ikke relevant". Begrunnelse: "ikke relevant" gjør at funnet forsvinner helt og takstmannen aldri får sjansen til å vurdere det selv – "usikker" viser det som et spørsmål takstmannen kan avgjøre på ett sekund. Det er alltid tryggere å spørre én gang for mye enn å la noe forsvinne stille. Bruk "ikke relevant" KUN når du er trygg på at punktet faktisk ikke gjelder (f.eks. bilen er tydelig en varebil og punktet gjelder kun personbil, eller regelen eksplisitt utelukker denne bilen/situasjonen) – ikke som standardvalg når bildene rett og slett ikke gir et klart svar.
+NYANSE FOR TILSTØTENDE-FLATE-VURDERINGER (v2.45): Hvis det markerte/skadde området på bildene ligger langt fra selve tilstøtende-grensen (f.eks. midt på delen, ikke ved dørkant/kant mot nabodel) OG fargen er mørk/svart, er risikoen for synlig fargesprang lavere – dette kan gjøre deg mer tilbøyelig til "ikke relevant". MEN presis avstandsvurdering fra bilder er upålitelig, så bruk dette KUN som en svakere justering av terskelen din, ALDRI som en automatisk, stille undertrykkelse. Ved noe tvil i det hele tatt: fortsatt "usikker", ikke "ikke relevant" – prinsippet over gjelder fortsatt.
 KRITISK OM DEDUPE VED ID: Siden hver ID er unik og fast, kan aldri to punkter med SAMME id begge være status="foreslått" for samme "del" – hvis du ser at du allerede har tatt stilling til en ID, ikke gjør det igjen. Dette gjør duplikat-problemet strukturelt umulig for ID-migrerte deler, forutsatt at du faktisk bruker ID-en fra listen og ikke skriver et nytt, ekvivalent punkt med annen ID eller uten ID.
 KRITISK – DELSJEKK ER ENESTE KILDE FOR DISSE FUNNENE: Hvis status="foreslått" eller "usikker", MÅ feltet "forslag" inneholde den fullstendige forslagsteksten (samme "Vurder å..."-format som ellers). IKKE skriv i tillegg en duplikatoppføring for det samme punktet i "resultater" eller "dbs_handlinger" – koden legger automatisk delsjekk-forslagene inn der. "resultater" og "dbs_handlinger" skal KUN inneholde funn som ikke stammer fra et ID-registrert punkt (f.eks. bilspesifikke regler, kanal-tilstøtende og andre generiske regler som ikke er ID-migrert ennå).
 KRITISK OM "kandidater" og TO-STEGS DUPLIKAT-SJEKK: Dette gjelder KUN funn som ikke er ID-migrert (siden ID-systemet allerede forhindrer duplikater strukturelt for de delene). Du skal ALDRI skrive rett til "resultater" for disse. Gå gjennom i to steg:
@@ -2655,6 +2676,16 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
         }
       }
       parsed.delsjekk.forEach(d=>{
+        // v2.45 STRUKTURFIX: avvis HELE del-blokken hvis delnavnet ikke faktisk står i
+        // DELSTATUS-listen denne kjøringen. Bekreftet produksjonshendelser (Porsche Cayenne
+        // "Bakluke", Audi A3 "V Forskjerm [G]") der Claude konstruerte egne delsjekk-blokker
+        // for deler DELSTATUS aldri ga noen ID-liste for – utenfor all dedupe/mal-fallback-
+        // beskyttelse. v2.40-instruksen alene stoppet ikke dette; dette er kode-nivå garantien.
+        const delNavnRent=(d.del||'').replace(/\s*\[.*?\]\s*/g,'').trim().toLowerCase();
+        if(!window.DELSTATUS_GYLDIGE_DELNAVN||!window.DELSTATUS_GYLDIGE_DELNAVN.has(delNavnRent)){
+          console.log('[POST-FILTER v2.45] Avvist HELE delsjekk-blokken – del ikke i DELSTATUS: "'+d.del+'"');
+          return;
+        }
         (d.punkter||[]).forEach(p=>{
           // v2.40 FIX 1: mal-fallback. Hvis Claude satt status="foreslått"/"usikker" men
           // glemte å fylle ut "forslag", gikk funnet tapt sporløst (punkt-for-punkt viste
@@ -3142,7 +3173,10 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           <summary style="cursor:pointer;font-weight:600;color:#8b1a1a">✓ Vis punkt-for-punkt-sjekk (${parsed.delsjekk.reduce((n,d)=>n+(d.punkter?d.punkter.length:0),0)} punkter gjennomgått)</summary>
           <div style="margin-top:8px">`;
         parsed.delsjekk.forEach(d=>{
-          html+=`<div style="margin-bottom:6px"><strong>${d.del||''}</strong><ul style="margin:4px 0 0 18px;padding:0">`;
+          const delNavnRent2=(d.del||'').replace(/\s*\[.*?\]\s*/g,'').trim().toLowerCase();
+          const avvist=window.DELSTATUS_GYLDIGE_DELNAVN&&!window.DELSTATUS_GYLDIGE_DELNAVN.has(delNavnRent2);
+          const avvistTag=avvist?' <span style="color:#c0392b;font-size:10px">[AVVIST – ikke i DELSTATUS, v2.45]</span>':'';
+          html+=`<div style="margin-bottom:6px${avvist?';opacity:0.55':''}"><strong>${d.del||''}</strong>${avvistTag}<ul style="margin:4px 0 0 18px;padding:0">`;
           (d.punkter||[]).forEach(p=>{
             const statusFarge={'foreslått':'#8b1a1a','allerede ført':'#2e7d32','ikke relevant':'#888','usikker':'#b8860b'}[p.status]||'#555';
             const reg=p.id&&window.REGEL_REGISTRY&&window.REGEL_REGISTRY[p.id];
@@ -3164,11 +3198,16 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
       }
     }
 
+    // v2.45: reg.nr-header over resultatene – lettere å bekrefte at man ser på riktig takst
+    const regNrHeader=parserData&&parserData.bil&&parserData.bil.reg
+      ? `<div style="font-size:12px;color:#888;margin-bottom:8px">Reg.nr: <strong>${parserData.bil.reg}</strong>${parserData.bil.modell?' – '+parserData.bil.modell:''}</div>`
+      : '';
+
     if(!r.length){
-      el.innerHTML='<div class="result-item result-green"><div class="result-title">✓ Ingenting å bemerke</div>'
+      el.innerHTML=regNrHeader+'<div class="result-item result-green"><div class="result-title">✓ Ingenting å bemerke</div>'
         +'<div class="result-sub">Taksten ser fullstendig ut mot veiledningene.</div></div>';
     }else{
-      el.innerHTML=html;
+      el.innerHTML=regNrHeader+html;
     }
   }catch(e){
     document.getElementById('veil-results').innerHTML=`<div class="result-item result-red"><div class="result-title">Feil</div><div class="result-sub">${e.message}</div></div>`;
