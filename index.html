@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.45 – Smart kontroll av takster</title>
+<title>AutoPell v2.47 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.45</div>
+    <div class="version-badge">v2.47</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,6 +260,41 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+/* AutoPell v2.47 – endringer fra v2.46 (1 punkt):
+   LAKKTYPE → 3-SJIKT (deterministisk): STOTFANGER_FORAN_TILST_FORSKJERM og
+   STOTFANGER_BAK_TILST_BAKSKJERM gjelder kun ved 3-sjikts farge. Tidligere måtte Claude
+   selv vurdere om fargen var 3-sjikt; nå leser koden Lakktype-feltet fra taksten.
+   Offisiell DBS/Finans Norge-definisjon (bekreftet av Martin, kildedokument):
+     Lakktype 1 = utgått, telles som 2
+     Lakktype 2 = 2-sjikt tett farge/metallic/perlemor
+     Lakktype 3 = 3-sjikt tett farge/metallic/perlemor  ← eneste 3-sjikt-verdien
+     Lakktype 4 = 2-sjikt med ripefast klarlakk (brukes allerede av DET_MERCEDES_RIPEFAST)
+   Implementasjon: nytt registry-flagg krev3sjikt:true på de to ID-ene; DELSTATUS-byggeren
+   filtrerer dem bort når lakktype er lest ut og er ulik 3. Siden de da heller ikke havner i
+   window.DELSTATUS_GYLDIGE_IDER, blokkerer v2.40-sikkerhetsnettet dem automatisk hvis Claude
+   skulle finne på å bruke dem likevel.
+   VIKTIG UNNTAK: er Lakktype IKKE lest ut av taksten (parse-miss), beholdes ID-ene som før –
+   vi undertrykker aldri stille på manglende data (samme prinsipp som v2.43 usikker-bias).
+   HURTIGFAKTA viser nå Lakktype med eksplisitt "3-SJIKT"/"IKKE 3-sjikt"-merking pluss regelen,
+   slik at det er synlig i debug hvorfor ID-en eventuelt mangler.
+
+/* AutoPell v2.46 – endringer fra v2.45 (1 punkt):
+   PARSER-FIX (karosseri_skift): I enkelte PDF-er (robot-takst-layout) står tiltaket ALENE
+   på egen linje FØR delnavnet:
+       "Skift"
+       "V Støtfangerdeksel foran nedre grunnet (eks)"
+   Den eksisterende regexen krever delnavn + tiltak på SAMME linje, så disse linjene ble
+   aldri fanget – karosseri_skift ble stående tom selv om SAMMENSTILLING viste kostnad på
+   "Karosseriarbeide - Skifte, De/Mo". Konsekvens: v2.26-sjekken "skiftet hoveddel mangler
+   helt i lakkspesifikasjonen" fikk aldri data og gikk stille forbi ekte produksjonssaker
+   (bekreftet: Toyota Proace EH84270 – "V Støtfangerdeksel foran nedre grunnet (eks)" var
+   skiftet uten én eneste lakk-post, takstmannen hadde faktisk glemt lakken).
+   Fixen er rent ADDITIV: en linje som er nøyaktig "Skift"/"De/Mo" kan aldri treffe den
+   gamle regexen, så ingen takst som parses riktig i dag kan påvirkes. Delnavnet hentes fra
+   NESTE linje, med vakter mot tall, "Sum", "D/M av", nytt tiltak og seksjonsoverskrift.
+   Logger til konsollen når den slår inn.
+   IKKE bygget: Lakktype→3-sjikt-sjekk (klar, men ikke bestilt i denne runden).
+
 /* AutoPell v2.45 – endringer fra v2.44 (4 samlede punkter):
    1. STRUKTURFIX (viktigst): koden avviser nå HELE delsjekk-blokker for deler som ikke
       faktisk står i DELSTATUS-listen denne kjøringen (window.DELSTATUS_GYLDIGE_DELNAVN),
@@ -700,8 +735,8 @@ Ved lakkering av støtfanger, sjekk alltid:
 - Støtfanger FORAN: radar skiftet → kalibrering ca 400p
 - Støtfanger FORAN: har bilen lyktespylere? → 100kr spylevæske i annetbildet
 - Støtfanger BAK: filskiftesensorer skiftet → 300p
-- Støtfanger FORAN ved 3-sjikts farge: tilstøtende mot forskjerm
-- Støtfanger BAK ved 3-sjikts farge: tilstøtende mot bakskjerm
+- Støtfanger FORAN ved 3-sjikts farge: tilstøtende mot forskjerm (KUN Lakktype 3 – koden filtrerer selv, ID-en dukker ikke opp i DELSTATUS ellers)
+- Støtfanger BAK ved 3-sjikts farge: tilstøtende mot bakskjerm (KUN Lakktype 3 – samme filtrering)
 50%-regel: Hvis støtfanger er satt til 50% lakk (foran eller bak):
 - Maskering av resten + polere flikk 20p skal alltid med
 - Tilknyttede smådeler (p-sensorer, lokk osv.) settes automatisk til 50% i DBS – FEIL
@@ -1208,7 +1243,8 @@ function parseTakst(text){
   // ----- KAROSSERIARBEIDE SKIFT (N) -----
   // Linjer mellom "Karosseriarbeide - Skifte, De/Mo" og "Sum perioder"
   let inSkift=false;
-  for(const line of lines){
+  for(let li=0;li<lines.length;li++){
+    const line=lines[li];
     if(line.includes('Karosseriarbeide - Skifte')&&line.includes('Tid')){inSkift=true;continue;}
     if(inSkift&&line.startsWith('Sum perioder'))break;
     if(inSkift&&line.match(/Skift|De\/Mo/i)&&!line.includes('Sum')&&!line.match(/^\d+$/)){
@@ -1216,6 +1252,28 @@ function parseTakst(text){
       const m=line.match(/^(.+?)\s+(Skift|De\/Mo)(\s+.*)?$/);
       if(m){
         result.karosseri_skift.push({navn:m[1].trim(),tiltak:m[2],kommentar:m[3]?m[3].trim():''});
+      }else{
+        // v2.46 ROBOT-TAKST-LAYOUT: i enkelte PDF-er står tiltaket ALENE på egen linje
+        // FØR delnavnet:  "Skift" \n "V Støtfangerdeksel foran nedre grunnet (eks)"
+        // Dette er ren TILLEGGS-dekning: en linje som er nøyaktig "Skift"/"De/Mo" kan
+        // aldri treffe regexen over (den krever tekst + mellomrom + tiltak på samme linje),
+        // så ingen takst som parses riktig i dag kan bli påvirket.
+        const alene=line.trim().match(/^(Skift|De\/Mo)$/i);
+        if(alene){
+          const neste=(lines[li+1]||'').trim();
+          const gyldigNavn=neste
+            &&!/^(Skift|De\/Mo)$/i.test(neste)
+            &&!/^\d+([.,]\d+)?$/.test(neste)
+            &&!/^Sum/i.test(neste)
+            &&!/^D\/M av/i.test(neste)
+            &&!/^Karosseriarbeide/i.test(neste)
+            &&neste.length>2;
+          if(gyldigNavn){
+            const tiltak=/^skift$/i.test(alene[1])?'Skift':'De/Mo';
+            result.karosseri_skift.push({navn:neste,tiltak:tiltak,kommentar:''});
+            console.log('[PARSER v2.46] Fanget robot-layout: "'+tiltak+'" alene på linje → delnavn "'+neste+'"');
+          }
+        }
       }
     }
     // v2.4: Plukk opp kalibreringer (Kalibr./programmere) i karosseriarbeide
@@ -1468,7 +1526,14 @@ function parseTakst(text){
 // Hjelper: lag lesbar oppsummering av JSON for Claude
 function takstSammendrag(t){
   let s=`=== STRUKTURERT TAKST (parset fra PDF) ===\n\n`;
-  s+=`BIL: ${t.bil.modell||'?'} | Reg: ${t.bil.reg||'?'} | Farge: ${t.bil.farge||'?'} | Lakktype: ${t.bil.lakktype||'?'}\n\n`;
+  const _lt=t.bil.lakktype;
+  const _ltTekst=(typeof _lt==='number'&&!isNaN(_lt))
+    ? `${_lt} (${_lt===3?'3-SJIKT':'IKKE 3-sjikt'})`
+    : '? (ikke lest ut av taksten)';
+  s+=`BIL: ${t.bil.modell||'?'} | Reg: ${t.bil.reg||'?'} | Farge: ${t.bil.farge||'?'} | Lakktype: ${_ltTekst}\n`;
+  // v2.47: kun Lakktype 3 er 3-sjikt (DBS/Finans Norge). Koden filtrerer selv bort
+  // 3-sjikt-ID-ene fra DELSTATUS, så Claude skal aldri resonnere seg fram til dette.
+  s+=`  Lakktype-regel: KUN Lakktype 3 = 3-sjikt. 1/2/4 er IKKE 3-sjikt. Ikke foreslå tilstøtende ved støtfanger begrunnet i 3-sjikt hvis lakktypen ikke er 3 – koden har allerede filtrert dette.\n\n`;
 
   if(t.notater)s+=`NOTAT FRA TAKSTMANN: "${t.notater}"\n\n`;
 
@@ -1633,8 +1698,10 @@ function takstSammendrag(t){
     STOTFANGER_FORAN_KALIBRERING_RADAR:{deterministisk:true,navn:'Kalibrering radar',mal:'',farge:'lilla'},
     STOTFANGER_FORAN_SPYLEVAESKE:{kat:/støtfanger foran/i,optype:['N','G'],navn:'Spylevæske',mal:'Vurder å legge til kostnad for spylevæske (100kr) – bilen har lyktespylere som demonteres',farge:'gul'},
     STOTFANGER_BAK_FILSKIFTESENSOR:{deterministisk:true,navn:'Kalibrering filskiftesensor',mal:'',farge:'lilla'},
-    STOTFANGER_FORAN_TILST_FORSKJERM:{kat:/støtfanger foran/i,optype:['N','G'],navn:'Tilstøtende forskjerm (3-sjikt)',mal:'Vurder å ta med tilstøtende flate mot forskjerm – 3-sjikts farge',farge:'gul'},
-    STOTFANGER_BAK_TILST_BAKSKJERM:{kat:/støtfanger bak/i,optype:['N','G'],navn:'Tilstøtende bakskjerm (3-sjikt)',mal:'Vurder å ta med tilstøtende flate mot bakskjerm – 3-sjikts farge',farge:'gul'},
+    // v2.47: krev3sjikt – disse to gjelder KUN ved 3-sjikts farge. Lakktype leses
+    // deterministisk fra taksten (kun Lakktype 3 = 3-sjikt) i stedet for at Claude gjetter.
+    STOTFANGER_FORAN_TILST_FORSKJERM:{kat:/støtfanger foran/i,optype:['N','G'],krev3sjikt:true,navn:'Tilstøtende forskjerm (3-sjikt)',mal:'Vurder å ta med tilstøtende flate mot forskjerm – 3-sjikts farge (Lakktype 3)',farge:'gul'},
+    STOTFANGER_BAK_TILST_BAKSKJERM:{kat:/støtfanger bak/i,optype:['N','G'],krev3sjikt:true,navn:'Tilstøtende bakskjerm (3-sjikt)',mal:'Vurder å ta med tilstøtende flate mot bakskjerm – 3-sjikts farge (Lakktype 3)',farge:'gul'},
     STOTFANGER_50_MASKERING:{kat:/støtfanger/i,optype:['N','G'],navn:'Maskering ved 50%',mal:'Vurder å huke av maskering-boksen i utvendig lakk-tabellen – støtfangeren er satt til 50% lakk',farge:'rød'},
     STOTFANGER_50_POLERE_FLIKK:{kat:/støtfanger/i,optype:['N','G'],navn:'Polere flikk ved 50%',mal:'Vurder polere flikk 20p i annetbildet – påkrevd ved 50%-lakkering av støtfanger',farge:'gul'},
     STOTFANGER_50_SMADELER:{kat:/støtfanger/i,optype:['N','G'],navn:'Smådeler feilaktig 50%',mal:'Sjekk om tilknyttede smådeler (p-sensorer, lokk osv.) er feilaktig satt til 50% i DBS – disse skal lakkes 100% og differansen legges til',farge:'rød'},
@@ -1673,6 +1740,15 @@ function takstSammendrag(t){
     const idListe=Object.keys(REGEL_REGISTRY).filter(id=>{
       const r=REGEL_REGISTRY[id];
       if(r.deterministisk)return false; // kode-injiserte betingelser – aldri i Claude sine ID-lister
+      // v2.47: 3-sjikt-avhengige ID-er filtreres deterministisk på Lakktype.
+      // Offisiell DBS/Finans Norge-definisjon: KUN Lakktype 3 er 3-sjikt
+      // (1 = utgått, teller som 2 | 2 = 2-sjikt | 4 = 2-sjikt m/ripefast klarlakk).
+      // Er lakktype IKKE lest ut av taksten, beholdes ID-en (gammel oppførsel) –
+      // vi undertrykker aldri stille på manglende data, jf. usikker-prinsippet i v2.43.
+      if(r.krev3sjikt){
+        const lt=t.bil&&t.bil.lakktype;
+        if(typeof lt==='number'&&!isNaN(lt)&&lt!==3)return false;
+      }
       return r.kat.test(d.navn)&&r.optype.includes(d.optype);
     });
     if(idListe.length){
