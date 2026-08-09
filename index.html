@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.47 – Smart kontroll av takster</title>
+<title>AutoPell v2.49 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.47</div>
+    <div class="version-badge">v2.49</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,6 +260,62 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+/* AutoPell v2.49 – endringer fra v2.48 (3 samlede punkter, scope: kun disse tre – ikke rørt: dbs_handlinger/AVVIST-lekkasjen, løftetape V/H-asymmetrien, støtfanger/grunnet-saken):
+
+   1. SPEILDEKSEL FJERNET HELT (Martin: speildeksel lakkes aldri sammen med døra, uansett
+      farge – HTT er håndteringstid for deler som lakkes PÅ hoveddelen, maks 4 stk, og
+      speildeksel er aldri en av dem). FORDOR_SPEILDEKSEL-ID-en er fjernet fra registeret.
+      Regel 12 omskrevet fra "bruk denne ID-en" til et eksplisitt forbud. De tre generelle
+      HTT-prosalinjene ("Speil/speildeksel svart = ulakkert plast → ingen HTT") er omskrevet
+      – de begrunnet tidligere fraværet av HTT med FARGEN på speilhuset, som ordrett sa at et
+      LAKKERT speildeksel ville fått HTT. Det var feil. Nå: aldri HTT, uansett farge.
+
+   2. SVART/SORT BIL → TILSTØTENDE-FLATE, DETERMINISTISK SPERRE (bekreftet lekkasje: Claude
+      foreslo tilstøtende mot forskjerm på en svart HONGQI ED93708, til tross for at både
+      prosaregelen og FORDOR_TILST_FORSKJERM sin egen mal-tekst sa "hvis ikke svart bil").
+      Nytt registryflagg ikkeVedSvart:true på ALLE åtte tilstøtende-ID-ene (PANSER, FORDØR x2,
+      BAKDØR, BAKSKJERM x2, STØTFANGER x2 – Martin: gjelder globalt, ikke bare fordør).
+      DELSTATUS-filteret fjerner ID-en når Fargekode matcher /svart|sort/i (Martin: svart og
+      sort er det samme ordet). Samme fallback-prinsipp som Lakktype i v2.47: er fargen ikke
+      lest ut av taksten, beholdes ID-en – ingen stille undertrykking på manglende data.
+      HURTIGFAKTA viser nå farge eksplisitt med "(SVART/SORT)"-merking når det treffer, samt
+      en ny instruks: viser bildene tydelig en ANNEN farge enn Fargekode, skal Claude melde
+      det som eget avviks-funn (feil fargekode i taksten) – ALDRI som grunnlag for likevel å
+      foreslå tilstøtende. Dette var den avtalte "dobbeltsjekk mot bilder"-løsningen.
+
+   3. POSITIVLISTE FOR LAKKERBARE STØTFANGER-SMÅDELER (bekreftet lekkasje: Claude fant på
+      "filskiftesensor-holder" som HTT/50%-eksempel på en XPENG EN78351 – et ord som ikke
+      finnes NOE sted i prompten utenom kalibreringskontekst; sensorer/sensorholdere sitter
+      bak støtfangeren og lakkes aldri). Malene til STOTFANGER_HTT_LOSE og
+      STOTFANGER_50_SMADELER er strammet fra åpne eksempler ("p-sensorer, lokk osv.") til en
+      eksplisitt positivliste: KUN slepekrokdeksel, spyledeksel og lister. Malene sier nå også
+      eksplisitt at sensorer/sensorholdere/brakketter ALDRI skal foreslås.
+      VIKTIG AVGRENSNING: dette er en PROSA-innstramming (strammere mal-tekst), IKKE den
+      deterministiske eksistens-sjekken mot takstens råtekst som er avtalt separat (positivliste-
+      delen finnes i taksten → foreslå; ikke funnet → foreslå kun ved bildebekreftelse). Den
+      sjekken krever egen implementasjon og står fortsatt i kø.
+
+/* AutoPell v2.48 – endringer fra v2.47 (1 punkt):
+   DUPLIKAT VED STAVEVARIANT: bekreftet på Hyundai Ioniq 6 EF58215 – to spylervæske-punkter
+   i samme resultatliste ("Sjekk om bilen har lyktespylere og vurder spylervæske i annet bilde"
+   + "Sjekk om bilen har lyktespylere/spylerdyser i støtfangeren foran ..."). Rotårsak var IKKE
+   logikk, men staving: STOTFANGER_FORAN_SPYLEVAESKE hadde navn:'Spylevæske' (uten r), og
+   v2.37-konseptfilteret utleder mønsteret ordrett fra navn-feltet → \bspylevæske\b. Claude
+   skrev "spylervæske" (med r, det normale ordet), ordgrense-matchen bommet, og fritekst-
+   varianten overlevde ved siden av ID-en. Prompten dro Claude dit selv: kilde-prosaen skrev
+   "spylevæske", mens vakta og instruksjonslinja skrev "spylervæske".
+   Fix i tre lag:
+     1. Konseptmønstrene tåler nå stavevarianter – familie-tabell (KONSEPT_VARIANTFAMILIER,
+        seedet med spyler?v[æe]ske) for ord med kjente varianter som betyr det samme, pluss
+        generell æ/ø/å-toleranse ([æe]/[øo]/[åa]) for alle andre utledede ord. Dette er samme
+        toleranse parseren allerede hadde i v2.8-vakta (/spyler?væske|spyler?veske/i).
+     2. Registeret bruker nå "Spylervæske" konsekvent (navn + mal).
+     3. De to prosalinjene som skrev "spylevæske" er rettet, så prompten ikke lenger
+        inneholder to konkurrerende stavemåter Claude kan plukke fra.
+   Merk rekkevidde: lag 1 er FELLES kode og gjelder alle ID-er, ikke bare støtfanger.
+   Toleransen utvider kun matching mellom nesten identiske stavemåter av samme ord.
+   IKKE bygget (fortsatt i kø): speildeksel-fjerning, svart bil → tilstøtende-sperre.
+
 /* AutoPell v2.47 – endringer fra v2.46 (1 punkt):
    LAKKTYPE → 3-SJIKT (deterministisk): STOTFANGER_FORAN_TILST_FORSKJERM og
    STOTFANGER_BAK_TILST_BAKSKJERM gjelder kun ved 3-sjikts farge. Tidligere måtte Claude
@@ -652,7 +708,7 @@ ALDRI LAKKES:
 - Blinklys
 - Lyskaster
 - List oppe ved vindu (vinduslist/taklist) – lakkes aldri, ingen HTT
-- Speil/speildeksel i svart = ulakkert svart plast → ingen lakking, ingen HTT
+- Speildeksel: lakkes ALDRI sammen med døra (uavhengig av farge) → aldri lakking, aldri HTT
 - Svarte detaljer bestilt i svart ulakkert plast
 
 === TILSTØTENDE FLATE – SPESIFIKKE REGLER ===
@@ -733,7 +789,7 @@ Ved lakkering av støtfanger, sjekk alltid:
 - Klips i annetbildet
 - Plastrep "ut og innvendig skade" → 300kr sveisemateriall i annetbildet (KUN ved reparasjon, ikke ved skift)
 - Støtfanger FORAN: radar skiftet → kalibrering ca 400p
-- Støtfanger FORAN: har bilen lyktespylere? → 100kr spylevæske i annetbildet
+- Støtfanger FORAN: har bilen lyktespylere? → 100kr spylervæske i annetbildet
 - Støtfanger BAK: filskiftesensorer skiftet → 300p
 - Støtfanger FORAN ved 3-sjikts farge: tilstøtende mot forskjerm (KUN Lakktype 3 – koden filtrerer selv, ID-en dukker ikke opp i DELSTATUS ellers)
 - Støtfanger BAK ved 3-sjikts farge: tilstøtende mot bakskjerm (KUN Lakktype 3 – samme filtrering)
@@ -748,7 +804,7 @@ Plastrep støtfanger:
 - Sjekk plastspesifikasjonen: hvis "ut og innvendig skade" → 300kr sveisemateriall i annet bilde
 - Struktursprøyting brukes nesten aldri
 
-Lyktespylere: ved demontering → 100kr spylevæske
+Lyktespylere: ved demontering → 100kr spylervæske
 Kalibrering (kun referanseinfo – skift-utløst kalibrering håndteres automatisk av koden, ikke skriv egne forslag):
 - Radar skiftet → kalibrering ca 400p
 - Kamera skiftet → kalibrering ca 400p
@@ -1530,10 +1586,13 @@ function takstSammendrag(t){
   const _ltTekst=(typeof _lt==='number'&&!isNaN(_lt))
     ? `${_lt} (${_lt===3?'3-SJIKT':'IKKE 3-sjikt'})`
     : '? (ikke lest ut av taksten)';
-  s+=`BIL: ${t.bil.modell||'?'} | Reg: ${t.bil.reg||'?'} | Farge: ${t.bil.farge||'?'} | Lakktype: ${_ltTekst}\n`;
+  const _fg=t.bil.farge;
+  const _svart=_fg&&/svart|sort/i.test(_fg);
+  s+=`BIL: ${t.bil.modell||'?'} | Reg: ${t.bil.reg||'?'} | Farge: ${_fg||'? (ikke lest ut av taksten)'}${_svart?' (SVART/SORT)':''} | Lakktype: ${_ltTekst}\n`;
   // v2.47: kun Lakktype 3 er 3-sjikt (DBS/Finans Norge). Koden filtrerer selv bort
   // 3-sjikt-ID-ene fra DELSTATUS, så Claude skal aldri resonnere seg fram til dette.
-  s+=`  Lakktype-regel: KUN Lakktype 3 = 3-sjikt. 1/2/4 er IKKE 3-sjikt. Ikke foreslå tilstøtende ved støtfanger begrunnet i 3-sjikt hvis lakktypen ikke er 3 – koden har allerede filtrert dette.\n\n`;
+  s+=`  Lakktype-regel: KUN Lakktype 3 = 3-sjikt. 1/2/4 er IKKE 3-sjikt. Ikke foreslå tilstøtende ved støtfanger begrunnet i 3-sjikt hvis lakktypen ikke er 3 – koden har allerede filtrert dette.\n`;
+  s+=`  Svart bil-regel: tilstøtende-flate skal ALDRI foreslås på svart/sort bil – koden har allerede filtrert bort tilstøtende-ID-ene hvis Fargekode er svart/sort. Viser bildene tydelig en ANNEN farge enn Fargekode? Meld det som eget avviks-funn (feil fargekode i taksten), IKKE som grunnlag for å likevel foreslå tilstøtende.\n\n`;
 
   if(t.notater)s+=`NOTAT FRA TAKSTMANN: "${t.notater}"\n\n`;
 
@@ -1655,7 +1714,7 @@ function takstSammendrag(t){
     PANSER_RUST:{deterministisk:true,navn:'Rustbeskyttelse',mal:'',farge:'rød'},
     PANSER_DEMO:{kat:/\bpanser\b/i,optype:['N','G'],navn:'De/Mo innvendige detaljer',mal:'Vurder å legge til De/Mo innvendige detaljer (pansermatte)',farge:'rød'},
     PANSER_TILST_ASTOLPE:{kat:/\bpanser\b/i,optype:['N','G'],navn:'Tilstøtende A-stolpe',mal:'Vurder å ta med tilstøtende flate mot A-stolpe begge sider (fargeavhengig)',farge:'gul'},
-    PANSER_TILST_FORSKJERM:{kat:/\bpanser\b/i,optype:['N','G'],navn:'Tilstøtende forskjerm',mal:'Vurder å ta med tilstøtende flate mot forskjerm begge sider (fargeavhengig)',farge:'gul'},
+    PANSER_TILST_FORSKJERM:{kat:/\bpanser\b/i,optype:['N','G'],ikkeVedSvart:true,navn:'Tilstøtende forskjerm',mal:'Vurder å ta med tilstøtende flate mot forskjerm begge sider (fargeavhengig)',farge:'gul'},
     PANSER_EMBLEM:{kat:/\bpanser\b/i,optype:['N','G'],navn:'Emblem',mal:'Sjekk om emblem på panser må bestilles nytt',farge:'gul'},
 
     DOR_FELLES_RUST:{deterministisk:true,navn:'Rustbeskyttelse',mal:'',farge:'rød'},
@@ -1663,16 +1722,16 @@ function takstSammendrag(t){
     DOR_FELLES_UB:{deterministisk:true,navn:'UB',mal:'',farge:'rød'},
     DOR_FELLES_HTT_HANDTAK:{kat:/\bfordør\b|\bbakdør\b/i,optype:['N','G'],navn:'HTT dørhåndtak',mal:'Sjekk om dørhåndtaket er lakkert – i så fall vurder HTT 15p i annetbildet',farge:'gul'},
     FORDOR_DIAGNOSE_AIRBAG:{kat:/\bfordør\b/i,optype:['N','G'],navn:'Diagnose airbag',mal:'Vurder å legge til diagnose (slette airbag-feilkoder, 50p)',farge:'gul'},
-    FORDOR_TILST_BAKDOR:{kat:/\bfordør\b/i,optype:['N','G'],navn:'Tilstøtende bakdør',mal:'Vurder å ta med tilstøtende flate mot bakdør',farge:'gul'},
-    FORDOR_TILST_FORSKJERM:{kat:/\bfordør\b/i,optype:['N','G'],navn:'Tilstøtende forskjerm',mal:'Spør om tilstøtende mot forskjerm er aktuelt (hvis ikke svart bil)',farge:'gul'},
-    BAKDOR_TILST_BAKSKJERM:{kat:/\bbakdør\b/i,optype:['N','G'],navn:'Tilstøtende bakskjerm',mal:'Vurder å ta med tilstøtende flate mot bakskjerm',farge:'gul'},
+    FORDOR_TILST_BAKDOR:{kat:/\bfordør\b/i,optype:['N','G'],ikkeVedSvart:true,navn:'Tilstøtende bakdør',mal:'Vurder å ta med tilstøtende flate mot bakdør',farge:'gul'},
+    FORDOR_TILST_FORSKJERM:{kat:/\bfordør\b/i,optype:['N','G'],ikkeVedSvart:true,navn:'Tilstøtende forskjerm',mal:'Vurder å ta med tilstøtende flate mot forskjerm',farge:'gul'},
+    BAKDOR_TILST_BAKSKJERM:{kat:/\bbakdør\b/i,optype:['N','G'],ikkeVedSvart:true,navn:'Tilstøtende bakskjerm',mal:'Vurder å ta med tilstøtende flate mot bakskjerm',farge:'gul'},
     BAKDOR_TILST_FORDOR:{kat:/\bbakdør\b/i,optype:['N','G'],navn:'Tilstøtende fordør',mal:'Vurder å ta med tilstøtende flate mot fordør',farge:'gul'},
     BAKDOR_HJULBUELISTE:{kat:/\bbakdør\b/i,optype:['N','G'],navn:'HTT hjulbueliste',mal:'Sjekk om hjulbueliste er lakkerbar – i så fall vurder HTT 15p',farge:'gul'},
 
     BAKSKJERM_G_RUST:{deterministisk:true,navn:'Rustbeskyttelse',mal:'',farge:'rød'},
     BAKSKJERM_G_DEMO:{kat:/bakskjerm/i,optype:['G'],navn:'De/Mo innvendige detaljer',mal:'Vurder å legge til De/Mo innvendige detaljer',farge:'rød'},
     BAKSKJERM_G_UB:{deterministisk:true,navn:'UB',mal:'',farge:'rød'},
-    BAKSKJERM_G_TILST_BAKDOR:{kat:/bakskjerm/i,optype:['G'],navn:'Tilstøtende bakdør',mal:'Spør om tilstøtende mot bakdør er aktuelt',farge:'gul'},
+    BAKSKJERM_G_TILST_BAKDOR:{kat:/bakskjerm/i,optype:['G'],ikkeVedSvart:true,navn:'Tilstøtende bakdør',mal:'Spør om tilstøtende mot bakdør er aktuelt',farge:'gul'},
     BAKSKJERM_G_HJULBUELISTE:{kat:/bakskjerm/i,optype:['G'],navn:'HTT hjulbueliste',mal:'Sjekk om bakskjerm har lakkerbar hjulbueliste',farge:'gul'},
     BAKSKJERM_G_TANKLUKE:{kat:/bakskjerm/i,optype:['G'],navn:'Tankluke',mal:'Sjekk om tankluken på bakskjerm bør vurderes som tilstøtende',farge:'gul'},
     BAKSKJERM_G_LOFTETAPE:{kat:/bakskjerm/i,optype:['G'],navn:'Løftetape',mal:'Sjekk om det finnes en synlig rute mot bakskjerm – løftetape (20p) brukes til å løfte pakningen rundt ruten (derav navnet), ikke knyttet til selve rettearbeidet (kun personbil, ikke varebil)',farge:'gul'},
@@ -1680,7 +1739,7 @@ function takstSammendrag(t){
 
     BAKSKJERM_N_RUST:{deterministisk:true,navn:'Rustbeskyttelse',mal:'',farge:'rød'},
     BAKSKJERM_N_UB:{deterministisk:true,navn:'UB',mal:'',farge:'rød'},
-    BAKSKJERM_N_TILST_BAKDOR:{kat:/bakskjerm/i,optype:['N'],navn:'Tilstøtende bakdør',mal:'Vurder å ta med tilstøtende flate mot bakdør',farge:'gul'},
+    BAKSKJERM_N_TILST_BAKDOR:{kat:/bakskjerm/i,optype:['N'],ikkeVedSvart:true,navn:'Tilstøtende bakdør',mal:'Vurder å ta med tilstøtende flate mot bakdør',farge:'gul'},
     BAKSKJERM_N_TILST_KANAL:{kat:/bakskjerm/i,optype:['N'],navn:'Tilstøtende kanal',mal:'Spør om tilstøtende bakskjerm eller arealavhengig lakk av kanal er aktuelt',farge:'gul'},
     BAKSKJERM_N_POLERE_FLIKK:{kat:/bakskjerm/i,optype:['N'],navn:'Polere flikk',mal:'Vurder polere flikk 20p hvis takstolpe/kanal ikke lakkes helt frem',farge:'gul'},
     BAKSKJERM_N_HJULBUELISTE:{kat:/bakskjerm/i,optype:['N'],navn:'HTT hjulbueliste',mal:'Sjekk om bakskjerm har lakkerbar hjulbueliste',farge:'gul'},
@@ -1690,21 +1749,21 @@ function takstSammendrag(t){
     BAKSKJERM_N_DOKUMENTASJON:{kat:/bakskjerm/i,optype:['N'],navn:'Dokumentasjon',mal:'Vurder å ta med kostnad for innhenting av dokumentasjon for skift av bakskjerm',farge:'gul'},
 
     // v2.32 – Fase 1: Støtfanger/plastrep/50%-regelen
-    STOTFANGER_HTT_LOSE:{kat:/støtfanger/i,optype:['N','G'],navn:'HTT løse deler',mal:'Sjekk om bildene viser spyledeksel eller slepekrokdeksel på støtfangeren – i så fall vurder HTT 15p per løs del i annetbildet. Gjelder KUN hvis støtfangeren er lakkert i bilens farge, ikke hvis den er ulakkert (annen farge enn bilen).',farge:'gul'},
+    STOTFANGER_HTT_LOSE:{kat:/støtfanger/i,optype:['N','G'],navn:'HTT løse deler',mal:'POSITIVLISTE – vurder HTT (15p/del) KUN for: slepekrokdeksel, spyledeksel, lister. Bekreft med bilder før forslag. Gjelder KUN hvis støtfangeren er lakkert i bilens farge. ALDRI foreslå sensorer, sensorholdere, brakketter eller andre deler bak støtfangeren – disse lakkes aldri.',farge:'gul'},
     STOTFANGER_DIAGNOSE:{kat:/støtfanger/i,optype:['N','G'],navn:'Diagnose (feilkoder)',mal:'Vurder å legge til diagnose (slette feilkoder, 100p) – støtfanger er demontert',farge:'gul'},
     STOTFANGER_KLIPS:{deterministisk:true,navn:'Klips',mal:'',farge:'gul'},
     STOTFANGER_SVEISEMATERIELL:{kat:/støtfanger/i,optype:['N','G'],navn:'Sveisemateriell plastrep',mal:'Vurder å legge til kostnad for sveisemateriell plastrep – gjelder KUN hvis "ut og innvendig skade" er huket av i plastspesifikasjonen, og kun ved reparasjon (ikke ved skift)',farge:'gul'},
     STOTFANGER_GRUNNING_TOPPLAKK:{kat:/støtfanger/i,optype:['N','G'],navn:'Grunning for topplakk',mal:'Vurder å legge til grunning for topplakk i annetbilde',farge:'rød'},
     STOTFANGER_FORAN_KALIBRERING_RADAR:{deterministisk:true,navn:'Kalibrering radar',mal:'',farge:'lilla'},
-    STOTFANGER_FORAN_SPYLEVAESKE:{kat:/støtfanger foran/i,optype:['N','G'],navn:'Spylevæske',mal:'Vurder å legge til kostnad for spylevæske (100kr) – bilen har lyktespylere som demonteres',farge:'gul'},
+    STOTFANGER_FORAN_SPYLEVAESKE:{kat:/støtfanger foran/i,optype:['N','G'],navn:'Spylervæske',mal:'Vurder å legge til kostnad for spylervæske (100kr) – bilen har lyktespylere som demonteres',farge:'gul'},
     STOTFANGER_BAK_FILSKIFTESENSOR:{deterministisk:true,navn:'Kalibrering filskiftesensor',mal:'',farge:'lilla'},
     // v2.47: krev3sjikt – disse to gjelder KUN ved 3-sjikts farge. Lakktype leses
     // deterministisk fra taksten (kun Lakktype 3 = 3-sjikt) i stedet for at Claude gjetter.
-    STOTFANGER_FORAN_TILST_FORSKJERM:{kat:/støtfanger foran/i,optype:['N','G'],krev3sjikt:true,navn:'Tilstøtende forskjerm (3-sjikt)',mal:'Vurder å ta med tilstøtende flate mot forskjerm – 3-sjikts farge (Lakktype 3)',farge:'gul'},
-    STOTFANGER_BAK_TILST_BAKSKJERM:{kat:/støtfanger bak/i,optype:['N','G'],krev3sjikt:true,navn:'Tilstøtende bakskjerm (3-sjikt)',mal:'Vurder å ta med tilstøtende flate mot bakskjerm – 3-sjikts farge (Lakktype 3)',farge:'gul'},
+    STOTFANGER_FORAN_TILST_FORSKJERM:{kat:/støtfanger foran/i,optype:['N','G'],krev3sjikt:true,ikkeVedSvart:true,navn:'Tilstøtende forskjerm (3-sjikt)',mal:'Vurder å ta med tilstøtende flate mot forskjerm – 3-sjikts farge (Lakktype 3)',farge:'gul'},
+    STOTFANGER_BAK_TILST_BAKSKJERM:{kat:/støtfanger bak/i,optype:['N','G'],krev3sjikt:true,ikkeVedSvart:true,navn:'Tilstøtende bakskjerm (3-sjikt)',mal:'Vurder å ta med tilstøtende flate mot bakskjerm – 3-sjikts farge (Lakktype 3)',farge:'gul'},
     STOTFANGER_50_MASKERING:{kat:/støtfanger/i,optype:['N','G'],navn:'Maskering ved 50%',mal:'Vurder å huke av maskering-boksen i utvendig lakk-tabellen – støtfangeren er satt til 50% lakk',farge:'rød'},
     STOTFANGER_50_POLERE_FLIKK:{kat:/støtfanger/i,optype:['N','G'],navn:'Polere flikk ved 50%',mal:'Vurder polere flikk 20p i annetbildet – påkrevd ved 50%-lakkering av støtfanger',farge:'gul'},
-    STOTFANGER_50_SMADELER:{kat:/støtfanger/i,optype:['N','G'],navn:'Smådeler feilaktig 50%',mal:'Sjekk om tilknyttede smådeler (p-sensorer, lokk osv.) er feilaktig satt til 50% i DBS – disse skal lakkes 100% og differansen legges til',farge:'rød'},
+    STOTFANGER_50_SMADELER:{kat:/støtfanger/i,optype:['N','G'],navn:'Smådeler feilaktig 50%',mal:'POSITIVLISTE – sjekk KUN slepekrokdeksel, spyledeksel og lister for feilaktig 50%-lakk i DBS (skal være 100%, legg til differansen). Bekreft med bilder før forslag. IKKE p-sensorer, sensorholdere eller andre deler bak støtfangeren – disse lakkes aldri og skal aldri stå på 50% i utgangspunktet.',farge:'rød'},
 
     // v2.35 – Deterministiske parser-betingelser: injiseres DIREKTE av koden når parseren
     // oppdager betingelsen. Claude er ikke involvert (deterministisk:true → vises aldri i
@@ -1723,7 +1782,6 @@ function takstSammendrag(t){
     DET_TREKKETARN:{deterministisk:true,navn:'Trekketårn/rigging',mal:'',farge:'gul'},
     DET_MERCEDES_RIPEFAST:{deterministisk:true,navn:'Mercedes ripefast klarlakk',mal:'',farge:'gul'},
     STOTFANGER_MASKERING_GRILL:{kat:/støtfanger/i,optype:['N','G'],navn:'Maskering grill/nedre del',mal:'Vurder å legge til maskering av grill og nedre del av støtfanger i annetbildet – dekkes ikke av standard hoveddel-maskering',farge:'gul'},
-    FORDOR_SPEILDEKSEL:{kat:/\bfordør\b/i,optype:['N','G'],navn:'Speildeksel',mal:'Sjekk om speildeksel må demonteres fra døren – hvis det er lakkert i bilens farge, vurder HTT som løs lakkert detalj. Speildeksel skal ALDRI vurderes for tilstøtende-flate, kun HTT.',farge:'gul'},
   };
   const REGEL_REGISTRY=window.REGEL_REGISTRY;
 
@@ -1748,6 +1806,12 @@ function takstSammendrag(t){
       if(r.krev3sjikt){
         const lt=t.bil&&t.bil.lakktype;
         if(typeof lt==='number'&&!isNaN(lt)&&lt!==3)return false;
+      }
+      // v2.49: ikkeVedSvart – tilstøtende-flate skal ALDRI foreslås på svart/sort bil
+      // (gjelder globalt). Fallback som krev3sjikt: ukjent farge -> ID beholdes.
+      if(r.ikkeVedSvart){
+        const fg=t.bil&&t.bil.farge;
+        if(fg&&/svart|sort/i.test(fg))return false;
       }
       return r.kat.test(d.navn)&&r.optype.includes(d.optype);
     });
@@ -2391,7 +2455,7 @@ Dette er en av de viktigste regelene. ALDRI hopp over en del som er reparert ute
 - Klipssett unntatt ved støtfanger- og dørskift
 - Polering hvis allerede i taksten
 - HTT på selve hoveddelen (forskjerm, dør, støtfanger osv.)
-- Speil/speildeksel svart = ulakkert plast → ingen lakking, ingen HTT
+- Speildeksel: lakkes ALDRI sammen med døra → aldri lakking, aldri HTT (uavhengig av farge)
 - Blinklys lakkes aldri
 - Parkeringssensorer → ingen kalibrering
 - Rep av felg eller andre poster som allerede er priset i taksten
@@ -2428,7 +2492,7 @@ Vurder alltid følgende basert på bilens merke/modell/årsmodell:
 - Lyskaster som krever koding (BMW, Mercedes, LED)
 - Håndtak: Er håndtakene krom, svart ulakkert plast eller lakkert? Krom og svart ulakkert plast lakkes IKKE og får IKKE HTT. Kun lakkerte håndtak får HTT 15p.
   Eksempel: Nissan Leaf har krom håndtak → ingen HTT. Tesla Model 3 har svarte håndtak → ingen HTT. VW Golf har lakkerte håndtak → HTT 15p.
-- Speil/speildeksel: Er de lakkerte eller svart ulakkert plast? Svart ulakkert plast lakkes ikke og får ikke HTT.
+- Speildeksel: lakkes aldri sammen med døra – foreslå ALDRI HTT eller tilstøtende for speildeksel, uansett farge på speilhuset.
 - List/P-list: Er listen lakkert i bilens farge, eller svart/grå ulakkert plast (svært vanlig på varebiler og lavere trim-nivåer)? Kun lakkert list får HTT.
 - Andre detaljer som typisk er krom, svart plast eller ulakkert på akkurat denne modellen.
 
@@ -2538,7 +2602,7 @@ For hver del i taksten – sjekk disse punktene:
     - Spør om arealavhengig tilstøtende mot A-stolpe, B-stolpe og bakskjerm (gul)
     - Arealavhengig = pris beregnes basert på faktisk areal i DBS, ikke fast pris
 
-12. SPEILDEKSEL: ID-migrert (v2.39) – bruk FORDOR_SPEILDEKSEL fra delsjekk, ikke fritekst.
+12. SPEILDEKSEL: skal ALDRI lakkeres/HTT-vurderes som tilstøtende ved lakkering av fordør – speildeksel lakkes aldri sammen med døra, uansett farge. Ikke foreslå HTT eller tilstøtende for speildeksel.
 
 13. NAGLING: dekkes av BAKSKJERM_N_KAROSSERILIM-ID-en (lim og/eller nagler) – ikke skriv eget nagling-forslag.
 
@@ -2854,18 +2918,31 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
       // utledes AUTOMATISK fra registerets navn-felt for de brukte ID-ene, så nye ID-er
       // dekkes uten manuell nøkkelord-vedlikehold ("glemt nøkkelord"-problemet forsvinner).
       const stoppOrd=new Set(['løse','deler','flate','nede','foran','ført','lakk','ved']);
+      // v2.48: STAVEVARIANTER. Konseptmønstrene utledes fra navn-feltet som ren tekst, så
+      // en fritekst-variant med annen stavemåte slapp forbi (bekreftet: navn 'Spylevæske'
+      // ga \bspylevæske\b, mens Claude skrev "spylervæske" – med r – og duplikatet overlevde).
+      // To grep: (a) en familie-tabell for ord som har kjente varianter som betyr det samme,
+      // (b) generell æ/ø/å-toleranse for alle andre ord. Parseren gjør allerede det samme i
+      // v2.8-vakta (/spyler?væske|spyler?veske/i) – nå gjør konseptfilteret det også.
+      const KONSEPT_VARIANTFAMILIER=[
+        {test:/spyler?v[æe]ske/i,mønster:'spyler?v[æe]ske'}
+      ];
+      const escRe=s2=>s2.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+      const toleranteMønster=ord=>{
+        for(const f of KONSEPT_VARIANTFAMILIER){if(f.test.test(ord))return f.mønster;}
+        return escRe(ord).replace(/æ/g,'[æe]').replace(/ø/g,'[øo]').replace(/å/g,'[åa]');
+      };
       const idKonseptMønstre=[];
       brukteIDer.forEach(id=>{
         const reg=window.REGEL_REGISTRY[id];
         if(!reg||!reg.navn)return;
-        const esc=s2=>s2.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
         const navnLower=reg.navn.toLowerCase().replace(/\(.*?\)/g,'').replace(/\s+/g,' ').trim();
-        if(navnLower.length>=6)idKonseptMønstre.push(new RegExp(esc(navnLower),'i'));
+        if(navnLower.length>=6)idKonseptMønstre.push(new RegExp(toleranteMønster(navnLower),'i'));
         reg.navn.split(/\s+/).forEach(o=>{
           const ol=o.toLowerCase().replace(/[^a-zæøå0-9]/g,'');
           if(!ol||stoppOrd.has(ol))return;
           if(ol.length>=4||(o===o.toUpperCase()&&ol.length>=2)){
-            idKonseptMønstre.push(new RegExp('\\b'+esc(ol)+'\\b','i'));
+            idKonseptMønstre.push(new RegExp('\\b'+toleranteMønster(ol)+'\\b','i'));
           }
         });
       });
