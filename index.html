@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.49 – Smart kontroll av takster</title>
+<title>AutoPell v2.50 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.49</div>
+    <div class="version-badge">v2.50</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,6 +260,24 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+/* AutoPell v2.50 – endringer fra v2.49 (1 punkt, kun STØTFANGER_HTT_LOSE rørt):
+
+   HTT ALLEREDE FØRT PÅ POSISJON → DETERMINISTISK SPERRE (bekreftet lekkasje: Ford Galaxy
+   AY25775 hadde allerede "STØTFANGER FORAN, HTT" 15p i både Utvendig lakk og Lakkmateriell
+   annet, likevel spurte Claude om denne linja dekker et spyledeksel – stikk i strid med en
+   EKSISTERENDE prosaregel som sa "ALDRI foreslå HTT for løse deler på samme posisjon" når en
+   slik generisk linje finnes). Martin: "den må slutte å spørre om HTT hvis det allerede står
+   i taksten" – ikke spørre om linja dekker det, bare anse det som dekket.
+   Nytt registryflagg sjekkHttAllerede:true på STOTFANGER_HTT_LOSE. DELSTATUS-filteret leser
+   posisjonen (foran/bak) fra delnavnet og søker i takstens råtekst etter en linje der
+   "Støtfanger foran/bak" er DIREKTE etterfulgt av "HTT" (ingen delnavn i mellom) – dette er
+   nettopp kjennetegnet på en generisk posisjons-HTT, til forskjell fra en spesifikk HTT-post
+   med delnavn (f.eks. "Spyledeksel støtfanger foran, HTT"), som IKKE skal undertrykke dette
+   forslaget. Finner koden en slik generisk linje, fjernes ID-en helt fra DELSTATUS for den
+   posisjonen (samme mønster som krev3sjikt/ikkeVedSvart – ingen stille undertrykking på
+   manglende data, siden fraværet av treff bare betyr "ingen generisk HTT funnet ennå").
+   Rørt kun STOTFANGER_HTT_LOSE. Ingen andre ID-er, filtre eller maler er endret.
+
 /* AutoPell v2.49 – endringer fra v2.48 (3 samlede punkter, scope: kun disse tre – ikke rørt: dbs_handlinger/AVVIST-lekkasjen, løftetape V/H-asymmetrien, støtfanger/grunnet-saken):
 
    1. SPEILDEKSEL FJERNET HELT (Martin: speildeksel lakkes aldri sammen med døra, uansett
@@ -1749,7 +1767,7 @@ function takstSammendrag(t){
     BAKSKJERM_N_DOKUMENTASJON:{kat:/bakskjerm/i,optype:['N'],navn:'Dokumentasjon',mal:'Vurder å ta med kostnad for innhenting av dokumentasjon for skift av bakskjerm',farge:'gul'},
 
     // v2.32 – Fase 1: Støtfanger/plastrep/50%-regelen
-    STOTFANGER_HTT_LOSE:{kat:/støtfanger/i,optype:['N','G'],navn:'HTT løse deler',mal:'POSITIVLISTE – vurder HTT (15p/del) KUN for: slepekrokdeksel, spyledeksel, lister. Bekreft med bilder før forslag. Gjelder KUN hvis støtfangeren er lakkert i bilens farge. ALDRI foreslå sensorer, sensorholdere, brakketter eller andre deler bak støtfangeren – disse lakkes aldri.',farge:'gul'},
+    STOTFANGER_HTT_LOSE:{kat:/støtfanger/i,optype:['N','G'],sjekkHttAllerede:true,navn:'HTT løse deler',mal:'POSITIVLISTE – vurder HTT (15p/del) KUN for: slepekrokdeksel, spyledeksel, lister. Bekreft med bilder før forslag. Gjelder KUN hvis støtfangeren er lakkert i bilens farge. ALDRI foreslå sensorer, sensorholdere, brakketter eller andre deler bak støtfangeren – disse lakkes aldri.',farge:'gul'},
     STOTFANGER_DIAGNOSE:{kat:/støtfanger/i,optype:['N','G'],navn:'Diagnose (feilkoder)',mal:'Vurder å legge til diagnose (slette feilkoder, 100p) – støtfanger er demontert',farge:'gul'},
     STOTFANGER_KLIPS:{deterministisk:true,navn:'Klips',mal:'',farge:'gul'},
     STOTFANGER_SVEISEMATERIELL:{kat:/støtfanger/i,optype:['N','G'],navn:'Sveisemateriell plastrep',mal:'Vurder å legge til kostnad for sveisemateriell plastrep – gjelder KUN hvis "ut og innvendig skade" er huket av i plastspesifikasjonen, og kun ved reparasjon (ikke ved skift)',farge:'gul'},
@@ -1812,6 +1830,22 @@ function takstSammendrag(t){
       if(r.ikkeVedSvart){
         const fg=t.bil&&t.bil.farge;
         if(fg&&/svart|sort/i.test(fg))return false;
+      }
+      // v2.50: sjekkHttAllerede – stopp å spørre om HTT hvis en GENERISK posisjons-HTT
+      // (uten delnavn, f.eks. "STØTFANGER FORAN, HTT") allerede står i taksten. Kun en
+      // linje der "Støtfanger foran/bak" er direkte etterfulgt av HTT (ingen delnavn
+      // i mellom) teller – en HTT-linje MED delnavn (f.eks. "Spyledeksel støtfanger
+      // foran, HTT") er en spesifikk post og skal IKKE undertrykke dette forslaget.
+      if(r.sjekkHttAllerede){
+        const posMatch=d.navn.match(/støtfanger\s+(foran|bak)/i);
+        if(posMatch){
+          const pos=posMatch[1];
+          // v2.50-fix: forankret til linjestart (^, m-flagg) slik at en spesifikk post
+          // MED delnavn foran ("Spyledeksel støtfanger foran, HTT") IKKE feiltolkes som
+          // generisk – kun en linje som faktisk STARTER med "Støtfanger foran/bak" teller.
+          const re=new RegExp('^\\s*st[øo]tfanger\\s+'+pos+'\\s*,?\\s*HTT','im');
+          if(re.test(t.raw||''))return false;
+        }
       }
       return r.kat.test(d.navn)&&r.optype.includes(d.optype);
     });
@@ -2399,7 +2433,7 @@ STEG 3: Sammenlign – foreslå KUN det som IKKE allerede er i taksten.
 
 ABSOLUTT REGEL: Hvis en post allerede finnes i taksten – ALDRI foreslå den.
 - Hvis "DØR X, HTT Yp" allerede er i lakklisten → ALDRI foreslå HTT for den delen
-- Hvis en GENERISK posisjons-HTT allerede står i lakklisten/lakkmateriell annet (f.eks. "STØTFANGER FORAN, HTT" eller "BAKSKJERM, HTT" – uten delnavn) → ALDRI foreslå HTT for løse deler på samme posisjon, uansett om delen selv står som N, G eller T
+- Generisk posisjons-HTT allerede i taksten (f.eks. "STØTFANGER FORAN, HTT" – uten delnavn) håndteres nå automatisk av koden for STØTFANGER (ID-en fjernes fra DELSTATUS) – ikke spør om dette. For andre posisjoner (BAKSKJERM m.fl.): ALDRI foreslå HTT for løse deler på samme posisjon hvis en slik generisk linje allerede finnes
 - Hvis tilstøtende flate allerede er i lakklisten → ALDRI foreslå tilstøtende for den delen
 - Hvis diagnose/slette feilkoder allerede er i taksten → ALDRI foreslå diagnose
 - Hvis UB allerede er i taksten → ALDRI foreslå UB
