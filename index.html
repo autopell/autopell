@@ -260,6 +260,35 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+/* AutoPell v2.53 – endringer fra v2.52 (1 punkt, kun dedupe-logikken rørt):
+
+   V/H-ASYMMETRI LØST – ROTÅRSAKEN VAR EN ANNEN ENN ANTATT. Denne saken lå i kø som
+   "dbs_handlinger må genereres fra data i stedet for fritekst", ut fra en antakelse om at
+   feilen kom fra at Claude selv skrev forslagsteksten separat per del. Grundigere sjekk viste
+   noe annet og mer presist: brukteIDer (v2.30) er ett globalt Set for HELE taksten, brukt til
+   å avgjøre om et Claude-forslag er duplikat. Det er riktig og nødvendig for to andre formål
+   (v2.37 konseptutledning og deterministiske guard-sjekker som DET_UB_VED_FLATERETTE), men
+   feil for duplikat-sjekken: en ID som lovlig gjelder to fysiske deler i samme takst (V og H
+   Bakskjerm bruker begge f.eks. BAKSKJERM_G_LOFTETAPE) fikk den andre delens ekte, separate
+   funn til å bli stille avvist som "duplikat".
+   Bekreftet: Peugeot 308 RK90190 viste løftetape som "usikker" på BEGGE sider i punkt-for-
+   punkt-sjekken (v2.52 sin alltid-spør-fiks virket helt riktig der), men kun V Bakskjerm ble
+   nevnt i selve "DETTE MÅ GJØRES I DBS"-forslaget.
+   Fix: nytt sett brukteIDPerDel, nøklet på (id + del) i stedet for bare id, brukt UTELUKKENDE
+   til duplikat-sjekken. Det opprinnelige brukteIDer er urørt og fortsetter uendret å tjene de
+   to andre formålene sine.
+   Rekkevidde: løser V/H-asymmetrien for ALLE symmetriske hoveddeler (bakskjerm, dør, m.fl.),
+   ikke bare løftetape/hjulbueliste – enhver ID som deles mellom to fysiske deler i samme
+   takst rammes av nøyaktig samme mekanisme.
+   IKKE undersøkt/bekreftet i denne runden: den separate AVVIST→dbs_handlinger-lekkasjen fra
+   tidligere i dag – trenger en fersk AVVIST-utløsende takst for å reverifisere om den
+   fortsatt forekommer etter v2.45s strukturfiks.
+   NB – nytt funn utenfor dagens kø, IKKE bygget: en HELT SEPARAT, uavhengig kodeimplementasjon
+   av v2.26 "skiftet uten lakkspes"-sjekken finnes lenger nede i post-filteret (egen
+   delReglerPF-liste), som IKKE fikk v2.52 sin "grunnet"-betingelse for støtfanger. Denne kan
+   fortsatt feilaktig flagge en ikke-grunnet støtfanger-smådel som mangler lakkspes, uavhengig
+   av v2.52-fiksen. Flagget til Martin, venter på beslutning før den røres.
+
 /* AutoPell v2.52 – endringer fra v2.51 (6 punkter, punkt 2-7 fra samlekøen – kun punkt 1
    (dbs_handlinger generert fra data) IKKE med, avtalt egen versjon):
 
@@ -2851,6 +2880,19 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
       // Set av brukte ID-er: siden hver ID er unik og fast (ikke fritekst Claude formulerer på
       // nytt), er "har vi allerede tatt med denne?" et enkelt oppslag, ikke en tolkningsoppgave.
       const brukteIDer=new Set();
+      // v2.53: FANT ROTÅRSAKEN til V/H-asymmetrien (løftetape, hjulbueliste m.fl. på symmetriske
+      // hoveddeler). brukteIDer er GLOBAL for hele taksten – riktig og nødvendig for konsept-
+      // utledningen (v2.37, leser brukteIDer.forEach) og for deterministiske guard-sjekker
+      // (f.eks. DET_UB_VED_FLATERETTE), som begge krever rene ID-er uten del-kontekst.
+      // MEN samme globale sett ble også brukt til å avgjøre om et Claude-forslag var et
+      // duplikat – og det er FEIL for ID-er som lovlig gjelder flere fysiske deler i samme
+      // takst (V Bakskjerm og H Bakskjerm bruker SAMME ID, f.eks. BAKSKJERM_G_LOFTETAPE).
+      // Da ble den andre delens funn stille avvist som "duplikat", selv om det var et ekte,
+      // separat funn. Bekreftet: Peugeot 308 RK90190, løftetape usikker på begge sider i
+      // punkt-for-punkt, men kun V nevnt i selve DBS-forslaget.
+      // Fix: eget sett, nøklet på (id, del) i stedet for bare id, brukt KUN til duplikat-
+      // sjekken – brukteIDer selv er urørt og fortsetter å tjene de andre to formålene.
+      const brukteIDPerDel=new Set();
       // v2.35: DETERMINISTISKE PARSER-FUNN – injiseres direkte av koden, Claude ikke involvert.
       // ID-en seedes i brukteIDer slik at eventuelle Claude-varianter av samme funn dedupes.
       function injiserDeterministisk(id,melding,plassering){
@@ -3036,9 +3078,12 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           }
           if((p.status==='foreslått'||p.status==='usikker')&&p.forslag){
             const harID=p.id&&window.REGEL_REGISTRY&&window.REGEL_REGISTRY[p.id];
+            // v2.53: nøkkel per (id, del) – IKKE bare id – slik at samme ID på to ulike
+            // fysiske deler (V/H) begge slipper gjennom som ekte, separate funn.
+            const idDelNøkkel=harID?p.id+'||'+delNavnRent:null;
             let erDuplikat,konsept=null;
             if(harID){
-              erDuplikat=brukteIDer.has(p.id);
+              erDuplikat=brukteIDPerDel.has(idDelNøkkel);
             }else{
               const forslagLower=p.forslag.toLowerCase();
               const punktLower=(p.punkt||'').toLowerCase();
@@ -3049,7 +3094,7 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
             const alleredeMed=parsed.sammendrag.dbs_handlinger.some(x=>x.toLowerCase()===forslagLower)
               || parsed.resultater.some(r=>(r.melding||'').toLowerCase().includes(forslagLower));
             if(!alleredeMed&&!erDuplikat){
-              if(harID)brukteIDer.add(p.id);
+              if(harID){brukteIDer.add(p.id);brukteIDPerDel.add(idDelNøkkel);}
               if(konsept)brukteKonsepter.add(konsept);
               injisertTekst.add(forslagLower);
               parsed.sammendrag.dbs_handlinger.push(p.forslag);
