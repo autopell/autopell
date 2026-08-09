@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.51 – Smart kontroll av takster</title>
+<title>AutoPell v2.52 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.51</div>
+    <div class="version-badge">v2.52</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,6 +260,61 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+/* AutoPell v2.52 – endringer fra v2.51 (6 punkter, punkt 2-7 fra samlekøen – kun punkt 1
+   (dbs_handlinger generert fra data) IKKE med, avtalt egen versjon):
+
+   2. POSITIVLISTE STOTFANGER_HTT_LOSE/50_SMADELER HÅNDHEVET I KODE (ikke bare mal-tekst).
+      Bekreftet lekkasje: Claude skrev "gitter, luftstyring, ramme tåkelykt" som HTT-kandidater
+      på Toyota Proace EH84270, til tross for at v2.49-malen selv sier "KUN for: slepekrokdeksel,
+      spyledeksel, lister" – mal-fallback beskytter kun TOMME svar, ikke feil Claude aktivt
+      skriver. Nytt: p.forslag sjekkes mot en forbudsliste (sensor/gitter/luftstyring/ramme
+      tåkelykt/brakett) for disse to ID-ene; treffer den, avvises hele funnet med konsoll-logg.
+
+   3. DET_BESKYTTELSESFOLIE SKILLER BILFOLIE FRA BESKYTTELSESFOLIE. Bekreftet falskt treff:
+      Toyota Proace EH84270 er rødfoliert (bilfolie, v2.9 folie-vakt-konseptet), og taksten sa
+      "ny folie kommer på egen faktura" – dette handler om BILFOLIEN, ikke om beskyttelsesfolie
+      under lakkering, men den gamle regexen (/folie|foliert|wrap/i hvor som helst i teksten)
+      klarte ikke skille dem. Ny sjekk ekskluderer treff nær fraser som "kommer på"/"egen
+      faktura"/"ny folie", som signaliserer arbeid utenfor denne jobben.
+
+   4. LØFTETAPE ALLTID-SPØR PÅ PERSONBIL. Bekreftet: samme Peugeot 308 RK90190-takst ga "ikke
+      relevant" på løftetape i to av tre kjøringer, stikk i strid med v2.43 (rute i bakskjerm er
+      selve eksempelet i den regelen). Ny pre-pass tvinger BAKSKJERM_G_LOFTETAPE fra "ikke
+      relevant" til "usikker" med mindre modellnavnet inneholder "varebil" (regelen gjelder kun
+      personbil). Ukjent karosseritype → behandlet som personbil (spør), samme fallback-prinsipp
+      som resten av v2.4x. Dette er en tvungen override, ikke ekte bildeforståelse – løser
+      variasjonen, ikke selve usikkerheten i bildetolkningen.
+
+   5. FARGE/LAKKTYPE-PARSER – NYTT KOLONNEFORMAT. Bekreftet på Seres 5 SX37211: Fargekode/
+      Lakktype sto midt i en kolonneoverskrift ("Lakkverksted Fargekode Ferdig dato") i stedet
+      for alene på egen linje, og parseren viste "? (ikke lest ut)" for begge selv om verdiene
+      ("Grønn", "2") stod rett der. Ny additiv fallback: for Fargekode, tar siste ord på raden
+      under overskriften (Ferdig dato står tomt før jobben er ferdig, så farge blir siste ord).
+      For Lakktype, henter ett siffer rett etter forsikringsselskapets navn, foran rate-beløpet.
+      Testet mot BÅDE det nye kolonneformatet (Seres, ekte data: Grønn/2 – riktig) og det gamle
+      enkeltlinje-formatet (Svart/2 – uendret riktig), ingen regresjon.
+
+   6. TILSTØTENDE HÅNDTAK VED DØRSKIFT + HTT. Domenepresisering fra Martin: ved dørskift (N) –
+      ny ELLER brukt dør – skal Claude proaktivt spørre om håndtaket bør lakkeres som tilstøtende
+      (erstatningsdørens håndtak matcher normalt ikke bilens farge), og nevne HTT 15p for
+      håndtaket i samme forslag hvis det lakkeres. DOR_FELLES_HTT_HANDTAK sin mal skiller nå
+      eksplisitt mellom RETTET (G, reaktivt: er håndtaket allerede lakkert?) og SKIFTET (N,
+      proaktivt: bør det lakkeres, og husk HTT samtidig).
+
+   7. STØTFANGER "GRUNNET" – SMALERE, TRYGGERE FILTER (kun det Martin faktisk bekreftet, ingen
+      gjetting på den ubekreftede svartelisten). v2.26-sjekken "skiftet hoveddel mangler helt i
+      lakkspesifikasjonen" matchet tidligere ALLE støtfanger-smådeler likt (/støtfanger/i alene),
+      så svarte, aldri-lakkerte smådeler (gitter, p-list, luftstyring) ble flagget sammen med
+      ekte funn. Ny regel, KUN for støtfanger-kategorien: delnavnet må også inneholde "grunnet"
+      for å trigge – Martins bekreftede regel er at en grunnet del ALLTID skal lakkeres (kommer
+      klargjort fra leverandør), så et skiftet grunnet-funn uten lakk-post er alltid ekte. De
+      andre seks hoveddel-kategoriene (bakskjerm, forskjerm, panser, fordør, bakdør, tak) er
+      UENDRET – "grunnet"-regelen er kun bekreftet for støtfanger, så fixen er bevisst holdt
+      støtfanger-lokal, ikke en endring av den delte kategorilisten.
+
+   IKKE med i denne runden: (1) dbs_handlinger generert fra data (strukturelt tyngre, egen
+   versjon som avtalt).
+
 /* AutoPell v2.51 – endringer fra v2.50 (2 punkter):
 
    1. HJULBUELISTE "KUN HVIS NEVNT" GJORT DETERMINISTISK (bekreftet lekkasje: Peugeot 308
@@ -1302,6 +1357,26 @@ function parseTakst(text){
     const fargeAlt=text.match(/Fargekode[^a-zA-ZøæåØÆÅ]+([A-Za-zøæåØÆÅ]{3,})\s*(?:Ferdig|Lakktype|\n)/);
     if(fargeAlt&&!['Påbegynt','Ferdig'].includes(fargeAlt[1]))result.bil.farge=fargeAlt[1];
   }
+  // v2.52: KOLONNEFORMAT – bekreftet på Seres 5 SX37211, der Fargekode/Lakktype står midt i
+  // en kolonneoverskriftslinje ("Lakkverksted Fargekode Ferdig dato") i stedet for alene på
+  // egen linje. Verdien ligger da på tilsvarende posisjon i raden under, ikke rett etter selve
+  // ordet. Rent additivt – kjører KUN når det gamle mønsteret over ikke fant noe.
+  if(!result.bil.farge){
+    // "Ferdig dato" står vanligvis tomt (ikke ferdig ennå) → farge blir siste ord på raden
+    const fargeKolonne=text.match(/Lakkverksted\s+Fargekode\s+Ferdig\s*dato\s*\n([^\n]+)/i);
+    if(fargeKolonne){
+      const ord=fargeKolonne[1].trim().split(/\s+/);
+      const siste=ord[ord.length-1];
+      if(siste&&/^[A-Za-zæøåÆØÅ]+$/.test(siste)&&!['Påbegynt','Ferdig','dato'].includes(siste)){
+        result.bil.farge=siste;
+      }
+    }
+  }
+  if(!result.bil.lakktype){
+    // Lakktype er ett siffer (1-4) rett etter forsikringsselskapets navn, foran rate-beløpet
+    const ltKolonne=text.match(/Forsikringsselskap\s+Lakktype\s+Rate,?\s*lakkmateriale\s+Deb\.?faktor\s+lakk\s*\n[^\n]*?\s(\d)\s+[\d.,\s]+,\d{2}/i);
+    if(ltKolonne)result.bil.lakktype=parseInt(ltKolonne[1]);
+  }
   // Chassisnr
   const chassisMatch=text.match(/Chassisnr\.?\s*\n?\s*([A-Z0-9]{17})/);
   if(chassisMatch)result.bil.chassis=chassisMatch[1];
@@ -1766,7 +1841,7 @@ function takstSammendrag(t){
     DOR_FELLES_RUST:{deterministisk:true,navn:'Rustbeskyttelse',mal:'',farge:'rød'},
     DOR_FELLES_DEMO:{kat:/\bfordør\b|\bbakdør\b/i,optype:['N','G'],navn:'De/Mo innvendige detaljer',mal:'Vurder å legge til De/Mo innvendige detaljer (vindusheis, dørtrekk)',farge:'rød'},
     DOR_FELLES_UB:{deterministisk:true,navn:'UB',mal:'',farge:'rød'},
-    DOR_FELLES_HTT_HANDTAK:{kat:/\bfordør\b|\bbakdør\b/i,optype:['N','G'],navn:'HTT dørhåndtak',mal:'Sjekk om dørhåndtaket er lakkert – i så fall vurder HTT 15p i annetbildet',farge:'gul'},
+    DOR_FELLES_HTT_HANDTAK:{kat:/\bfordør\b|\bbakdør\b/i,optype:['N','G'],navn:'HTT dørhåndtak',mal:'RETTET (G): Sjekk om dørhåndtaket er lakkert – i så fall vurder HTT 15p i annetbildet. SKIFTET (N, ny ELLER brukt dør): spør PROAKTIVT om håndtaket fra erstatningsdøra bør lakkeres som tilstøtende siden det normalt ikke matcher bilens farge – nevn HTT 15p for håndtaket i SAMME forslag hvis det lakkeres.',farge:'gul'},
     FORDOR_DIAGNOSE_AIRBAG:{kat:/\bfordør\b/i,optype:['N','G'],navn:'Diagnose airbag',mal:'Vurder å legge til diagnose (slette airbag-feilkoder, 50p)',farge:'gul'},
     FORDOR_TILST_BAKDOR:{kat:/\bfordør\b/i,optype:['N','G'],ikkeVedSvart:true,navn:'Tilstøtende bakdør',mal:'Vurder å ta med tilstøtende flate mot bakdør',farge:'gul'},
     FORDOR_TILST_FORSKJERM:{kat:/\bfordør\b/i,optype:['N','G'],ikkeVedSvart:true,navn:'Tilstøtende forskjerm',mal:'Vurder å ta med tilstøtende flate mot forskjerm',farge:'gul'},
@@ -1912,13 +1987,21 @@ function takstSammendrag(t){
   const lakkspesNavnLower=t.lakkspes.filter(d=>!d.tillegg).map(d=>(d.navn||'').toLowerCase());
   const alleDelKategorier=[
     {re:/bakskjerm/i},{re:/forskjerm/i},{re:/\bpanser\b/i},
-    {re:/\bfordør\b/i},{re:/\bbakdør\b/i},{re:/\btak\b/i},{re:/støtfanger/i},
+    {re:/\bfordør\b/i},{re:/\bbakdør\b/i},{re:/\btak\b/i},
+    // v2.52: støtfanger krever "grunnet" i delnavnet – bekreftet av Martin: en del som er
+    // grunnet ankommer klargjort fra leverandør, så lakkering er GITT (alltid ekte funn,
+    // aldri falsk positiv). Uten dette matchet /støtfanger/i også svarte smådeler som aldri
+    // lakkes (gitter, p-list, luftstyring) – bekreftet falske treff på Toyota Proace EH84270.
+    // Støtfanger-lokalt per Martins krav – de andre hoveddel-kategoriene er UENDRET, siden
+    // "grunnet"-regelen kun ble bekreftet for støtfanger.
+    {re:/støtfanger/i,krevGrunnet:true},
   ];
   const skiftetUtenLakkspesRad=[];
   (t.karosseri_skift||[]).forEach(d=>{
     if(!d.navn||d.tiltak!=='Skift')return;
     const match=alleDelKategorier.find(r=>r.re.test(d.navn));
     if(!match)return; // kun kjente lakkerbare hoveddeltyper
+    if(match.krevGrunnet&&!/grunnet/i.test(d.navn))return;
     const finnesILakkspes=lakkspesNavnLower.some(l=>match.re.test(l));
     if(!finnesILakkspes)skiftetUtenLakkspesRad.push(d.navn);
   });
@@ -2871,7 +2954,16 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
         }
         // v2.39 Fase 4: Beskyttelsesfolie – folie nevnt i taksten og deler lakkes
         const harNGdelerPF=(parserData.lakkspes||[]).some(d=>!d.tillegg&&(d.optype==='N'||d.optype==='G')&&!d.tilstøtende);
-        if(/folie|foliert|wrap/i.test(parserData.raw||'')&&harNGdelerPF){
+        // v2.52: skill mellom bilfolie (wrap på hele bilen – v2.9 folie-vakt, IKKE relevant
+        // her) og beskyttelsesfolie i verkstedet (masking-film ved lakkering – DET_BESKYTTEL-
+        // SESFOLIE, den EGENTLIGE saken denne sjekken gjelder). Bekreftet falskt treff: Toyota
+        // Proace EH84270 hadde "ny folie kommer på egen faktura" – bilfolie som skiftes på
+        // egen faktura, ikke beskyttelsesfolie under lakkering. Ekskluder linjer med fraser
+        // som signaliserer fremtidig/separat arbeid før vi trigger på selve ordet "folie".
+        const folieRaw=parserData.raw||'';
+        const harFolieOrd=/folie|foliert|wrap/i.test(folieRaw);
+        const folieErFremtidigArbeid=/folie[^\n]{0,40}(kommer\s+på|egen\s+faktura)|ny\s+folie/i.test(folieRaw);
+        if(harFolieOrd&&!folieErFremtidigArbeid&&harNGdelerPF){
           injiserDeterministisk('DET_BESKYTTELSESFOLIE','Sjekk om beskyttelsesfolie over 5cm finnes på del som lakkes – i så fall vurder tillegg i annetbildet','Annetbildet');
         }
         // v2.39 Fase 4: Trekketårn/rigging – skadeklasse 1
@@ -2884,6 +2976,22 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           injiserDeterministisk('DET_MERCEDES_RIPEFAST','Sjekk om ripefast klarlakk kan settes som lakktype 4 (kode 6770) – Mercedes etter 2007','Lakkspesifikasjon');
         }
       }
+      // v2.52: LØFTETAPE ALLTID-SPØR. Bekreftet: samme takst (Peugeot 308 RK90190) ga
+      // "ikke relevant" på løftetape i to av tre kjøringer, til tross for at v2.43 sier
+      // rute-i-bakskjerm ALLTID skal gi "usikker" ved tvil – ekte bildetolkning er ikke
+      // stabil nok til å stole på Claudes skjønn her. Tvinger status til "usikker" for
+      // BAKSKJERM_G_LOFTETAPE når Claude satte "ikke relevant", MED MINDRE bilen tydelig er
+      // en varebil (regelen gjelder kun personbil). Ukjent karosseritype → behandles som
+      // personbil (spør), samme usikker-fallback-prinsipp som resten av v2.4x-fiksene.
+      const erVarebilPF=parserData.bil&&parserData.bil.modell&&/varebil/i.test(parserData.bil.modell);
+      parsed.delsjekk.forEach(d=>{
+        (d.punkter||[]).forEach(p=>{
+          if(p.id==='BAKSKJERM_G_LOFTETAPE'&&p.status==='ikke relevant'&&!erVarebilPF){
+            console.log('[POST-FILTER v2.52] Løftetape tvunget fra "ikke relevant" til "usikker" (v2.43-håndheving)');
+            p.status='usikker';
+          }
+        });
+      });
       parsed.delsjekk.forEach(d=>{
         // v2.45 STRUKTURFIX: avvis HELE del-blokken hvis delnavnet ikke faktisk står i
         // DELSTATUS-listen denne kjøringen. Bekreftet produksjonshendelser (Porsche Cayenne
@@ -2913,6 +3021,18 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           }
           if((p.status==='foreslått'||p.status==='usikker')&&!p.forslag&&regForMal&&regForMal.mal){
             p.forslag=regForMal.mal;
+          }
+          // v2.52: POSITIVLISTE HÅNDHEVET I KODE (ikke bare mal-tekst) for
+          // STOTFANGER_HTT_LOSE/STOTFANGER_50_SMADELER. Bekreftet lekkasje: Claude skrev
+          // "gitter, luftstyring, ramme tåkelykt" som HTT-kandidater på Toyota Proace
+          // EH84270, til tross for at malen selv sier "KUN for: slepekrokdeksel, spyledeksel,
+          // lister" – mal-fallback beskytter kun TOMME svar, ikke feil Claude faktisk skriver.
+          if((p.id==='STOTFANGER_HTT_LOSE'||p.id==='STOTFANGER_50_SMADELER')&&p.forslag){
+            const forbudtStotfangerDel=/\bsensor\w*|\bgitter\b|luftstyring|ramme\s*tåkelykt|\bbrakett\w*/i;
+            if(forbudtStotfangerDel.test(p.forslag)){
+              console.log('[POST-FILTER v2.52] Avvist STØTFANGER-forslag utenfor positivliste ('+p.id+'): "'+p.forslag+'"');
+              return;
+            }
           }
           if((p.status==='foreslått'||p.status==='usikker')&&p.forslag){
             const harID=p.id&&window.REGEL_REGISTRY&&window.REGEL_REGISTRY[p.id];
