@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.50 – Smart kontroll av takster</title>
+<title>AutoPell v2.51 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.50</div>
+    <div class="version-badge">v2.51</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,6 +260,30 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+/* AutoPell v2.51 – endringer fra v2.50 (2 punkter):
+
+   1. HJULBUELISTE "KUN HVIS NEVNT" GJORT DETERMINISTISK (bekreftet lekkasje: Peugeot 308
+      RK90190, en KOMBI, fikk hjulbueliste flagget som "usikker" selv om bildet tydelig viste
+      at bilen ikke hadde noen, og selv om taksten trolig ikke nevnte det heller). Nytt
+      registryflagg sjekkNevntIRaw:'hjulbueliste' på BAKSKJERM_G_HJULBUELISTE,
+      BAKSKJERM_N_HJULBUELISTE og BAKDOR_HJULBUELISTE. DELSTATUS-filteret fjerner ID-en når
+      ordet "hjulbueliste" ikke finnes noe sted i takstens råtekst.
+      SUV-unntaket ("spør forsiktig selv om ikke nevnt") er FJERNET, ikke bare strammet inn –
+      det fantes ingen pålitelig måte å lese karosseritype/SUV-status fra taksten (kun fritt
+      modellnavn som tekst), og unntaket var nettopp det som feilaktig traff en ikke-SUV
+      kombi. Vurdert og godkjent av Martin før bygging.
+
+   2. LØFTETAPE – STRENGERE HÅNDHEVING AV v2.43 USIKKER-REGELEN (bekreftet: løftetape endte
+      som "ikke relevant" på V+H bakskjerm på samme Peugeot 308, til tross for at v2.43 sier
+      eksplisitt at tvil om en synlig rute i bildet ALLTID skal gi "usikker", aldri "ikke
+      relevant" – ruta i bakskjerm er faktisk selve eksempelet i v2.43-regelteksten). Dette er
+      IKKE gjort deterministisk – om det finnes en rute i bildet er ekte bildetolkning og kan
+      ikke leses fra råtekst. BAKSKJERM_G_LOFTETAPE sin egen mal-tekst gjentar nå v2.43-regelen
+      direkte, i stedet for at Claude må hente den fra et annet sted i prompten.
+      Bakgrunn: Martin observerte at samme takst kan gi ulikt resultat fra kjøring til kjøring
+      ("nesten variasjon hver gang") – dette er den strukturelle årsaken til den variasjonen
+      for bildebaserte punkter som ikke lar seg gjøre fullt deterministiske.
+
 /* AutoPell v2.50 – endringer fra v2.49 (1 punkt, kun STØTFANGER_HTT_LOSE rørt):
 
    HTT ALLEREDE FØRT PÅ POSISJON → DETERMINISTISK SPERRE (bekreftet lekkasje: Ford Galaxy
@@ -908,9 +932,13 @@ Innhente dokumentasjon: 100p
 Veiledende pris: 18,80kr per klips – antall og pris sjekkes per bilmodell
 
 === HJULBUELISTER ===
-Hjulbuelister skal KUN flagges hvis de faktisk er i taksten – aldri foreslå dem hvis de ikke er nevnt.
+v2.51: "kun hvis nevnt i taksten"-regelen håndheves nå av koden – ID-en fjernes automatisk fra
+DELSTATUS hvis ordet "hjulbueliste" ikke finnes i takstens råtekst. Du ser derfor kun denne
+ID-en når den faktisk er relevant å vurdere.
 Mange biler har ulakkerte svarte hjulbuelister som ikke skal lakkes og ikke får HTT.
-Unntak SUV: Hvis bilen er en SUV og støtfanger/skjerm lakkes, kan du spørre forsiktig om hjulbuelister er glemt – men IKKE flagg som feil, kun som en myk påminnelse (gul).
+SUV-unntaket (myk påminnelse selv om ikke nevnt) er FJERNET – bilens karosseritype kan ikke
+leses pålitelig fra taksten, og en feilaktig SUV-antakelse ga falske forslag på ikke-SUV-biler
+(bekreftet: Peugeot 308 kombi). Spør ALDRI om hjulbueliste hvis ordet ikke er nevnt i taksten.
 HTT 15p hvis hjulbueliste er i taksten og lakkes løs.
 
 === FRONTRUTE ===
@@ -1744,15 +1772,15 @@ function takstSammendrag(t){
     FORDOR_TILST_FORSKJERM:{kat:/\bfordør\b/i,optype:['N','G'],ikkeVedSvart:true,navn:'Tilstøtende forskjerm',mal:'Vurder å ta med tilstøtende flate mot forskjerm',farge:'gul'},
     BAKDOR_TILST_BAKSKJERM:{kat:/\bbakdør\b/i,optype:['N','G'],ikkeVedSvart:true,navn:'Tilstøtende bakskjerm',mal:'Vurder å ta med tilstøtende flate mot bakskjerm',farge:'gul'},
     BAKDOR_TILST_FORDOR:{kat:/\bbakdør\b/i,optype:['N','G'],navn:'Tilstøtende fordør',mal:'Vurder å ta med tilstøtende flate mot fordør',farge:'gul'},
-    BAKDOR_HJULBUELISTE:{kat:/\bbakdør\b/i,optype:['N','G'],navn:'HTT hjulbueliste',mal:'Sjekk om hjulbueliste er lakkerbar – i så fall vurder HTT 15p',farge:'gul'},
+    BAKDOR_HJULBUELISTE:{kat:/\bbakdør\b/i,optype:['N','G'],sjekkNevntIRaw:'hjulbueliste',navn:'HTT hjulbueliste',mal:'Sjekk om hjulbueliste er lakkerbar – i så fall vurder HTT 15p',farge:'gul'},
 
     BAKSKJERM_G_RUST:{deterministisk:true,navn:'Rustbeskyttelse',mal:'',farge:'rød'},
     BAKSKJERM_G_DEMO:{kat:/bakskjerm/i,optype:['G'],navn:'De/Mo innvendige detaljer',mal:'Vurder å legge til De/Mo innvendige detaljer',farge:'rød'},
     BAKSKJERM_G_UB:{deterministisk:true,navn:'UB',mal:'',farge:'rød'},
     BAKSKJERM_G_TILST_BAKDOR:{kat:/bakskjerm/i,optype:['G'],ikkeVedSvart:true,navn:'Tilstøtende bakdør',mal:'Spør om tilstøtende mot bakdør er aktuelt',farge:'gul'},
-    BAKSKJERM_G_HJULBUELISTE:{kat:/bakskjerm/i,optype:['G'],navn:'HTT hjulbueliste',mal:'Sjekk om bakskjerm har lakkerbar hjulbueliste',farge:'gul'},
+    BAKSKJERM_G_HJULBUELISTE:{kat:/bakskjerm/i,optype:['G'],sjekkNevntIRaw:'hjulbueliste',navn:'HTT hjulbueliste',mal:'Sjekk om bakskjerm har lakkerbar hjulbueliste',farge:'gul'},
     BAKSKJERM_G_TANKLUKE:{kat:/bakskjerm/i,optype:['G'],navn:'Tankluke',mal:'Sjekk om tankluken på bakskjerm bør vurderes som tilstøtende',farge:'gul'},
-    BAKSKJERM_G_LOFTETAPE:{kat:/bakskjerm/i,optype:['G'],navn:'Løftetape',mal:'Sjekk om det finnes en synlig rute mot bakskjerm – løftetape (20p) brukes til å løfte pakningen rundt ruten (derav navnet), ikke knyttet til selve rettearbeidet (kun personbil, ikke varebil)',farge:'gul'},
+    BAKSKJERM_G_LOFTETAPE:{kat:/bakskjerm/i,optype:['G'],navn:'Løftetape',mal:'Sjekk om det finnes en synlig rute mot bakskjerm – løftetape (20p) brukes til å løfte pakningen rundt ruten (derav navnet), ikke knyttet til selve rettearbeidet (kun personbil, ikke varebil). Er du i tvil om det er en rute i bildet: status="usikker", ALDRI "ikke relevant" (v2.43-regelen) – dette er selve eksempelet den regelen nevner.',farge:'gul'},
     BAKSKJERM_G_POLERE_FLIKK:{kat:/bakskjerm/i,optype:['G'],navn:'Polere flikk',mal:'Vurder polere flikk 20p hvis takstolpe ikke lakkes helt ut',farge:'gul'},
 
     BAKSKJERM_N_RUST:{deterministisk:true,navn:'Rustbeskyttelse',mal:'',farge:'rød'},
@@ -1760,7 +1788,7 @@ function takstSammendrag(t){
     BAKSKJERM_N_TILST_BAKDOR:{kat:/bakskjerm/i,optype:['N'],ikkeVedSvart:true,navn:'Tilstøtende bakdør',mal:'Vurder å ta med tilstøtende flate mot bakdør',farge:'gul'},
     BAKSKJERM_N_TILST_KANAL:{kat:/bakskjerm/i,optype:['N'],navn:'Tilstøtende kanal',mal:'Spør om tilstøtende bakskjerm eller arealavhengig lakk av kanal er aktuelt',farge:'gul'},
     BAKSKJERM_N_POLERE_FLIKK:{kat:/bakskjerm/i,optype:['N'],navn:'Polere flikk',mal:'Vurder polere flikk 20p hvis takstolpe/kanal ikke lakkes helt frem',farge:'gul'},
-    BAKSKJERM_N_HJULBUELISTE:{kat:/bakskjerm/i,optype:['N'],navn:'HTT hjulbueliste',mal:'Sjekk om bakskjerm har lakkerbar hjulbueliste',farge:'gul'},
+    BAKSKJERM_N_HJULBUELISTE:{kat:/bakskjerm/i,optype:['N'],sjekkNevntIRaw:'hjulbueliste',navn:'HTT hjulbueliste',mal:'Sjekk om bakskjerm har lakkerbar hjulbueliste',farge:'gul'},
     BAKSKJERM_N_TANKLUKE:{kat:/bakskjerm/i,optype:['N'],navn:'Tankluke',mal:'Sjekk om tankluke sitter på den skiftede bakskjermen',farge:'gul'},
     BAKSKJERM_N_INNV_LAKK:{kat:/bakskjerm/i,optype:['N'],navn:'Innvendig lakkering bakskjermkant',mal:'Vurder å legge til innvendig lakkering bakskjermkant (fremre 62p + bakre 19p)',farge:'rød'},
     BAKSKJERM_N_KAROSSERILIM:{kat:/bakskjerm/i,optype:['N'],navn:'Karosserilim/blanderør',mal:'Vurder å legge til kostnad karosserilim og/eller blanderør hvis dette skal brukes',farge:'gul'},
@@ -1846,6 +1874,13 @@ function takstSammendrag(t){
           const re=new RegExp('^\\s*st[øo]tfanger\\s+'+pos+'\\s*,?\\s*HTT','im');
           if(re.test(t.raw||''))return false;
         }
+      }
+      // v2.51: sjekkNevntIRaw – ID-en foreslås KUN hvis ordet faktisk finnes i takstens
+      // råtekst. Erstatter det upålitelige SUV-unntaket (ingen karosseritype-felt finnes
+      // å lese pålitelig fra taksten). Ordgrense-match, store/små bokstaver ignoreres.
+      if(r.sjekkNevntIRaw){
+        const ordRe=new RegExp('\\b'+r.sjekkNevntIRaw+'\\b','i');
+        if(!ordRe.test(t.raw||''))return false;
       }
       return r.kat.test(d.navn)&&r.optype.includes(d.optype);
     });
