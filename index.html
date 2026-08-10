@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.53 – Smart kontroll av takster</title>
+<title>AutoPell v2.54 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.53</div>
+    <div class="version-badge">v2.54</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,6 +260,72 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+/* AutoPell v2.54 – endringer fra v2.53 (6 punkter, den største samlebyggingen denne kvelden):
+
+   1. DETALJSPESIFIKASJON PER-POSISJON PARSING (flaggskip, Martins idé). Ny strukturert
+      parsing av Detaljspesifikasjon-siden ("Pos. X <hoveddel>" + "<op.nr> <delnavn> <tid>"-
+      linjer) inn i result.detaljspes_pos – en fasit på hvilke faktiske komponenter en gitt
+      hoveddel har på DENNE bilen, hentet fra DBS' eget fabrikkoppsett i stedet for generell
+      bilkunnskap. Overlever sideskift midt i en tabell (testet mot ekte råtekst med et
+      "--- Side N ---"-brudd midt i en Pos.-blokk – alle 24 elementer på "Dør bakre H" ble
+      korrekt fanget på tvers av bruddet).
+      To nye registryflagg bruker samme datasett i hver sin retning:
+        skjulHvisDetaljFunnet: delen ER dekket hvis et søkeord finnes i matchende Pos.-blokk.
+          DOR_FELLES_DEMO (Volvo EX30 EJ69569): "Trekk bakdør V", "Deksel bakdør indre V" osv.
+          sto allerede i Detaljspesifikasjon, men Claude flagget likevel De/Mo som manglende.
+        skjulHvisDetaljIkkeFunnet: delen skal IKKE foreslås hvis søkeordet IKKE finnes i en
+          FAKTISK FUNNET blokk. PANSER_EMBLEM (VW ID.5 EE34706): spurte om emblem på en modell
+          som ikke har emblem på panser i det hele tatt.
+      Samme fallback-prinsipp som resten av v2.4x/v2.5x: finnes ingen matchende Pos.-blokk
+      (ikke parset/relevant for denne taksten), beholdes ID-en – aldri en antakelse på data
+      vi ikke har. Testet: matching av "H Bakdør"/"H Fordør" mot "Dør bakre H"/"Dør fremre H"
+      (kompo­nert-ord-synonymer bakdør↔dør bakre, fordør↔dør fremre, forskjerm↔skjerm fremre,
+      bakskjerm↔skjerm bakre), og bekreftet at manglende blokk (Panser, ikke i testdata)
+      korrekt beholder ID-en i stedet for å anta fravær.
+
+   2. TANKLUKE + LØFTETAPE "ALLEREDE FØRT" (BAKSKJERM_G/N_TANKLUKE, BAKSKJERM_G_LOFTETAPE).
+      Nytt registryflagg sjekkAlleredeForLakkspes, søker i råtekst etter at konseptet allerede
+      er dekket før spørsmålet i det hele tatt stilles. Bekreftet lekkasje: Mercedes-Benz EQE
+      EJ40840 hadde "H Luke, strøminntak" (ladeluke) allerede som egen lakkspes-linje og
+      "Maskering med løftetape" allerede ført 20p – begge ble likevel spurt om på nytt.
+      Nissan Leaf-varianten (ingen tankluke i det hele tatt, elbil med ladeluke i front) løses
+      av samme mekanisme siden ordet da rett og slett ikke finnes noe sted i råteksten.
+
+   3. POSITIVLISTE-REGEX – ORDGRENSE-HULL LUKKET. \b foran "sensor" fjernet (sammensatte ord
+      som "parkeringssensorlokk" har ingen ordgrense der – bekreftet miss på Nissan Leaf).
+      Lagt til "ryggelys" og generell \bramme\w* – begge allerede utenfor positivlisten per
+      eksisterende regel (kun slepekrokdeksel/spyledeksel/lister er tillatt).
+
+   4. HARLAKKPOST2 – MANGLENDE V2.8-FALLBACK PORTET INN. harLakkPost (HURTIGFAKTA) hadde fra
+      før en rekkefølge-uavhengig ordoverlapp-fallback (v2.8) som harLakkPost2 (POST-FILTER,
+      den som faktisk trigger KRITISK MANGEL-varselet) manglet. Bekreftet miss: "Spoiler
+      støtfanger bak grunnet" traff ikke "Støtfanger bak nedre" fordi "Spoiler" som første ord
+      ødela den posisjonelle to-første-ord-sjekken, selv om "støtfanger"+"bak" faktisk deles
+      (Skoda Enyaq EC68739). Ikke ny logikk – bare brakt i sync med søsterfunksjonen.
+
+   5. PLASTREP → LAKK/GRUNNING, TO ROTÅRSAKER (Audi E-tron EC26556):
+        a) "Reparasjon uten lakk"-sjekken leste kun parserData.plastspes.del (første element)
+           – ikke hele .deler-arrayen som parseren allerede fylte (v2.7). Et andre/tredje
+           element i samme Gruppe (f.eks. "H Skjermutbygger bakdør antisitt") ble aldri
+           sjekket mot lakkspes i det hele tatt. Nå looper koden over hele plastspesDeler.
+        b) Grunning-for-topplakk-sjekken virket kun én vei (fant eksisterende grunning-tekst,
+           sjekket OM den delen har lakkspes) – aldri motsatt (har en plastrep-del i det hele
+           tatt en grunning-linje?). Martin bekreftet: grunning for topplakk er ALLTID påkrevd
+           ved plastrep, uten unntak for skadetype. Ny manglendeGrunning-sjekk dekker nettopp
+           dette, samme varselmønster som KRITISK MANGEL-boksen.
+
+   6. MASKERING GRILL/NEDRE DEL FJERNET (STOTFANGER_MASKERING_GRILL). Martin, fagmann:
+      "aller helst ikke" – grill/nedre del er ofte svarte, ulakkerte deler, og ved fullt skift
+      er det uansett ingenting å maskere. Samme behandling som speildeksel/svart hjørne
+      tidligere: ID-en er fjernet helt, ikke bare strammet inn.
+
+   IKKE med i denne runden (bevisst avventet): dbs_handlinger generert fra data (V/H-
+   asymmetrien selv er allerede løst i v2.53 via dedupe-fiksen – dette gjenstående punktet
+   gjelder kun AVVIST-lekkasjen, ikke reverifisert); den separate v2.26-implementasjonen som
+   mangler grunnet-gate (avventer Martins avgjørelse); løftetape stasjonsvogn/SUV-heuristikk
+   (mal-tekst, lav prioritet); positivliste-eksistenssjekk (overlapper delvis med punkt 1,
+   revurderes neste runde).
+
 /* AutoPell v2.53 – endringer fra v2.52 (1 punkt, kun dedupe-logikken rørt):
 
    V/H-ASYMMETRI LØST – ROTÅRSAKEN VAR EN ANNEN ENN ANTATT. Denne saken lå i kø som
@@ -1726,6 +1792,32 @@ function parseTakst(text){
     }
   }
 
+  // v2.54: DETALJSPESIFIKASJON PER-POSISJON. Nytt: strukturert lesing av Detaljspesifikasjon-
+  // siden ("Pos. X <hoveddel>" etterfulgt av "<op.nr> <delnavn> <tid>"-linjer) i stedet for
+  // kun å søke i rå fritekst. Dette gir en fasit på hvilke faktiske komponenter en gitt
+  // hoveddel har på DENNE bilen – rett fra DBS' eget fabrikkoppsett, ikke generell bilkunnskap.
+  // Overlever sideskift midt i en tabell (testet mot ekte råtekst med "--- Side N ---"-brudd
+  // midt i en Pos.-blokk – alle linjer utenfor selve op.nr-mønsteret hoppes naturlig over).
+  result.detaljspes_pos=[];
+  {
+    const posRegex=/^Pos\.\s*\d+\s+(.+)$/i;
+    const itemRegex=/^\d{3,5}\s+(.+?)\s+\d+$/;
+    let gjeldendeBlokk=null;
+    for(const rawLine of lines){
+      const line=rawLine.trim();
+      if(!line)continue;
+      const posM=line.match(posRegex);
+      if(posM){
+        gjeldendeBlokk={pos:posM[1].trim(),items:[]};
+        result.detaljspes_pos.push(gjeldendeBlokk);
+        continue;
+      }
+      if(!gjeldendeBlokk)continue;
+      const itemM=line.match(itemRegex);
+      if(itemM)gjeldendeBlokk.items.push(itemM[1].trim());
+    }
+  }
+
   return result;
 }
 
@@ -1865,10 +1957,10 @@ function takstSammendrag(t){
     PANSER_DEMO:{kat:/\bpanser\b/i,optype:['N','G'],navn:'De/Mo innvendige detaljer',mal:'Vurder å legge til De/Mo innvendige detaljer (pansermatte)',farge:'rød'},
     PANSER_TILST_ASTOLPE:{kat:/\bpanser\b/i,optype:['N','G'],navn:'Tilstøtende A-stolpe',mal:'Vurder å ta med tilstøtende flate mot A-stolpe begge sider (fargeavhengig)',farge:'gul'},
     PANSER_TILST_FORSKJERM:{kat:/\bpanser\b/i,optype:['N','G'],ikkeVedSvart:true,navn:'Tilstøtende forskjerm',mal:'Vurder å ta med tilstøtende flate mot forskjerm begge sider (fargeavhengig)',farge:'gul'},
-    PANSER_EMBLEM:{kat:/\bpanser\b/i,optype:['N','G'],navn:'Emblem',mal:'Sjekk om emblem på panser må bestilles nytt',farge:'gul'},
+    PANSER_EMBLEM:{kat:/\bpanser\b/i,optype:['N','G'],skjulHvisDetaljIkkeFunnet:'emblem',navn:'Emblem',mal:'Sjekk om emblem på panser må bestilles nytt',farge:'gul'},
 
     DOR_FELLES_RUST:{deterministisk:true,navn:'Rustbeskyttelse',mal:'',farge:'rød'},
-    DOR_FELLES_DEMO:{kat:/\bfordør\b|\bbakdør\b/i,optype:['N','G'],navn:'De/Mo innvendige detaljer',mal:'Vurder å legge til De/Mo innvendige detaljer (vindusheis, dørtrekk)',farge:'rød'},
+    DOR_FELLES_DEMO:{kat:/\bfordør\b|\bbakdør\b/i,optype:['N','G'],skjulHvisDetaljFunnet:['trekk','deksel','ruteheis','vindusheis'],navn:'De/Mo innvendige detaljer',mal:'Vurder å legge til De/Mo innvendige detaljer (vindusheis, dørtrekk)',farge:'rød'},
     DOR_FELLES_UB:{deterministisk:true,navn:'UB',mal:'',farge:'rød'},
     DOR_FELLES_HTT_HANDTAK:{kat:/\bfordør\b|\bbakdør\b/i,optype:['N','G'],navn:'HTT dørhåndtak',mal:'RETTET (G): Sjekk om dørhåndtaket er lakkert – i så fall vurder HTT 15p i annetbildet. SKIFTET (N, ny ELLER brukt dør): spør PROAKTIVT om håndtaket fra erstatningsdøra bør lakkeres som tilstøtende siden det normalt ikke matcher bilens farge – nevn HTT 15p for håndtaket i SAMME forslag hvis det lakkeres.',farge:'gul'},
     FORDOR_DIAGNOSE_AIRBAG:{kat:/\bfordør\b/i,optype:['N','G'],navn:'Diagnose airbag',mal:'Vurder å legge til diagnose (slette airbag-feilkoder, 50p)',farge:'gul'},
@@ -1883,8 +1975,8 @@ function takstSammendrag(t){
     BAKSKJERM_G_UB:{deterministisk:true,navn:'UB',mal:'',farge:'rød'},
     BAKSKJERM_G_TILST_BAKDOR:{kat:/bakskjerm/i,optype:['G'],ikkeVedSvart:true,navn:'Tilstøtende bakdør',mal:'Spør om tilstøtende mot bakdør er aktuelt',farge:'gul'},
     BAKSKJERM_G_HJULBUELISTE:{kat:/bakskjerm/i,optype:['G'],sjekkNevntIRaw:'hjulbueliste',navn:'HTT hjulbueliste',mal:'Sjekk om bakskjerm har lakkerbar hjulbueliste',farge:'gul'},
-    BAKSKJERM_G_TANKLUKE:{kat:/bakskjerm/i,optype:['G'],navn:'Tankluke',mal:'Sjekk om tankluken på bakskjerm bør vurderes som tilstøtende',farge:'gul'},
-    BAKSKJERM_G_LOFTETAPE:{kat:/bakskjerm/i,optype:['G'],navn:'Løftetape',mal:'Sjekk om det finnes en synlig rute mot bakskjerm – løftetape (20p) brukes til å løfte pakningen rundt ruten (derav navnet), ikke knyttet til selve rettearbeidet (kun personbil, ikke varebil). Er du i tvil om det er en rute i bildet: status="usikker", ALDRI "ikke relevant" (v2.43-regelen) – dette er selve eksempelet den regelen nevner.',farge:'gul'},
+    BAKSKJERM_G_TANKLUKE:{kat:/bakskjerm/i,optype:['G'],sjekkAlleredeForLakkspes:['tankluk','ladeluk','bensinluk','strøminntak','dekklokk'],navn:'Tankluke',mal:'Sjekk om tankluken på bakskjerm bør vurderes som tilstøtende',farge:'gul'},
+    BAKSKJERM_G_LOFTETAPE:{kat:/bakskjerm/i,optype:['G'],sjekkAlleredeForLakkspes:['løftetape','loftetape'],navn:'Løftetape',mal:'Sjekk om det finnes en synlig rute mot bakskjerm – løftetape (20p) brukes til å løfte pakningen rundt ruten (derav navnet), ikke knyttet til selve rettearbeidet (kun personbil, ikke varebil). Er du i tvil om det er en rute i bildet: status="usikker", ALDRI "ikke relevant" (v2.43-regelen) – dette er selve eksempelet den regelen nevner.',farge:'gul'},
     BAKSKJERM_G_POLERE_FLIKK:{kat:/bakskjerm/i,optype:['G'],navn:'Polere flikk',mal:'Vurder polere flikk 20p hvis takstolpe ikke lakkes helt ut',farge:'gul'},
 
     BAKSKJERM_N_RUST:{deterministisk:true,navn:'Rustbeskyttelse',mal:'',farge:'rød'},
@@ -1893,7 +1985,7 @@ function takstSammendrag(t){
     BAKSKJERM_N_TILST_KANAL:{kat:/bakskjerm/i,optype:['N'],navn:'Tilstøtende kanal',mal:'Spør om tilstøtende bakskjerm eller arealavhengig lakk av kanal er aktuelt',farge:'gul'},
     BAKSKJERM_N_POLERE_FLIKK:{kat:/bakskjerm/i,optype:['N'],navn:'Polere flikk',mal:'Vurder polere flikk 20p hvis takstolpe/kanal ikke lakkes helt frem',farge:'gul'},
     BAKSKJERM_N_HJULBUELISTE:{kat:/bakskjerm/i,optype:['N'],sjekkNevntIRaw:'hjulbueliste',navn:'HTT hjulbueliste',mal:'Sjekk om bakskjerm har lakkerbar hjulbueliste',farge:'gul'},
-    BAKSKJERM_N_TANKLUKE:{kat:/bakskjerm/i,optype:['N'],navn:'Tankluke',mal:'Sjekk om tankluke sitter på den skiftede bakskjermen',farge:'gul'},
+    BAKSKJERM_N_TANKLUKE:{kat:/bakskjerm/i,optype:['N'],sjekkAlleredeForLakkspes:['tankluk','ladeluk','bensinluk','strøminntak','dekklokk'],navn:'Tankluke',mal:'Sjekk om tankluke sitter på den skiftede bakskjermen',farge:'gul'},
     BAKSKJERM_N_INNV_LAKK:{kat:/bakskjerm/i,optype:['N'],navn:'Innvendig lakkering bakskjermkant',mal:'Vurder å legge til innvendig lakkering bakskjermkant (fremre 62p + bakre 19p)',farge:'rød'},
     BAKSKJERM_N_KAROSSERILIM:{kat:/bakskjerm/i,optype:['N'],navn:'Karosserilim/blanderør',mal:'Vurder å legge til kostnad karosserilim og/eller blanderør hvis dette skal brukes',farge:'gul'},
     BAKSKJERM_N_DOKUMENTASJON:{kat:/bakskjerm/i,optype:['N'],navn:'Dokumentasjon',mal:'Vurder å ta med kostnad for innhenting av dokumentasjon for skift av bakskjerm',farge:'gul'},
@@ -1931,7 +2023,6 @@ function takstSammendrag(t){
     DET_BESKYTTELSESFOLIE:{deterministisk:true,navn:'Beskyttelsesfolie',mal:'',farge:'gul'},
     DET_TREKKETARN:{deterministisk:true,navn:'Trekketårn/rigging',mal:'',farge:'gul'},
     DET_MERCEDES_RIPEFAST:{deterministisk:true,navn:'Mercedes ripefast klarlakk',mal:'',farge:'gul'},
-    STOTFANGER_MASKERING_GRILL:{kat:/støtfanger/i,optype:['N','G'],navn:'Maskering grill/nedre del',mal:'Vurder å legge til maskering av grill og nedre del av støtfanger i annetbildet – dekkes ikke av standard hoveddel-maskering',farge:'gul'},
   };
   const REGEL_REGISTRY=window.REGEL_REGISTRY;
 
@@ -1985,6 +2076,52 @@ function takstSammendrag(t){
       if(r.sjekkNevntIRaw){
         const ordRe=new RegExp('\\b'+r.sjekkNevntIRaw+'\\b','i');
         if(!ordRe.test(t.raw||''))return false;
+      }
+      // v2.54: sjekkAlleredeForLakkspes – stopp å spørre hvis en linje som allerede dekker
+      // konseptet finnes i takstens Lakkspesifikasjon/Utvendig lakk. Bekreftet lekkasje:
+      // Mercedes-Benz EQE hadde "H Luke, strøminntak" (ladeluke) allerede som egen linje i
+      // lakkspes, og "Maskering med løftetape" allerede ført 20p – begge ble likevel spurt
+      // om på nytt. Søker i RÅ TEKST (dekker både lakkspes-tabellen og Annet-linjer som
+      // "Maskering med løftetape"), ikke bare strukturert lakkspes-array, siden noen treff
+      // (som løftetape) står under Annet, ikke i selve Utvendig lakk-tabellen.
+      if(r.sjekkAlleredeForLakkspes){
+        const raw=t.raw||'';
+        const alleredeFørt=r.sjekkAlleredeForLakkspes.some(ord=>new RegExp(ord,'i').test(raw));
+        if(alleredeFørt)return false;
+      }
+      // v2.54: DETALJSPESIFIKASJON – to nye flagg som begge bruker det samme fasit-datasettet
+      // (t.detaljspes_pos), men i hver sin retning:
+      //   skjulHvisDetaljFunnet: delen ER dekket hvis et av søkeordene finnes i den matchende
+      //     Pos.-blokken (f.eks. "trekk"/"deksel" beviser at De/Mo innvendig alt er med).
+      //   skjulHvisDetaljIkkeFunnet: delen skal IKKE foreslås hvis søkeordet IKKE finnes i en
+      //     FAKTISK FUNNET Pos.-blokk (f.eks. "emblem" ikke nevnt på denne bilens panser).
+      //     Finnes INGEN matchende blokk i det hele tatt (siden ikke parset/relevant), beholdes
+      //     ID-en – vi kan aldri bevise et fravær vi ikke har data på (samme fallback-prinsipp
+      //     som resten av v2.4x/v2.5x).
+      if((r.skjulHvisDetaljFunnet||r.skjulHvisDetaljIkkeFunnet)&&t.detaljspes_pos&&t.detaljspes_pos.length){
+        const finnBlokk=()=>{
+          const dn=normaliserDelnavn(d.navn);
+          return t.detaljspes_pos.find(blokk=>{
+            let pn=blokk.pos.toLowerCase().replace(/\s+/g,' ').trim();
+            pn=pn.replace(/^([hv])\s+/,'').replace(/\s+([hv])$/,'');
+            pn=pn.replace(/^dør\s+fremre$/,'fordør').replace(/^dør\s+bakre$/,'bakdør')
+                 .replace(/^skjerm\s+fremre$/,'forskjerm').replace(/^skjerm\s+bakre$/,'bakskjerm');
+            return pn===dn||dn.includes(pn)||pn.includes(dn);
+          });
+        };
+        const blokk=finnBlokk();
+        if(blokk){
+          const itemTekst=blokk.items.join(' | ').toLowerCase();
+          if(r.skjulHvisDetaljFunnet){
+            const funnet=r.skjulHvisDetaljFunnet.some(ord=>itemTekst.includes(ord));
+            if(funnet)return false;
+          }
+          if(r.skjulHvisDetaljIkkeFunnet){
+            const funnet=itemTekst.includes(r.skjulHvisDetaljIkkeFunnet);
+            if(!funnet)return false;
+          }
+        }
+        // ingen blokk funnet → ID beholdes, ingen antakelse gjort
       }
       return r.kat.test(d.navn)&&r.optype.includes(d.optype);
     });
@@ -2787,7 +2924,7 @@ For hver del i taksten – sjekk disse punktene:
 
 13. NAGLING: dekkes av BAKSKJERM_N_KAROSSERILIM-ID-en (lim og/eller nagler) – ikke skriv eget nagling-forslag.
 
-14. MASKERING STØTFANGER (grill/nedre del): ID-migrert (v2.39) – bruk STOTFANGER_MASKERING_GRILL fra delsjekk, ikke fritekst. (Bakgrunn: grill og nedre del dekkes kun av hoveddel 1 del i DBS.)
+14. MASKERING STØTFANGER (grill/nedre del): FJERNET (v2.54, Martin: "aller helst ikke"). Grill/nedre del er ofte svarte, ulakkerte deler, og ved fullt skift er det uansett ingenting å maskere. Foreslå ALDRI dette.
 
 15. BESKYTTELSESFOLIE: håndteres automatisk av koden (v2.39) – ikke skriv eget forslag.
 
@@ -3070,7 +3207,11 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           // EH84270, til tross for at malen selv sier "KUN for: slepekrokdeksel, spyledeksel,
           // lister" – mal-fallback beskytter kun TOMME svar, ikke feil Claude faktisk skriver.
           if((p.id==='STOTFANGER_HTT_LOSE'||p.id==='STOTFANGER_50_SMADELER')&&p.forslag){
-            const forbudtStotfangerDel=/\bsensor\w*|\bgitter\b|luftstyring|ramme\s*tåkelykt|\bbrakett\w*/i;
+            // v2.54: fjernet \b foran "sensor" – sammensatte ord som "parkeringssensorlokk"
+            // har ingen ordgrense der (bekreftet miss på XPENG-lignende sak). Lagt til
+            // "ryggelys"/generell "ramme" – bekreftet på Nissan Leaf: begge er utenfor
+            // positivlisten (kun slepekrokdeksel/spyledeksel/lister er tillatt).
+            const forbudtStotfangerDel=/sensor\w*|\bgitter\b|luftstyring|\bramme\w*|\bbrakett\w*|ryggelys/i;
             if(forbudtStotfangerDel.test(p.forslag)){
               console.log('[POST-FILTER v2.52] Avvist STØTFANGER-forslag utenfor positivliste ('+p.id+'): "'+p.forslag+'"');
               return;
@@ -3422,6 +3563,18 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           const dnOrd=dn.split(/\s+/).filter(o=>o.length>=3);
           const lOrd=lStripped.split(/\s+/).filter(o=>o.length>=3);
           if(dnOrd.length>=2&&lOrd.length>=2&&dnOrd[0]===lOrd[0]&&dnOrd[1]===lOrd[1])return true;
+          // v2.54: PORTET FRA harLakkPost (v1/HURTIGFAKTA) – harLakkPost2 (post-filter)
+          // hadde denne rekkefølge-uavhengige fallbacken (v2.8) fra før, harLakkPost2 ikke.
+          // Bekreftet miss: "Spoiler støtfanger bak grunnet" traff ikke "Støtfanger bak
+          // nedre" fordi "Spoiler" som ord[0] ødela den posisjonelle to-første-ord-sjekken
+          // over, selv om "støtfanger"+"bak" faktisk deles. Denne fallbacken teller delte
+          // meningsbærende ord uansett posisjon (krever minst 2 delte ord, og minst ett som
+          // ikke bare er et posisjonsord som bak/øvre/nedre).
+          const posOrd2=new Set(['bak','foran','øvre','nedre','midtre','venstre','høyre','indre','ytre','fremre','bakre','del']);
+          const dnSet2=new Set(dnOrd), lSet2=new Set(lOrd);
+          const fellesOrd2=[...dnSet2].filter(o=>lSet2.has(o));
+          const fellesHoveddel2=fellesOrd2.filter(o=>!posOrd2.has(o));
+          if(fellesOrd2.length>=2&&fellesHoveddel2.length>=1)return true;
           return false;
         });
       }
@@ -3432,13 +3585,58 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
       parserData.karosseri_flaterett.forEach(p=>{
         if(!harLakkPost2(p.del))manglendeLakk.push({del:p.del,type:'flaterett'});
       });
-      if(parserData.plastspes&&parserData.plastspes.aktivert&&parserData.plastspes.del){
-        if(!harLakkPost2(parserData.plastspes.del)){
-          // Unngå duplikat
-          if(!manglendeLakk.some(m=>m.del.toLowerCase().includes(parserData.plastspes.del.toLowerCase().substring(0,15)))){
-            manglendeLakk.push({del:parserData.plastspes.del,type:'plastreparasjon (plastspes aktivert)'});
+      // v2.54: LOOPER OVER HELE .deler-LISTEN, ikke bare .del (første element). Bekreftet
+      // miss: Audi E-tron EC26556 hadde TO deler i samme Plastspesifikasjon-gruppe
+      // ("H P-list bakdør" + "H Skjermutbygger bakdør") – kun første ble sjekket, den andre
+      // manglet lakk-post og ble aldri fanget. .deler-arrayen fantes allerede i parseren
+      // (v2.7), bare ubrukt her. Fallback til .del alene hvis .deler mangler (eldre struktur).
+      const plastspesDeler=(parserData.plastspes&&parserData.plastspes.aktivert)
+        ?(Array.isArray(parserData.plastspes.deler)&&parserData.plastspes.deler.length
+          ?parserData.plastspes.deler
+          :(parserData.plastspes.del?[parserData.plastspes.del]:[]))
+        :[];
+      plastspesDeler.forEach(delNavn=>{
+        if(!delNavn)return;
+        if(!harLakkPost2(delNavn)){
+          if(!manglendeLakk.some(m=>m.del.toLowerCase().includes(delNavn.toLowerCase().substring(0,15)))){
+            manglendeLakk.push({del:delNavn,type:'plastreparasjon (plastspes aktivert)'});
           }
         }
+      });
+      // v2.54: MOTSATT RETNING av grunning-sjekken lenger ned – der sjekkes "finnes det en
+      // grunning-linje, har DEN lakkspes"; her sjekkes "har denne plastrep-delen en grunning-
+      // linje i det hele tatt". Martin (fagmann, bekreftet): grunning for topplakk er ALLTID
+      // påkrevd ved plastrep, uten unntak for skadetype. Bekreftet miss: samme Audi-sak hadde
+      // INGEN grunning ført for noen av de to plastrep-delene.
+      const manglendeGrunning=[];
+      plastspesDeler.forEach(delNavn=>{
+        if(!delNavn)return;
+        const harGrunningForDenne=parserData.lakkmateriell_annet.some(m=>{
+          const navn=(m.navn||'').toLowerCase();
+          if(!navn.includes('grunning for topplakk')&&!navn.includes('grunning topplakk'))return false;
+          const delMatch=m.navn.match(/^(.+?),\s*grunning/i);
+          if(!delMatch)return false;
+          return harLakkPost2(delMatch[1].trim())&&harLakkPost2(delNavn)
+            &&normaliserDelnavn2(delMatch[1].trim())===normaliserDelnavn2(delNavn);
+        });
+        if(!harGrunningForDenne)manglendeGrunning.push(delNavn);
+      });
+      if(manglendeGrunning.length){
+        if(!parsed.sammendrag)parsed.sammendrag={};
+        if(!Array.isArray(parsed.sammendrag.dbs_handlinger))parsed.sammendrag.dbs_handlinger=[];
+        if(!Array.isArray(parsed.resultater))parsed.resultater=[];
+        manglendeGrunning.forEach(delNavn=>{
+          const forslagTekst=`Grunning for topplakk mangler for ${delNavn} – dette er plastreparert og skal ALLTID ha grunning for topplakk ført i plastspesifikasjonen, uansett skadetype.`;
+          const alleredeFlagget=parsed.sammendrag.dbs_handlinger.some(d=>{
+            const lc=d.toLowerCase();
+            return lc.includes(delNavn.toLowerCase().substring(0,15))&&lc.includes('grunning');
+          });
+          if(!alleredeFlagget){
+            parsed.sammendrag.dbs_handlinger.push(forslagTekst);
+            parsed.resultater.push({tittel:`Grunning mangler: ${delNavn}`,melding:forslagTekst,farge:'rød',plassering:'Plastspesifikasjon'});
+            console.log(`[POST-FILTER v2.54] LAGT TIL manglende grunning: "${delNavn}"`);
+          }
+        });
       }
       // v2.2 NY: Grunning for topplakk → del MÅ være i lakkspes
       parserData.lakkmateriell_annet.forEach(m=>{
