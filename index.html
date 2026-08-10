@@ -1941,11 +1941,11 @@ function takstSammendrag(t){
   // IKKE migrert ennå: støtfanger/plastrep/50%-regelen (egen, større jobb – tas i neste runde).
   if(!window.REGEL_REGISTRY)window.REGEL_REGISTRY={
     TAK_RUST:{deterministisk:true,navn:'Rustbeskyttelse',mal:'',farge:'rød'},
-    TAK_DEMO:{kat:/\btak(?:plate)?\b/i,optype:['N','G'],navn:'De/Mo innvendige detaljer',mal:'Vurder å legge til De/Mo innvendige detaljer (himling)',farge:'rød'},
+    TAK_DEMO:{kat:/\btak(?:plate)?\b/i,optype:['N','G'],skjulHvisDetaljFunnet:['trekk','løsne'],navn:'De/Mo innvendige detaljer',mal:'Vurder å legge til De/Mo innvendige detaljer (himling)',farge:'rød'},
     TAK_TILST_TAKRENNE:{kat:/\btak(?:plate)?\b/i,optype:['N','G'],navn:'Tilstøtende takrenne/A-stolpe',mal:'Vurder å ta med tilstøtende flate mot takrenne/A-stolpe begge sider (fargeavhengig)',farge:'gul'},
     TAK_UB_INNVENDIG:{kat:/\btak(?:plate)?\b/i,optype:['N','G'],navn:'UB innvendig tak',mal:'Vurder å legge til UB understellsbehandling innvendig tak (150kr)',farge:'rød'},
     TAK_TAKRAILS:{kat:/\btak(?:plate)?\b/i,optype:['N','G'],navn:'Takrails/skinner',mal:'Sjekk om takrails/skinner må demonteres',farge:'gul'},
-    TAK_ANTENNER:{kat:/\btak(?:plate)?\b/i,optype:['N','G'],navn:'Antenner',mal:'Sjekk om antenner må demonteres',farge:'gul'},
+    TAK_ANTENNER:{kat:/\btak(?:plate)?\b/i,optype:['N','G'],skjulHvisDetaljFunnet:['antenne'],navn:'Antenner',mal:'Sjekk om antenner må demonteres',farge:'gul'},
 
     FORSKJERM_N_RUST:{deterministisk:true,navn:'Rustbeskyttelse',mal:'',farge:'rød'},
     FORSKJERM_N_UB:{deterministisk:true,navn:'UB',mal:'',farge:'rød'},
