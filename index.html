@@ -1941,11 +1941,11 @@ function takstSammendrag(t){
   // IKKE migrert ennå: støtfanger/plastrep/50%-regelen (egen, større jobb – tas i neste runde).
   if(!window.REGEL_REGISTRY)window.REGEL_REGISTRY={
     TAK_RUST:{deterministisk:true,navn:'Rustbeskyttelse',mal:'',farge:'rød'},
-    TAK_DEMO:{kat:/\btak\b/i,optype:['N','G'],navn:'De/Mo innvendige detaljer',mal:'Vurder å legge til De/Mo innvendige detaljer (himling)',farge:'rød'},
-    TAK_TILST_TAKRENNE:{kat:/\btak\b/i,optype:['N','G'],navn:'Tilstøtende takrenne/A-stolpe',mal:'Vurder å ta med tilstøtende flate mot takrenne/A-stolpe begge sider (fargeavhengig)',farge:'gul'},
-    TAK_UB_INNVENDIG:{kat:/\btak\b/i,optype:['N','G'],navn:'UB innvendig tak',mal:'Vurder å legge til UB understellsbehandling innvendig tak (150kr)',farge:'rød'},
-    TAK_TAKRAILS:{kat:/\btak\b/i,optype:['N','G'],navn:'Takrails/skinner',mal:'Sjekk om takrails/skinner må demonteres',farge:'gul'},
-    TAK_ANTENNER:{kat:/\btak\b/i,optype:['N','G'],navn:'Antenner',mal:'Sjekk om antenner må demonteres',farge:'gul'},
+    TAK_DEMO:{kat:/\btak(?:plate)?\b/i,optype:['N','G'],navn:'De/Mo innvendige detaljer',mal:'Vurder å legge til De/Mo innvendige detaljer (himling)',farge:'rød'},
+    TAK_TILST_TAKRENNE:{kat:/\btak(?:plate)?\b/i,optype:['N','G'],navn:'Tilstøtende takrenne/A-stolpe',mal:'Vurder å ta med tilstøtende flate mot takrenne/A-stolpe begge sider (fargeavhengig)',farge:'gul'},
+    TAK_UB_INNVENDIG:{kat:/\btak(?:plate)?\b/i,optype:['N','G'],navn:'UB innvendig tak',mal:'Vurder å legge til UB understellsbehandling innvendig tak (150kr)',farge:'rød'},
+    TAK_TAKRAILS:{kat:/\btak(?:plate)?\b/i,optype:['N','G'],navn:'Takrails/skinner',mal:'Sjekk om takrails/skinner må demonteres',farge:'gul'},
+    TAK_ANTENNER:{kat:/\btak(?:plate)?\b/i,optype:['N','G'],navn:'Antenner',mal:'Sjekk om antenner må demonteres',farge:'gul'},
 
     FORSKJERM_N_RUST:{deterministisk:true,navn:'Rustbeskyttelse',mal:'',farge:'rød'},
     FORSKJERM_N_UB:{deterministisk:true,navn:'UB',mal:'',farge:'rød'},
@@ -2159,7 +2159,7 @@ function takstSammendrag(t){
   const lakkspesNavnLower=t.lakkspes.filter(d=>!d.tillegg).map(d=>(d.navn||'').toLowerCase());
   const alleDelKategorier=[
     {re:/bakskjerm/i},{re:/forskjerm/i},{re:/\bpanser\b/i},
-    {re:/\bfordør\b/i},{re:/\bbakdør\b/i},{re:/\btak\b/i},
+    {re:/\bfordør\b/i},{re:/\bbakdør\b/i},{re:/\btak(?:plate)?\b/i},
     // v2.52: støtfanger krever "grunnet" i delnavnet – bekreftet av Martin: en del som er
     // grunnet ankommer klargjort fra leverandør, så lakkering er GITT (alltid ekte funn,
     // aldri falsk positiv). Uten dette matchet /støtfanger/i også svarte smådeler som aldri
@@ -3269,7 +3269,7 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
       // duplikat-tekst som bare sier "støtfanger" (uten posisjon). Literal delBaseNavn-match
       // bommer på dette siden hele det spesifikke navnet ikke er en delstreng av den kortere
       // teksten. Bruk samme kategori-mønster som DELSTATUS selv bruker for å utlede del-typen.
-      const delKategoriMønstre=[/bakskjerm/i,/forskjerm/i,/\bpanser\b/i,/\bfordør\b/i,/\bbakdør\b/i,/\btak\b/i,/støtfanger/i];
+      const delKategoriMønstre=[/bakskjerm/i,/forskjerm/i,/\bpanser\b/i,/\bfordør\b/i,/\bbakdør\b/i,/\btak(?:plate)?\b/i,/støtfanger/i];
       const delKategorier=delKategoriMønstre.filter(re=>delBaseNavn.some(navn=>re.test(navn)));
       if(delBaseNavn.length){
         parsed.resultater=parsed.resultater.filter(r=>{
@@ -3689,7 +3689,7 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
       // DELSTATUS (som kun bygges fra eksisterende lakkspes-rader).
       const delReglerPF=[
         {re:/bakskjerm/i},{re:/forskjerm/i},{re:/\bpanser\b/i},
-        {re:/\bfordør\b/i},{re:/\bbakdør\b/i},{re:/\btak\b/i},{re:/støtfanger/i},
+        {re:/\bfordør\b/i},{re:/\bbakdør\b/i},{re:/\btak(?:plate)?\b/i},{re:/støtfanger/i},
       ];
       const lakkspesNavnLowerPF=parserData.lakkspes.filter(d=>!d.tillegg).map(d=>(d.navn||'').toLowerCase());
       const skiftetUtenLakkspesRadPF=[];
