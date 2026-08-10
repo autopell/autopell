@@ -2100,7 +2100,13 @@ function takstSammendrag(t){
       //     som resten av v2.4x/v2.5x).
       if((r.skjulHvisDetaljFunnet||r.skjulHvisDetaljIkkeFunnet)&&t.detaljspes_pos&&t.detaljspes_pos.length){
         const finnBlokk=()=>{
-          const dn=normaliserDelnavn(d.navn);
+          // v2.54-FIX: bruker en enkel, lokal normalisering i stedet for normaliserDelnavn()
+          // – den funksjonen leser en "const synonymer"-liste som blir deklarert LENGER NED
+          // i samme funksjon (takstSammendrag), og siden dette kjører FØR den linja nås i
+          // eksekveringsrekkefølgen, ga det et ekte krasj ("Cannot access 'synonymer' before
+          // initialization") bekreftet i produksjon på VW ID.5 EE34706. Denne blokken trenger
+          // ikke synonymordboken – dør/skjerm-synonymene håndteres allerede eksplisitt under.
+          const dn=d.navn.toLowerCase().replace(/^[vh]\s+/,'').replace(/\(.*?\)/g,'').replace(/,.*$/,'').trim();
           return t.detaljspes_pos.find(blokk=>{
             let pn=blokk.pos.toLowerCase().replace(/\s+/g,' ').trim();
             pn=pn.replace(/^([hv])\s+/,'').replace(/\s+([hv])$/,'');
