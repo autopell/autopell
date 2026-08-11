@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.57 – Smart kontroll av takster</title>
+<title>AutoPell v2.58 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.57</div>
+    <div class="version-badge">v2.58</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,6 +260,16 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+/* AutoPell v2.58 – endringer fra v2.57 (1 punkt):
+
+   GRUNNING-DUPLIKAT FJERNET. Bekreftet av Martin: Skoda Enyaq EC68739 fikk BÅDE Claudes egen
+   STOTFANGER_GRUNNING_TOPPLAKK-forslag OG den nye deterministiske manglendeGrunning-sjekken
+   (v2.54) om nøyaktig samme hull – grunning for topplakk mangler på spoiler/støtfanger.
+   Samme feilklasse som TAK_UB_INNVENDIG-duplikaten i v2.55: to uavhengige veier fram til
+   samme konklusjon, aldri koblet sammen. Siden manglendeGrunning-loopen kjører ETTER Claudes
+   egen delsjekk-runde, har brukteIDer allerede STOTFANGER_GRUNNING_TOPPLAKK hvis Claude
+   foreslo det der – da hopper vi over vår egen, ellers kjører den som normalt.
+
 /* AutoPell v2.57 – endringer fra v2.56 (1 punkt):
 
    DETALJSPESIFIKASJON-MATCHING – KORT-/LANGFORM PÅ POSISJONSNAVN. Bekreftet miss: Citroën
@@ -3688,6 +3698,15 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
       // påkrevd ved plastrep, uten unntak for skadetype. Bekreftet miss: samme Audi-sak hadde
       // INGEN grunning ført for noen av de to plastrep-delene.
       const manglendeGrunning=[];
+      // v2.58: DUPLIKAT FJERNET. Bekreftet: Skoda Enyaq EC68739 fikk BÅDE Claudes egen
+      // STOTFANGER_GRUNNING_TOPPLAKK-forslag OG denne deterministiske manglendeGrunning-
+      // sjekken om nøyaktig samme hull (grunning for topplakk mangler på spoiler/støtfanger).
+      // Samme feilklasse som TAK_UB_INNVENDIG-duplikaten (v2.55) – to uavhengige veier til
+      // samme konklusjon, aldri koblet sammen. Denne loopen kjører ETTER Claudes egen
+      // delsjekk-runde, så brukteIDer har alt STOTFANGER_GRUNNING_TOPPLAKK hvis Claude
+      // allerede foreslo det – da lar vi Claudes forslag stå og hopper over vårt eget.
+      const claudeAlleredeForeslo=brukteIDer.has('STOTFANGER_GRUNNING_TOPPLAKK');
+      if(!claudeAlleredeForeslo){
       plastspesDeler.forEach(delNavn=>{
         if(!delNavn)return;
         const harGrunningForDenne=parserData.lakkmateriell_annet.some(m=>{
@@ -3700,6 +3719,7 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
         });
         if(!harGrunningForDenne)manglendeGrunning.push(delNavn);
       });
+      }
       if(manglendeGrunning.length){
         if(!parsed.sammendrag)parsed.sammendrag={};
         if(!Array.isArray(parsed.sammendrag.dbs_handlinger))parsed.sammendrag.dbs_handlinger=[];
