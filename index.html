@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.58 – Smart kontroll av takster</title>
+<title>AutoPell v2.59 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.58</div>
+    <div class="version-badge">v2.59</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,6 +260,18 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+/* AutoPell v2.59 – endringer fra v2.58 (1 punkt, krasj-rettelse):
+
+   "brukteIDer is not defined" – EKTE PRODUKSJONSKRASJ, min feil fra v2.58. brukteIDer er
+   deklarert inne i en TIDLIGERE funksjonsblokk som avsluttes (linje ~3431) FØR blokken der
+   grunning-duplikat-sjekken min faktisk kjører – variabelen finnes rett og slett ikke der.
+   TAK_UB_INNVENDIG-sjekken (v2.55) bruker brukteIDer trygt fordi den ligger INNENFOR riktig
+   blokk; min nye kode lenger nede gjorde det ikke. Rettet ved å lese samme informasjon fra
+   parsed.delsjekk i stedet (som ER tilgjengelig der – brukt av min egen kode rett under, og
+   det er selve datastrukturen Claudes svar ligger i uansett) – sjekker om Claude selv har et
+   punkt med id 'STOTFANGER_GRUNNING_TOPPLAKK' og status "foreslått"/"usikker".
+   Testet: 3/3 (Skoda-scenario med Claude-forslag, annen status, tom liste).
+
 /* AutoPell v2.58 – endringer fra v2.57 (1 punkt):
 
    GRUNNING-DUPLIKAT FJERNET. Bekreftet av Martin: Skoda Enyaq EC68739 fikk BÅDE Claudes egen
@@ -3705,7 +3717,14 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
       // samme konklusjon, aldri koblet sammen. Denne loopen kjører ETTER Claudes egen
       // delsjekk-runde, så brukteIDer har alt STOTFANGER_GRUNNING_TOPPLAKK hvis Claude
       // allerede foreslo det – da lar vi Claudes forslag stå og hopper over vårt eget.
-      const claudeAlleredeForeslo=brukteIDer.has('STOTFANGER_GRUNNING_TOPPLAKK');
+      // v2.59-FIX: brukteIDer finnes kun i en TIDLIGERE, allerede avsluttet funksjonsblokk
+      // – ikke tilgjengelig her, ga et ekte "brukteIDer is not defined"-krasj i produksjon.
+      // Leser i stedet direkte fra parsed.delsjekk (som ER tilgjengelig i denne blokken,
+      // brukt noen linjer under her allerede) for å se om Claude selv foreslo
+      // STOTFANGER_GRUNNING_TOPPLAKK for et støtfanger-relatert delsjekk-punkt.
+      const claudeAlleredeForeslo=(parsed.delsjekk||[]).some(d=>
+        (d.punkter||[]).some(p=>p.id==='STOTFANGER_GRUNNING_TOPPLAKK'&&(p.status==='foreslått'||p.status==='usikker'))
+      );
       if(!claudeAlleredeForeslo){
       plastspesDeler.forEach(delNavn=>{
         if(!delNavn)return;
