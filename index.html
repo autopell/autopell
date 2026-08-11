@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.56 – Smart kontroll av takster</title>
+<title>AutoPell v2.57 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.56</div>
+    <div class="version-badge">v2.57</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,6 +260,22 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+/* AutoPell v2.57 – endringer fra v2.56 (1 punkt):
+
+   DETALJSPESIFIKASJON-MATCHING – KORT-/LANGFORM PÅ POSISJONSNAVN. Bekreftet miss: Citroën
+   E-C4 X EF78691 hadde Detaljspesifikasjon-blokken "Skjerm bak H" (kortform), mens v2.54s
+   synonym-mønster kun godtok langformen "Skjerm bakre H". BAKSKJERM_G_TANKLUKE ble derfor
+   ALDRI koblet til riktig blokk – fallback-prinsippet ("ingen treff → behold ID") slo inn av
+   feil grunn, ikke fordi tankluke faktisk var usikker.
+   To runder på fiksen: første forsøk brukte "bakre?" som regex-endelse, som pga vanlig
+   operatorforrang betyr "bak" + obligatorisk "r" + valgfri "e" (matcher "bakr"/"bakre"), IKKE
+   "bak med valgfri -re-endelse". Rettet til korrekt gruppering "bak(?:re)?"/"frem(?:re)?" –
+   fanget og rettet FØR publisering ved å teste den faktiske regexen isolert, ikke bare anta
+   den var riktig fordi den så riktig ut.
+   Testet mot 7 kombinasjoner (kort/langform bak/frem for både dør og skjerm, pluss en
+   urelatert kategori som skal stå urørt) og mot hele den ekte Citroën-taksten end-to-end:
+   blokken finnes nå korrekt, ingen tankluke-ord i "Skjerm bak H"-listen → forslaget skjules.
+
 /* AutoPell v2.56 – endringer fra v2.55 (1 punkt):
 
    TANKLUKE KOBLET TIL DETALJSPESIFIKASJON. Martin: sjekk Detaljspesifikasjon for tankluke/
@@ -2143,8 +2159,13 @@ function takstSammendrag(t){
           return t.detaljspes_pos.find(blokk=>{
             let pn=blokk.pos.toLowerCase().replace(/\s+/g,' ').trim();
             pn=pn.replace(/^([hv])\s+/,'').replace(/\s+([hv])$/,'');
-            pn=pn.replace(/^dør\s+fremre$/,'fordør').replace(/^dør\s+bakre$/,'bakdør')
-                 .replace(/^skjerm\s+fremre$/,'forskjerm').replace(/^skjerm\s+bakre$/,'bakskjerm');
+            // v2.57: bekreftet miss på Citroën E-C4 X EF78691 – Detaljspesifikasjon brukte
+            // kortformen "Skjerm bak H" (ikke "Skjerm bakre H"), som ikke matchet det gamle
+            // strenge \bbakre$/\bfremre$-mønsteret. BAKSKJERM_G_TANKLUKE ble aldri
+            // undertrykt fordi blokken rett og slett ikke ble funnet (fallback beholdt ID-en
+            // av feil grunn). Godtar nå BÅDE kort- og langform (bak/bakre, frem/fremre).
+            pn=pn.replace(/^dør\s+frem(?:re)?$/,'fordør').replace(/^dør\s+bak(?:re)?$/,'bakdør')
+                 .replace(/^skjerm\s+frem(?:re)?$/,'forskjerm').replace(/^skjerm\s+bak(?:re)?$/,'bakskjerm');
             return pn===dn||dn.includes(pn)||pn.includes(dn);
           });
         };
