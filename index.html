@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.54 – Smart kontroll av takster</title>
+<title>AutoPell v2.56 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.54</div>
+    <div class="version-badge">v2.56</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,6 +260,39 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+/* AutoPell v2.56 – endringer fra v2.55 (1 punkt):
+
+   TANKLUKE KOBLET TIL DETALJSPESIFIKASJON. Martin: sjekk Detaljspesifikasjon for tankluke/
+   ladeluke – er den ikke nevnt der, finnes den ikke på denne posisjonen, ikke flagg det.
+   Samme mekanisme som PANSER_EMBLEM (v2.54): nytt skjulHvisDetaljIkkeFunnet på
+   BAKSKJERM_G_TANKLUKE og BAKSKJERM_N_TANKLUKE.
+   Samtidig: skjulHvisDetaljIkkeFunnet støtter nå flere synonymer (array), ikke bare ett ord
+   – tankluke kalles ulikt i ulike takster (tankluk/ladeluk/bensinluk/dekklokk), og et enkelt
+   søkeord ville gitt falske "ikke funnet"-konklusjoner på en reell luke med annet navn.
+   PANSER_EMBLEM (som fortsatt bruker enkelt streng-form) er uendret og fortsatt korrekt –
+   testet at begge former virker side om side.
+
+/* AutoPell v2.55 – endringer fra v2.54 (2 punkter):
+
+   1. TAK_UB_INNVENDIG-DUPLIKAT FJERNET. Bekreftet lekkasje: VW ID.5 EE34706 fikk BÅDE et
+      generelt UB-forslag (DET_UB_VED_FLATERETTE/DET_UB_MANGLER, dekker alle UB-relevante
+      deler samlet inkl. Takplate) OG et eget, del-spesifikt TAK_UB_INNVENDIG-forslag om det
+      samme – aldri koblet til den eksisterende sperren mellom de to generelle UB-sjekkene.
+      Avdekket først når tak-regex-fiksen i v2.54 gjorde at Takplate i det hele tatt nådde
+      DELSTATUS. Ny sjekk i POST-FILTER: TAK_UB_INNVENDIG avvises hvis brukteIDer allerede
+      har DET_UB_VED_FLATERETTE eller DET_UB_MANGLER.
+
+   2. LØFTETAPE – STASJONSVOGN/SUV-HEURISTIKK LAGT TIL MALEN. Martin: nesten alle
+      stasjonsvogner/kombi og de fleste SUV har en rute i bakskjerm – noe som ligner en rute
+      på disse karosseriformene er sannsynligvis en ekte rute. Lagt inn som veiledning i selve
+      BAKSKJERM_G_LOFTETAPE-malen, ved siden av (ikke i stedet for) v2.43-regelen om å lene mot
+      "usikker" ved tvil. Ren prosa-justering – karosseritype kan ikke leses pålitelig fra
+      taksten (samme begrensning som SUV-unntaket vi fjernet fra hjulbueliste i v2.51), så
+      dette er veiledning for skjønnet, ikke en deterministisk sperre.
+
+   IKKE med (avventer avklaring): reg.nr-visning ved oppdragsnr – reg.nr vises allerede over
+   hvert resultat (v2.45), og AutoPell har ingen egen oppdragsnr-visning å plassere den ved.
+
 /* AutoPell v2.54 – endringer fra v2.53 (6 punkter, den største samlebyggingen denne kvelden):
 
    1. DETALJSPESIFIKASJON PER-POSISJON PARSING (flaggskip, Martins idé). Ny strukturert
@@ -1975,8 +2008,8 @@ function takstSammendrag(t){
     BAKSKJERM_G_UB:{deterministisk:true,navn:'UB',mal:'',farge:'rød'},
     BAKSKJERM_G_TILST_BAKDOR:{kat:/bakskjerm/i,optype:['G'],ikkeVedSvart:true,navn:'Tilstøtende bakdør',mal:'Spør om tilstøtende mot bakdør er aktuelt',farge:'gul'},
     BAKSKJERM_G_HJULBUELISTE:{kat:/bakskjerm/i,optype:['G'],sjekkNevntIRaw:'hjulbueliste',navn:'HTT hjulbueliste',mal:'Sjekk om bakskjerm har lakkerbar hjulbueliste',farge:'gul'},
-    BAKSKJERM_G_TANKLUKE:{kat:/bakskjerm/i,optype:['G'],sjekkAlleredeForLakkspes:['tankluk','ladeluk','bensinluk','strøminntak','dekklokk'],navn:'Tankluke',mal:'Sjekk om tankluken på bakskjerm bør vurderes som tilstøtende',farge:'gul'},
-    BAKSKJERM_G_LOFTETAPE:{kat:/bakskjerm/i,optype:['G'],sjekkAlleredeForLakkspes:['løftetape','loftetape'],navn:'Løftetape',mal:'Sjekk om det finnes en synlig rute mot bakskjerm – løftetape (20p) brukes til å løfte pakningen rundt ruten (derav navnet), ikke knyttet til selve rettearbeidet (kun personbil, ikke varebil). Er du i tvil om det er en rute i bildet: status="usikker", ALDRI "ikke relevant" (v2.43-regelen) – dette er selve eksempelet den regelen nevner.',farge:'gul'},
+    BAKSKJERM_G_TANKLUKE:{kat:/bakskjerm/i,optype:['G'],sjekkAlleredeForLakkspes:['tankluk','ladeluk','bensinluk','strøminntak','dekklokk'],skjulHvisDetaljIkkeFunnet:['tankluk','ladeluk','bensinluk','dekklokk'],navn:'Tankluke',mal:'Sjekk om tankluken på bakskjerm bør vurderes som tilstøtende',farge:'gul'},
+    BAKSKJERM_G_LOFTETAPE:{kat:/bakskjerm/i,optype:['G'],sjekkAlleredeForLakkspes:['løftetape','loftetape'],navn:'Løftetape',mal:'Sjekk om det finnes en synlig rute mot bakskjerm – løftetape (20p) brukes til å løfte pakningen rundt ruten (derav navnet), ikke knyttet til selve rettearbeidet (kun personbil, ikke varebil). Nesten alle stasjonsvogner/kombi og de fleste SUV har en rute i bakskjerm – lener bilen mot en av disse karosseriformene og noe på bildet kan ligne en rute, len mot "usikker"/"foreslått" fremfor "ikke relevant". Er du i tvil om det er en rute i bildet: status="usikker", ALDRI "ikke relevant" (v2.43-regelen) – dette er selve eksempelet den regelen nevner.',farge:'gul'},
     BAKSKJERM_G_POLERE_FLIKK:{kat:/bakskjerm/i,optype:['G'],navn:'Polere flikk',mal:'Vurder polere flikk 20p hvis takstolpe ikke lakkes helt ut',farge:'gul'},
 
     BAKSKJERM_N_RUST:{deterministisk:true,navn:'Rustbeskyttelse',mal:'',farge:'rød'},
@@ -1985,7 +2018,7 @@ function takstSammendrag(t){
     BAKSKJERM_N_TILST_KANAL:{kat:/bakskjerm/i,optype:['N'],navn:'Tilstøtende kanal',mal:'Spør om tilstøtende bakskjerm eller arealavhengig lakk av kanal er aktuelt',farge:'gul'},
     BAKSKJERM_N_POLERE_FLIKK:{kat:/bakskjerm/i,optype:['N'],navn:'Polere flikk',mal:'Vurder polere flikk 20p hvis takstolpe/kanal ikke lakkes helt frem',farge:'gul'},
     BAKSKJERM_N_HJULBUELISTE:{kat:/bakskjerm/i,optype:['N'],sjekkNevntIRaw:'hjulbueliste',navn:'HTT hjulbueliste',mal:'Sjekk om bakskjerm har lakkerbar hjulbueliste',farge:'gul'},
-    BAKSKJERM_N_TANKLUKE:{kat:/bakskjerm/i,optype:['N'],sjekkAlleredeForLakkspes:['tankluk','ladeluk','bensinluk','strøminntak','dekklokk'],navn:'Tankluke',mal:'Sjekk om tankluke sitter på den skiftede bakskjermen',farge:'gul'},
+    BAKSKJERM_N_TANKLUKE:{kat:/bakskjerm/i,optype:['N'],sjekkAlleredeForLakkspes:['tankluk','ladeluk','bensinluk','strøminntak','dekklokk'],skjulHvisDetaljIkkeFunnet:['tankluk','ladeluk','bensinluk','dekklokk'],navn:'Tankluke',mal:'Sjekk om tankluke sitter på den skiftede bakskjermen',farge:'gul'},
     BAKSKJERM_N_INNV_LAKK:{kat:/bakskjerm/i,optype:['N'],navn:'Innvendig lakkering bakskjermkant',mal:'Vurder å legge til innvendig lakkering bakskjermkant (fremre 62p + bakre 19p)',farge:'rød'},
     BAKSKJERM_N_KAROSSERILIM:{kat:/bakskjerm/i,optype:['N'],navn:'Karosserilim/blanderør',mal:'Vurder å legge til kostnad karosserilim og/eller blanderør hvis dette skal brukes',farge:'gul'},
     BAKSKJERM_N_DOKUMENTASJON:{kat:/bakskjerm/i,optype:['N'],navn:'Dokumentasjon',mal:'Vurder å ta med kostnad for innhenting av dokumentasjon for skift av bakskjerm',farge:'gul'},
@@ -2123,7 +2156,10 @@ function takstSammendrag(t){
             if(funnet)return false;
           }
           if(r.skjulHvisDetaljIkkeFunnet){
-            const funnet=itemTekst.includes(r.skjulHvisDetaljIkkeFunnet);
+            // v2.56: støtter nå flere synonymer (array), ikke bare ett ord – tankluke kalles
+            // ulikt i ulike takster (tankluk/ladeluk/bensinluk/dekklokk).
+            const søkeord=Array.isArray(r.skjulHvisDetaljIkkeFunnet)?r.skjulHvisDetaljIkkeFunnet:[r.skjulHvisDetaljIkkeFunnet];
+            const funnet=søkeord.some(ord=>itemTekst.includes(ord));
             if(!funnet)return false;
           }
         }
@@ -3204,6 +3240,17 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
             console.log('[POST-FILTER v2.40] Avvist ugyldig/fabrikkert ID: "'+p.id+'"');
             return;
           }
+          // v2.55: TAK_UB_INNVENDIG er en duplikat av de generelle UB-sjekkene når disse
+          // allerede har fyrt. Bekreftet på VW ID.5 EE34706: DET_UB_VED_FLATERETTE/
+          // DET_UB_MANGLER dekker ALLEREDE "UB mangler" for alle UB-relevante deler samlet
+          // (inkl. Takplate), men TAK_UB_INNVENDIG er en egen, del-spesifikk Claude-ID som
+          // aldri ble koblet til samme sperre – avdekket først når tak-bugen (v2.54) gjorde
+          // at Takplate i det hele tatt nådde DELSTATUS. Samme mønster som den eksisterende
+          // sperren mellom DET_UB_MANGLER og DET_UB_VED_FLATERETTE, bare utvidet hit.
+          if(p.id==='TAK_UB_INNVENDIG'&&(brukteIDer.has('DET_UB_VED_FLATERETTE')||brukteIDer.has('DET_UB_MANGLER'))){
+            console.log('[POST-FILTER v2.55] Avvist TAK_UB_INNVENDIG – dekket allerede av generell UB-sjekk');
+            return;
+          }
           if((p.status==='foreslått'||p.status==='usikker')&&!p.forslag&&regForMal&&regForMal.mal){
             p.forslag=regForMal.mal;
           }
@@ -3596,9 +3643,14 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
       // ("H P-list bakdør" + "H Skjermutbygger bakdør") – kun første ble sjekket, den andre
       // manglet lakk-post og ble aldri fanget. .deler-arrayen fantes allerede i parseren
       // (v2.7), bare ubrukt her. Fallback til .del alene hvis .deler mangler (eldre struktur).
+      // v2.54-FIX (produksjonskrasj bekreftet på VW ID.3 EN49134: "s.toLowerCase is not a
+      // function"): parserData.plastspes.deler er en liste med OBJEKTER
+      // ({del,skadetype,reparert_flate_cm2,tid} – v2.7), ikke rene tekststrenger. Må hente
+      // ut .del fra hvert objekt før bruk, ellers sendes et helt objekt inn i funksjoner som
+      // forventer tekst (harLakkPost2/normaliserDelnavn2), som krasjer på .toLowerCase().
       const plastspesDeler=(parserData.plastspes&&parserData.plastspes.aktivert)
         ?(Array.isArray(parserData.plastspes.deler)&&parserData.plastspes.deler.length
-          ?parserData.plastspes.deler
+          ?parserData.plastspes.deler.map(d=>(typeof d==='string'?d:(d&&d.del))).filter(Boolean)
           :(parserData.plastspes.del?[parserData.plastspes.del]:[]))
         :[];
       plastspesDeler.forEach(delNavn=>{
