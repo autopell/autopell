@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.59 – Smart kontroll av takster</title>
+<title>AutoPell v2.60 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.59</div>
+    <div class="version-badge">v2.60</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,6 +260,46 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+/* AutoPell v2.60 – endringer fra v2.59 (6 punkter, duplikat-jaktrunde):
+
+   1. TAK_UB_INNVENDIG – STYRKET SPERRE. v2.55s brukteIDer-sjekk fanget ikke alle tilfeller i
+      praksis (bekreftet på nytt på VW ID.5 EE34706). Rotårsaken ikke fullt kartlagt, så i
+      stedet for å gjette på én bestemt årsak: lagt til en UAVHENGIG, tekstbasert sikkerhets-
+      sjekk i tillegg – finnes det allerede en generell UB-mangler-linje i dbs_handlinger
+      (nevner UB/understellsbehandling + mangler, uten å være tak-spesifikk), undertrykkes
+      TAK_UB_INNVENDIG uansett hva brukteIDer sier.
+
+   2. BMW-GRUNNING – ORDOVERLAPP I STEDET FOR EKSAKT LIKHET. Bekreftet miss: "BAKLUKE/DØR H/
+      BAKLUKE NEDRE H" (grunning-linjens delbeskrivelse) matchet aldri "Panel bakluke"
+      (plastrep-delnavnet) via streng likhet, selv om begge deler ordet "bakluke". Ny sjekk
+      splitter begge på mellomrom OG skråstrek, krever minst ett delt ord på 4+ tegn.
+
+   3. TESLA MODEL Y – DETERMINISTISK LØFTETAPE-UNNTAK. Stasjonsvogn/SUV-heuristikken (v2.55)
+      presset Claude mot "usikker" på en modell som Martin bekreftet (to ganger) aldri har
+      rute i bakskjerm. I motsetning til generell SUV-status står "Model Y" eksplisitt i
+      modellnavnet, så unntaket er bygget som en tvungen "ikke relevant"-overstyring før
+      alltid-spør-fiksen kjører – ikke bare prosa i malen.
+
+   4. TESLA-FOLIE – "ALLEREDE FØRT"-SJEKK. DET_TESLA_BAKDOR_FOLIE var helt ubetinget – ingen
+      sjekk mot om folie/tape-montering allerede var lagt inn. Søker nå råtekst for
+      folie/tape-monter-ord før den foreslår.
+
+   5. TESLA-FOLIE vs. BESKYTTELSESFOLIE – DUPLIKAT-KOBLING. Martin bekreftet direkte: de to
+      beskriver samme fysiske arbeid. DET_TESLA_BAKDOR_FOLIE kjører først og legges i
+      brukteIDer; DET_BESKYTTELSESFOLIE sjekker nå det før den fyrer.
+
+   6. UTVIDET SLUTTSJEKK PÅ TVERS AV ID OG FRITEKST (Martins forslag). Fant at den eksisterende
+      to-stegs duplikat-sjekken i prompten var EKSPLISITT begrenset til ikke-ID-migrerte funn
+      – nettopp der de fleste duplikatene i går/i dag har oppstått (bakskjerm, tak, støtfanger
+      ER ID-migrert). Utvidet instruksen til å gjelde alle forslag samlet, ikke bare
+      kandidat-gruppen. Dette er et supplement til de spesifikke kodesperrene over, ikke en
+      erstatning – fanger nye, ukjente duplikater, men er fortsatt skjønnsbasert og dermed
+      ikke like pålitelig som kode.
+
+   Testet: syntaks OK, alle 6 punkter grep-bekreftet i lagret fil, funksjonstester på ordoverlapp
+   (BMW), Tesla Model Y-deteksjon og folie-allerede-ført (7/7 caser), ingen regresjon på
+   plastspesDeler-fiksen, tak-regexen, kort/langform-matchingen eller brukteIDer-scope-fiksen.
+
 /* AutoPell v2.59 – endringer fra v2.58 (1 punkt, krasj-rettelse):
 
    "brukteIDer is not defined" – EKTE PRODUKSJONSKRASJ, min feil fra v2.58. brukteIDer er
@@ -3043,9 +3083,10 @@ KRITISK OM USIKKERHET PÅ BILDEBASERTE PUNKTER (v2.43): For ID-er som avhenger a
 NYANSE FOR TILSTØTENDE-FLATE-VURDERINGER (v2.45): Hvis det markerte/skadde området på bildene ligger langt fra selve tilstøtende-grensen (f.eks. midt på delen, ikke ved dørkant/kant mot nabodel) OG fargen er mørk/svart, er risikoen for synlig fargesprang lavere – dette kan gjøre deg mer tilbøyelig til "ikke relevant". MEN presis avstandsvurdering fra bilder er upålitelig, så bruk dette KUN som en svakere justering av terskelen din, ALDRI som en automatisk, stille undertrykkelse. Ved noe tvil i det hele tatt: fortsatt "usikker", ikke "ikke relevant" – prinsippet over gjelder fortsatt.
 KRITISK OM DEDUPE VED ID: Siden hver ID er unik og fast, kan aldri to punkter med SAMME id begge være status="foreslått" for samme "del" – hvis du ser at du allerede har tatt stilling til en ID, ikke gjør det igjen. Dette gjør duplikat-problemet strukturelt umulig for ID-migrerte deler, forutsatt at du faktisk bruker ID-en fra listen og ikke skriver et nytt, ekvivalent punkt med annen ID eller uten ID.
 KRITISK – DELSJEKK ER ENESTE KILDE FOR DISSE FUNNENE: Hvis status="foreslått" eller "usikker", MÅ feltet "forslag" inneholde den fullstendige forslagsteksten (samme "Vurder å..."-format som ellers). IKKE skriv i tillegg en duplikatoppføring for det samme punktet i "resultater" eller "dbs_handlinger" – koden legger automatisk delsjekk-forslagene inn der. "resultater" og "dbs_handlinger" skal KUN inneholde funn som ikke stammer fra et ID-registrert punkt (f.eks. bilspesifikke regler, kanal-tilstøtende og andre generiske regler som ikke er ID-migrert ennå).
-KRITISK OM "kandidater" og TO-STEGS DUPLIKAT-SJEKK: Dette gjelder KUN funn som ikke er ID-migrert (siden ID-systemet allerede forhindrer duplikater strukturelt for de delene). Du skal ALDRI skrive rett til "resultater" for disse. Gå gjennom i to steg:
+KRITISK OM "kandidater" og TO-STEGS DUPLIKAT-SJEKK: Gjelder funn som ikke er ID-migrert (ID-systemet forhindrer allerede duplikater strukturelt for de delene på ID-nivå). Du skal ALDRI skrive rett til "resultater" for disse. Gå gjennom i to steg:
 STEG A – Bygg "kandidater": skriv ALT du finner her først (ikke-ID-migrerte funn), én setning per funn, uten å bekymre deg for duplikater ennå.
 STEG B – Fra "kandidater" til "resultater": Les gjennom HELE kandidat-listen på nytt, par for par. For hver kandidat: spør deg selv "betyr denne setningen det samme som en jeg allerede har tatt med?" – ikke se etter identisk ordlyd, men samme underliggende sak. Slå sammen slike par til ÉN oppføring i "resultater" (behold den klareste formuleringen). Kun genuint FORSKJELLIGE saker skal ha hver sin oppføring i "resultater" og "dbs_handlinger". Dette duplikat-steget er like obligatorisk som delsjekk – ikke hopp over det for å spare tid, selv om svaret blir langt.
+v2.60 – UTVIDET SLUTTSJEKK PÅ TVERS AV ID OG FRITEKST: ID-systemet hindrer kun at SAMME id foreslås to ganger for samme del – det hindrer IKKE at to ULIKE id-er (eller en id-basert og en fritekst-basert) beskriver samme underliggende sak med ulik ordlyd (bekreftet flere ganger: TAK_UB_INNVENDIG vs. den generelle UB-sjekken, STOTFANGER_GRUNNING_TOPPLAKK vs. grunning-varselet, Tesla-folie vs. beskyttelsesfolie). Før du returnerer svaret: les gjennom ALLE forslag du har generert denne kjøringen – både ID-baserte delsjekk-forslag OG kandidater/resultater – én siste gang, på tvers av hele lista, ikke bare innad i kandidater-gruppen. Beskriver to av dem samme underliggende sak (samme del, samme mangel, samme handling), uansett om de kom fra ulik id eller ulik kilde: behold kun den klareste, og fjern/utelat den andre fra ditt eget svar. Dette er et TILLEGG til de spesifikke kodesperrene som allerede finnes for kjente tilfeller – ment å fange NYE, ennå ukjente duplikater denne runden ikke er bygget for.
 rød=mangler påkrevd tillegg/feil, gul=anbefalt/sjekk, lilla=kalibrering/koding påkrevd.
 Plassering=nøyaktig hvor i DBS dette legges inn.
 DBS-handlinger: KUN hva som skal gjøres, ingen perioder eller kroner.
@@ -3148,7 +3189,11 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
         if(erTesla){
           const teslaBakdør=(parserData.lakkspes||[]).some(d=>!d.tillegg&&(d.optype==='N'||d.optype==='G')&&!d.tilstøtende&&d.navn&&/bakdør/i.test(d.navn))
             ||(parserData.karosseri_skift||[]).some(d=>/bakdør/i.test(d.navn)&&d.tiltak==='Skift');
-          if(teslaBakdør)injiserDeterministisk('DET_TESLA_BAKDOR_FOLIE',window.REGEL_REGISTRY.DET_TESLA_BAKDOR_FOLIE.mal,'Annetbildet');
+          // v2.60: "ALLEREDE FØRT"-SJEKK. Bekreftet av Martin: han hadde allerede lagt inn
+          // folie/tape-montering i annetbildet, men fikk forslaget likevel – ingen kryssjekk
+          // fantes fra før. Søker i råtekst etter folie/tape-montering nevnt nær bakdør.
+          const folieAlleredeFørt=/(?:folie|tape[- ]?monter)/i.test(parserData.raw||'');
+          if(teslaBakdør&&!folieAlleredeFørt)injiserDeterministisk('DET_TESLA_BAKDOR_FOLIE',window.REGEL_REGISTRY.DET_TESLA_BAKDOR_FOLIE.mal,'Annetbildet');
         }
         // Flaterette-kostnad finnes men UB ikke ført
         const flateretteKr=parserData.sammenstilling&&parserData.sammenstilling['Karosseri - Flaterette'];
@@ -3227,7 +3272,11 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
         const folieRaw=parserData.raw||'';
         const harFolieOrd=/folie|foliert|wrap/i.test(folieRaw);
         const folieErFremtidigArbeid=/folie[^\n]{0,40}(kommer\s+på|egen\s+faktura)|ny\s+folie/i.test(folieRaw);
-        if(harFolieOrd&&!folieErFremtidigArbeid&&harNGdelerPF){
+        // v2.60: DUPLIKAT-KOBLING mot Tesla-folien. Martin bekreftet direkte: "folie/tape-
+        // montering ved bakdør" (Tesla-regelen) og "beskyttelsesfolie over 5cm på del som
+        // lakkes" beskriver SAMME fysiske arbeid, ikke to ulike ting. DET_TESLA_BAKDOR_FOLIE
+        // kjører FØR dette punktet (linje ~3151), så brukteIDer har den alt hvis den fyrte.
+        if(harFolieOrd&&!folieErFremtidigArbeid&&harNGdelerPF&&!brukteIDer.has('DET_TESLA_BAKDOR_FOLIE')){
           injiserDeterministisk('DET_BESKYTTELSESFOLIE','Sjekk om beskyttelsesfolie over 5cm finnes på del som lakkes – i så fall vurder tillegg i annetbildet','Annetbildet');
         }
         // v2.39 Fase 4: Trekketårn/rigging – skadeklasse 1
@@ -3248,9 +3297,25 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
       // en varebil (regelen gjelder kun personbil). Ukjent karosseritype → behandles som
       // personbil (spør), samme usikker-fallback-prinsipp som resten av v2.4x-fiksene.
       const erVarebilPF=parserData.bil&&parserData.bil.modell&&/varebil/i.test(parserData.bil.modell);
+      // v2.60: TESLA MODEL Y-UNNTAK. Martin bekreftet (to ganger): Tesla Model Y har INGEN
+      // rute i bakskjerm i det hele tatt. Stasjonsvogn/SUV-heuristikken i selve malen
+      // (v2.55) presset Claude mot "usikker" på nøyaktig denne modellen – motsatt av det som
+      // faktisk stemmer. I motsetning til generell SUV-status (som IKKE kan leses pålitelig
+      // fra taksten) står "Model Y" eksplisitt i modellnavnet, så dette KAN gjøres
+      // deterministisk. Tvinger status til "ikke relevant" – overstyrer alltid-spør-fiksen
+      // under for nøyaktig denne modellen.
+      const erTeslaModelY=parserData.bil&&parserData.bil.modell&&/tesla/i.test(parserData.bil.modell)&&/model\s*y/i.test(parserData.bil.modell);
       parsed.delsjekk.forEach(d=>{
         (d.punkter||[]).forEach(p=>{
-          if(p.id==='BAKSKJERM_G_LOFTETAPE'&&p.status==='ikke relevant'&&!erVarebilPF){
+          if(p.id==='BAKSKJERM_G_LOFTETAPE'&&erTeslaModelY&&p.status!=='ikke relevant'){
+            console.log('[POST-FILTER v2.60] Løftetape tvunget til "ikke relevant" – Tesla Model Y har ingen rute i bakskjerm');
+            p.status='ikke relevant';
+          }
+        });
+      });
+      parsed.delsjekk.forEach(d=>{
+        (d.punkter||[]).forEach(p=>{
+          if(p.id==='BAKSKJERM_G_LOFTETAPE'&&p.status==='ikke relevant'&&!erVarebilPF&&!erTeslaModelY){
             console.log('[POST-FILTER v2.52] Løftetape tvunget fra "ikke relevant" til "usikker" (v2.43-håndheving)');
             p.status='usikker';
           }
@@ -3290,8 +3355,20 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           // aldri ble koblet til samme sperre – avdekket først når tak-bugen (v2.54) gjorde
           // at Takplate i det hele tatt nådde DELSTATUS. Samme mønster som den eksisterende
           // sperren mellom DET_UB_MANGLER og DET_UB_VED_FLATERETTE, bare utvidet hit.
-          if(p.id==='TAK_UB_INNVENDIG'&&(brukteIDer.has('DET_UB_VED_FLATERETTE')||brukteIDer.has('DET_UB_MANGLER'))){
-            console.log('[POST-FILTER v2.55] Avvist TAK_UB_INNVENDIG – dekket allerede av generell UB-sjekk');
+          // v2.60: STYRKET SPERRE. v2.55 sin brukteIDer-sjekk fanget IKKE alle tilfeller i
+          // praksis (bekreftet på VW ID.5 EE34706 igjen etter v2.55) – usikkert nøyaktig
+          // hvorfor (kan være rekkefølge/tilstand vi ikke har full oversikt over), så i
+          // stedet for å gjette på én bestemt årsak legges det til en ANDRE, uavhengig sjekk
+          // som fanger duplikaten uansett vei: finnes det allerede en generell UB-linje
+          // (nevner "UB" eller "understellsbehandling" OG "mangler", uten å være tak-spesifikk)
+          // i dbs_handlinger, undertrykkes TAK_UB_INNVENDIG uansett om brukteIDer fanget det.
+          const generellUBAlleredeFørt=(parsed.sammendrag&&Array.isArray(parsed.sammendrag.dbs_handlinger))
+            &&parsed.sammendrag.dbs_handlinger.some(txt=>{
+              const t=txt.toLowerCase();
+              return (t.includes(' ub ')||t.includes('understellsbehandling'))&&t.includes('mangler')&&!t.includes('innvendig tak');
+            });
+          if(p.id==='TAK_UB_INNVENDIG'&&(brukteIDer.has('DET_UB_VED_FLATERETTE')||brukteIDer.has('DET_UB_MANGLER')||generellUBAlleredeFørt)){
+            console.log('[POST-FILTER v2.60] Avvist TAK_UB_INNVENDIG – dekket allerede av generell UB-sjekk');
             return;
           }
           if((p.status==='foreslått'||p.status==='usikker')&&!p.forslag&&regForMal&&regForMal.mal){
@@ -3733,8 +3810,16 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           if(!navn.includes('grunning for topplakk')&&!navn.includes('grunning topplakk'))return false;
           const delMatch=m.navn.match(/^(.+?),\s*grunning/i);
           if(!delMatch)return false;
-          return harLakkPost2(delMatch[1].trim())&&harLakkPost2(delNavn)
-            &&normaliserDelnavn2(delMatch[1].trim())===normaliserDelnavn2(delNavn);
+          // v2.60: ORDOVERLAPP i stedet for eksakt likhet. Bekreftet miss (BMW X2 RL52010):
+          // grunning-linjens delbeskrivelse kan være sammensatt/skråstrek-separert
+          // ("BAKLUKE/DØR H/BAKLUKE NEDRE H"), som ALDRI blir eksakt lik en enklere
+          // plastrep-delnavn som "Panel bakluke" – selv om begge tydelig deler ordet
+          // "bakluke". Splitter på mellomrom OG skråstrek, krever minst ett delt ord på
+          // 4+ tegn (unngår at "h"/"g" alene teller som treff).
+          const gA=normaliserDelnavn2(delMatch[1].trim()).split(/[\s/]+/).filter(o=>o.length>=4);
+          const gB=normaliserDelnavn2(delNavn).split(/[\s/]+/).filter(o=>o.length>=4);
+          const delerOrd=gA.some(o=>gB.includes(o));
+          return harLakkPost2(delMatch[1].trim())&&harLakkPost2(delNavn)&&delerOrd;
         });
         if(!harGrunningForDenne)manglendeGrunning.push(delNavn);
       });
