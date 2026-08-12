@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.60 – Smart kontroll av takster</title>
+<title>AutoPell v2.61 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.60</div>
+    <div class="version-badge">v2.61</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -260,6 +260,22 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 </div>
 
 <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+/* AutoPell v2.61 – endringer fra v2.60 (1 punkt, retter en bivirkning av v2.60 selv):
+
+   TESLA-FOLIE – DE TO SJEKKENE JOBBET MOT HVERANDRE. Bekreftet på Tesla Model Y EE16064:
+   "DØR BAKRE H, tillegg for å montere folie over 5 cm" var allerede ført i taksten.
+   "Allerede ført"-sjekken (v2.60, punkt 4) fanget dette korrekt og undertrykte
+   DET_TESLA_BAKDOR_FOLIE – MEN nettopp derfor ble den ALDRI lagt til brukteIDer (kun
+   injiserDeterministisk selv gjør det, når den faktisk fyrer). Duplikat-koblingen (v2.60,
+   punkt 5) sjekket KUN brukteIDer, så DET_BESKYTTELSESFOLIE fyrte likevel – med generisk
+   ordlyd i stedet for å bli undertrykt av samme grunn.
+   Fix: teslaBakdørPF/folieAlleredeFørtPF hoistet ut av if(erTesla)-blokken til delte
+   variabler, brukt direkte av BEGGE sjekkene – ikke lenger avhengig av at den ene fyrte for
+   at den andre skal vite om det.
+   Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
+   (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
+   folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
 /* AutoPell v2.60 – endringer fra v2.59 (6 punkter, duplikat-jaktrunde):
 
    1. TAK_UB_INNVENDIG – STYRKET SPERRE. v2.55s brukteIDer-sjekk fanget ikke alle tilfeller i
@@ -3186,15 +3202,17 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
         });
         // Tesla bakdør (N/G eller skift) → folie/tape-montering
         const erTesla=parserData.bil&&parserData.bil.modell&&/tesla/i.test(parserData.bil.modell);
-        if(erTesla){
-          const teslaBakdør=(parserData.lakkspes||[]).some(d=>!d.tillegg&&(d.optype==='N'||d.optype==='G')&&!d.tilstøtende&&d.navn&&/bakdør/i.test(d.navn))
-            ||(parserData.karosseri_skift||[]).some(d=>/bakdør/i.test(d.navn)&&d.tiltak==='Skift');
-          // v2.60: "ALLEREDE FØRT"-SJEKK. Bekreftet av Martin: han hadde allerede lagt inn
-          // folie/tape-montering i annetbildet, men fikk forslaget likevel – ingen kryssjekk
-          // fantes fra før. Søker i råtekst etter folie/tape-montering nevnt nær bakdør.
-          const folieAlleredeFørt=/(?:folie|tape[- ]?monter)/i.test(parserData.raw||'');
-          if(teslaBakdør&&!folieAlleredeFørt)injiserDeterministisk('DET_TESLA_BAKDOR_FOLIE',window.REGEL_REGISTRY.DET_TESLA_BAKDOR_FOLIE.mal,'Annetbildet');
-        }
+        // v2.61-FIX: hoistet ut av if(erTesla)-blokken, slik at BEGGE folie-sjekkene (denne
+        // og DET_BESKYTTELSESFOLIE lenger ned) kan lese samme betingelse direkte. Bekreftet
+        // miss på Tesla Model Y EE16064: "allerede ført"-sjekken (v2.60) undertrykte korrekt
+        // DET_TESLA_BAKDOR_FOLIE, men da ble den ALDRI lagt til brukteIDer – og
+        // DET_BESKYTTELSESFOLIE sin duplikat-sperre (som kun sjekket brukteIDer) trigget
+        // derfor likevel, med generisk ordlyd i stedet for Tesla-varianten. Nå deler begge
+        // sjekkene nøyaktig samme "er dette Tesla bakdør + er folie allerede nevnt"-vilkår.
+        const teslaBakdørPF=erTesla&&((parserData.lakkspes||[]).some(d=>!d.tillegg&&(d.optype==='N'||d.optype==='G')&&!d.tilstøtende&&d.navn&&/bakdør/i.test(d.navn))
+          ||(parserData.karosseri_skift||[]).some(d=>/bakdør/i.test(d.navn)&&d.tiltak==='Skift'));
+        const folieAlleredeFørtPF=/(?:folie|tape[- ]?monter)/i.test(parserData.raw||'');
+        if(teslaBakdørPF&&!folieAlleredeFørtPF)injiserDeterministisk('DET_TESLA_BAKDOR_FOLIE',window.REGEL_REGISTRY.DET_TESLA_BAKDOR_FOLIE.mal,'Annetbildet');
         // Flaterette-kostnad finnes men UB ikke ført
         const flateretteKr=parserData.sammenstilling&&parserData.sammenstilling['Karosseri - Flaterette'];
         if(flateretteKr&&flateretteKr>0&&!(parserData.sammenstilling&&parserData.sammenstilling.ub_kr)){
@@ -3272,11 +3290,10 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
         const folieRaw=parserData.raw||'';
         const harFolieOrd=/folie|foliert|wrap/i.test(folieRaw);
         const folieErFremtidigArbeid=/folie[^\n]{0,40}(kommer\s+på|egen\s+faktura)|ny\s+folie/i.test(folieRaw);
-        // v2.60: DUPLIKAT-KOBLING mot Tesla-folien. Martin bekreftet direkte: "folie/tape-
-        // montering ved bakdør" (Tesla-regelen) og "beskyttelsesfolie over 5cm på del som
-        // lakkes" beskriver SAMME fysiske arbeid, ikke to ulike ting. DET_TESLA_BAKDOR_FOLIE
-        // kjører FØR dette punktet (linje ~3151), så brukteIDer har den alt hvis den fyrte.
-        if(harFolieOrd&&!folieErFremtidigArbeid&&harNGdelerPF&&!brukteIDer.has('DET_TESLA_BAKDOR_FOLIE')){
+        // v2.61-FIX: bruker nå det DELTE teslaBakdørPF/folieAlleredeFørtPF-vilkåret direkte,
+        // ikke bare brukteIDer – dekker også tilfellet der DET_TESLA_BAKDOR_FOLIE ble
+        // undertrykt av sin egen "allerede ført"-sjekk og derfor ALDRI kom i brukteIDer.
+        if(harFolieOrd&&!folieErFremtidigArbeid&&harNGdelerPF&&!brukteIDer.has('DET_TESLA_BAKDOR_FOLIE')&&!(teslaBakdørPF&&folieAlleredeFørtPF)){
           injiserDeterministisk('DET_BESKYTTELSESFOLIE','Sjekk om beskyttelsesfolie over 5cm finnes på del som lakkes – i så fall vurder tillegg i annetbildet','Annetbildet');
         }
         // v2.39 Fase 4: Trekketårn/rigging – skadeklasse 1
