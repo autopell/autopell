@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.66 – Smart kontroll av takster</title>
+<title>AutoPell v2.67 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.66</div>
+    <div class="version-badge">v2.67</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -275,6 +275,22 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v2.67 – endringer fra v2.66 (1 punkt, "fjern fristelsen" i stedet for "fang feilen"):
+
+   FLATERETT/MÅLRETT RÅDATA FJERNET FRA CLAUDES SYN. v2.66s prompt-instruks ("stol på
+   Konsistens-sjekk: OK") holdt IKKE – Claude eskalerte i stedet til enda sterkere ordlyd
+   ("KRITISK MANGEL") på nøyaktig samme feilaktige konklusjon. Beviser definitivt at prosa
+   alene ikke er nok her, selv når den er eksplisitt og direkte.
+   Martin: "programmet kjører best på regler, Claude må holde seg unna."
+   I stedet for å bygge et nytt post-filter for å fange og fjerne Claudes feilaktige fritekst
+   ETTERPÅ, ble selve rådata-visningen ("FLATERETT/MÅLRETT: Skjerm foran H: 130p" osv.) fjernet
+   fra HURTIGFAKTA-teksten Claude faktisk ser. Verifisert at ingenting lenger trenger dette:
+   rustbeskyttelse-sjekken (harFlateretteLinjePF, v2.63) og lakk-konsistens-sjekken er begge
+   fullt kode-drevet og leser t.karosseri_flaterett direkte internt – Claude trengte aldri
+   denne lista til noe legitimt lenger. Selve dataen/arrayet er URØRT, kun visningen til
+   Claude er fjernet. v2.66-instruksen forenklet tilsvarende, siden det ikke lenger er noe
+   å bli fristet av.
 
 /* AutoPell v2.66 – endringer fra v2.65 (1 punkt):
 
@@ -2112,11 +2128,16 @@ function takstSammendrag(t){
     s+=`\n`;
   }
 
-  if(t.karosseri_flaterett.length){
-    s+=`FLATERETT/MÅLRETT:\n`;
-    t.karosseri_flaterett.forEach(d=>s+=`  • ${d.type} ${d.del}: ${d.tid}p\n`);
-    s+=`\n`;
-  }
+  // v2.67: FJERNET rådata-visning av FLATERETT/MÅLRETT-liste til Claude. Martin: "programmet
+  // kjører best på regler, Claude må holde seg unna". Bekreftet på Volvo V40 SV50250: så
+  // snart Claude fikk se "Skjerm foran H: 130p" her, laget den sin egen (feilaktige)
+  // vurdering av lakk-dekning – til og med etter en eksplisitt v2.66-instruks om å la være,
+  // eskalerte den til "KRITISK MANGEL". Data brukes ikke lenger til noe Claude selv trenger å
+  // se: rustbeskyttelse-sjekken (v2.63/harFlateretteLinjePF) og lakk-konsistens-sjekken er
+  // begge fullt kode-drevet allerede og leser t.karosseri_flaterett direkte i egen logikk.
+  // I stedet for å bygge et filter som fanger Claudes feil ETTERPÅ, fjernes fristelsen – ingen
+  // data å gjette feil på. (Selve arrayet t.karosseri_flaterett er urørt og fortsatt fullt
+  // brukt internt av koden – kun visningen til Claude er fjernet.)
 
   if(t.plastreparasjon.length){
     s+=`PLASTREPARASJON (arbeidsspes):\n`;
@@ -2966,7 +2987,7 @@ Du SKAL følge disse reglene UTEN UNNTAK:
 • Hvis HURTIGFAKTA viser "Spylervæske ført i taksten: JA" → IKKE foreslå spylervæske. Den er allerede med.
 • Hvis HURTIGFAKTA viser "Folie nevnt i taksten: JA" → behandle farge-avvik MYKT. Nevn at bilen er foliert og at fargekoden sannsynligvis er riktig. IKKE flagg "sjekk fargekode" som en hard mangel.
 • Hvis HURTIGFAKTA viser "Flaterette-kostnad finnes ... men UB IKKE ført", "Kanal lakkeres ... tilstøtende ikke ført", "⚠️ SMÅDEL PÅ 50%", "⚠️ BRUKT DEL SOM N" eller "Tesla bakdør: JA" → disse håndteres nå AUTOMATISK av koden (v2.35, deterministiske funn med egne ID-er). IKKE skriv egne forslag for disse – de legges til av systemet selv, og dine varianter blir uansett fjernet som duplikater.
-• v2.66: Hvis HURTIGFAKTA viser "Konsistens-sjekk (reparasjon må ha lakk): OK" → koden har ALLEREDE koblet hver flaterett/målrett-post (i FLATERETT/MÅLRETT-lista) mot riktig lakk-post, inkludert når delnavnene er skrevet ulikt (f.eks. "Skjerm foran H" i flaterett-lista er samme del som "H Forskjerm" i lakkspes). IKKE lag din egen konkurrerende vurdering av om en flaterett/målrett-post mangler lakk – stol på "OK" akkurat som du stoler på de andre v2.35-sjekkene over. Skriv KUN et forslag om lakk-dekning for flaterett/målrett hvis HURTIGFAKTA eksplisitt viser "🚨 KRITISK – REPARASJON UTEN LAKK" for den spesifikke delen.
+• v2.67: Konsistens-sjekk (reparasjon må ha lakk) er FULLT kode-drevet. Vis "OK" → ingenting å gjøre. Vis "🚨 KRITISK – REPARASJON UTEN LAKK" → bruk akkurat den teksten, ikke lag egen vurdering. Du ser ikke lenger noen rå per-del flaterett/målrett-liste – den er bevisst fjernet, så det er ingenting å resonnere selvstendig om her.
 • Hvis HURTIGFAKTA viser "DELSTATUS PER HOVEDDEL" → dette er en OBLIGATORISK huskeliste. For HVER linje der: finn det navngitte regelavsnittet i INNEBYGDE REGLER og gå gjennom HVERT punkt i det avsnittet mot taksten – ikke bare de punktene du husker eller anser som mest sannsynlige. Hopp aldri over en linje i DELSTATUS uten å ha sjekket det tilhørende avsnittet. For detaljer sjekklisten spør om (f.eks. hjulbueliste, tankluke/dekklokk) som IKKE er synlige i det strukturerte sammendraget – søk også i RÅ PDF-TEKST (spesielt Detaljspesifikasjon-siden) før du konkluderer med at detaljen mangler eller ikke finnes.
 • Du er PLIKTIG til å fylle ut feltet "delsjekk" i JSON-svaret (se format lenger ned) for HVER linje i DELSTATUS – én oppføring per punkt i det tilhørende regelavsnittet, med eksplisitt status. Dette er ikke valgfritt: hvis du hopper over et punkt i delsjekk, har du også hoppet over å vurdere det for taksten, og det regnes som en feil.
 • Tesla bakdør folie/tape: håndteres automatisk av koden (v2.35) – ikke skriv eget forslag.
