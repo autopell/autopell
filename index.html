@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.61 – Smart kontroll av takster</title>
+<title>AutoPell v2.62 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.61</div>
+    <div class="version-badge">v2.62</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -275,6 +275,39 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v2.62 – endringer fra v2.61 (2 punkter):
+
+   1. NOTAT-REFERANSE-ORDLYD. "NOTAT FRA TAKSTMANN"-etiketten byttet til nøytral "NOTAT I
+      TAKSTEN" – Martin ER takstmannen, så tredjepersons-ekkoet ("i tråd med takstmannens eget
+      forbehold") ga en rar selv-referanse. Ren tekstendring i selve HURTIGFAKTA-etiketten.
+
+   2. RUSTBESKYTTELSE KUN VED FAKTISK RETTEOPERASJON (Martin, fagmann-bekreftet). Bekreftet
+      falskt positiv: Porsche Taycan ED39738 fikk rustbeskyttelse foreslått på V/H Forskjerm +
+      Panser basert kun på materialtype (stål) + G-status – selv om eneste faktiske operasjon
+      var "PANSER, slipe ut steinsprut" (ren lakkjobb, ingen Flatrette-linje).
+      Domenepoeng: rustfare kommer av VARME under metallretting; steinsprut/striper-utsliping
+      berører aldri metallet med varme, og er dessuten en LEGITIM, komplett forklaring i seg
+      selv – ikke bare fravær av data.
+      Ny logikk, tre utfall per G-status UB-relevant del:
+        a) Flatrette/Målrette-linje finnes for delen → rustbeskyttelse ER relevant.
+        b) KUN steinsprut/striper nevnt (ingen Flatrette) → INGEN varsel i det hele tatt –
+           dette er en gyldig, ferdig forklaring, ikke en glemt post.
+        c) Verken Flatrette eller steinsprut/striper nevnt → ny advarsel DET_MULIG_GLEMT_
+           FLATERETTE: "lakkert (G) uten synlig reparasjonsgrunn – sjekk om flaterette er
+           glemt".
+      N-status (skift) er UENDRET – en skiftet del krever montering uansett varme.
+      "Reparasjon"-tiltak (steinsprut/striper) er IKKE en egen strukturert parser-liste (kun
+      Skift/De-Mo gjenkjennes som tiltakstype i dag) – løst med målrettet råtekst-søk (samme
+      ordoverlapp-prinsipp som resten av del-matchingen), ikke en ny parser-struktur.
+      SELVOPPDAGET FEIL FØR PUBLISERING: første forsøk hadde retningen baklengs (behandlet
+      steinsprut-funn som BEVIS for at rustbeskyttelse var relevant, motsatt av det Martin
+      faktisk sa) – fanget og rettet under egen testing før noe gikk ut.
+      KJENT GJENVÆRENDE USIKKERHET: på selve Porsche-taksten har kun Panser en eksplisitt
+      steinsprut-linje – V/H Forskjerm har ingen tilsvarende tekst i det hele tatt, så de vil
+      trolig havne i "mulig glemt flaterette" i stedet for å bli stille, selv om Martin sa
+      alle tre var samme type jobb. Verdt å teste på den ekte taksten for å se om dette
+      stemmer eller trenger justering.
 
 /* AutoPell v2.60 – endringer fra v2.59 (6 punkter, duplikat-jaktrunde):
 
@@ -1963,7 +1996,11 @@ function takstSammendrag(t){
   s+=`  Lakktype-regel: KUN Lakktype 3 = 3-sjikt. 1/2/4 er IKKE 3-sjikt. Ikke foreslå tilstøtende ved støtfanger begrunnet i 3-sjikt hvis lakktypen ikke er 3 – koden har allerede filtrert dette.\n`;
   s+=`  Svart bil-regel: tilstøtende-flate skal ALDRI foreslås på svart/sort bil – koden har allerede filtrert bort tilstøtende-ID-ene hvis Fargekode er svart/sort. Viser bildene tydelig en ANNEN farge enn Fargekode? Meld det som eget avviks-funn (feil fargekode i taksten), IKKE som grunnlag for å likevel foreslå tilstøtende.\n\n`;
 
-  if(t.notater)s+=`NOTAT FRA TAKSTMANN: "${t.notater}"\n\n`;
+  // v2.62: byttet fra "NOTAT FRA TAKSTMANN" til nøytral etikett – Martin ER takstmannen
+  // som skrev notatet, så tredjepersons-formen ("i tråd med takstmannens eget forbehold")
+  // Claude ekko\'et tilbake i forslag ga en rar selv-referanse. Nøytral kilde-etikett gjør
+  // at Claude ikke lenger har grunn til å speile "takstmannen" i egen ordlyd.
+  if(t.notater)s+=`NOTAT I TAKSTEN: "${t.notater}"\n\n`;
 
   s+=`SAMMENSTILLING (kostnader):\n`;
   for(const[k,v]of Object.entries(t.sammenstilling)){if(k!=='ub_kr')s+=`  ${k}: ${v}\n`;}
@@ -2148,6 +2185,7 @@ function takstSammendrag(t){
     DET_RUSTBESKYTTELSE:{deterministisk:true,navn:'Rustbeskyttelse mangler',mal:'',farge:'rød'},
     DET_KLIPS:{deterministisk:true,navn:'Klipssett',mal:'',farge:'gul'},
     DET_BESKYTTELSESFOLIE:{deterministisk:true,navn:'Beskyttelsesfolie',mal:'',farge:'gul'},
+    DET_MULIG_GLEMT_FLATERETTE:{deterministisk:true,navn:'Mulig glemt flaterette',mal:'',farge:'gul'},
     DET_TREKKETARN:{deterministisk:true,navn:'Trekketårn/rigging',mal:'',farge:'gul'},
     DET_MERCEDES_RIPEFAST:{deterministisk:true,navn:'Mercedes ripefast klarlakk',mal:'',farge:'gul'},
   };
@@ -3269,8 +3307,61 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           injiserDeterministisk('DET_UB_MANGLER',`Vurder å legge til UB (understellsbehandling) i DBS under Verksteddata → Materialforbruk/understellsbehandling – gjelder ${ubRelevantePF.join(', ')}`,'Verksteddata → Materialforbruk');
         }
         const rustFørtPF=parserData.sammenstilling&&parserData.sammenstilling['Rustbeskyttelse'];
-        if(ubRelevantePF.length&&!rustFørtPF){
-          injiserDeterministisk('DET_RUSTBESKYTTELSE',`Vurder å legge til rustbeskyttelse for ${ubRelevantePF.join(', ')} – 3p skrudd/rettet detalj, 9p sveiset detalj`,'Arbeidsspesifikasjon');
+        // v2.62: RUSTBESKYTTELSE KUN VED FAKTISK RETTEOPERASJON (Martin, fagmann-bekreftet):
+        // rustfaren kommer av VARME som ødelegger baksidebelegget under retting – ren
+        // lakkjobb (steinsprut/striper-utsliping) berører aldri metallet med varme, og
+        // trenger derfor ikke rustbeskyttelse. Bekreftet falskt positiv: Porsche Taycan
+        // ED39738 fikk rustbeskyttelse foreslått på V/H Forskjerm + Panser basert kun på
+        // materialtype (stål) + G-status, selv om eneste operasjon var "PANSER, slipe ut
+        // steinsprut" (ren lakk, ingen Flatrette-linje, ingen retting).
+        // N-status (skift) beholder uendret oppførsel – en skiftet del krever montering
+        // (skrudd/sveist) uansett varme, så den regelen er ikke berørt av dette skillet.
+        // "Reparasjon"-tiltak (steinsprut/striper) er IKKE en egen strukturert parser-liste
+        // (kun Skift/De-Mo gjenkjennes som tiltakstype) – søker derfor målrettet i råtekst
+        // etter en linje som nevner steinsprut/striper OG deler et kjerneord med delnavnet,
+        // samme prinsipp som resten av del-matchingen i kveld.
+        // v2.62-FIX (funnet under egentesting, rettet FØR publisering): steinsprut/striper-
+        // utsliping ER en gyldig grunn for G-status uten metallretting – akkurat DERFOR skal
+        // den IKKE utløse rustbeskyttelse (samme logikk som Martin ga: ingen varme = ingen
+        // rustfare). Første forsøk hadde dette baklengs (behandlet steinsprut-funn som bevis
+        // for at rustbeskyttelse VAR relevant). Nå tre reelle utfall per G-del:
+        //   1. Flatrette/Målrette-linje finnes → rustbeskyttelse ER relevant (metallretting).
+        //   2. KUN steinsprut/striper nevnt (ingen Flatrette) → rustbeskyttelse IKKE relevant,
+        //      OG dette er en legitim, komplett forklaring – ikke "mulig glemt flaterette".
+        //   3. Verken Flatrette eller steinsprut/striper nevnt → ekte uklarhet, flagges som
+        //      mulig glemt flaterette.
+        function harFlateretteLinjePF(delNavn){
+          return (parserData.karosseri_flaterett||[]).some(f=>{
+            const fOrd=(f.del||'').toLowerCase().split(/\s+/).filter(o=>o.length>=4);
+            const dOrd=(delNavn||'').toLowerCase().split(/\s+/).filter(o=>o.length>=4);
+            return fOrd.some(o=>dOrd.includes(o));
+          });
+        }
+        function harSteinsprutStriperPF(delNavn){
+          const dOrd=(delNavn||'').toLowerCase().split(/\s+/).filter(o=>o.length>=4);
+          const raw=parserData.raw||'';
+          return raw.split('\n').some(l=>{
+            if(!/steinsprut|striper/i.test(l))return false;
+            const lLower=l.toLowerCase();
+            return dOrd.some(o=>lLower.includes(o));
+          });
+        }
+        const rustNDeler=(parserData.lakkspes||[]).filter(d=>!d.tillegg&&!d.tilstøtende&&d.optype==='N'
+          &&!/plast/i.test((d.materialhint||''))&&!/støtfanger|hengsel|lokk|håndtak|spoiler|spyledyse|p-list|gitter|liste|speil/i.test((d.navn||'')));
+        const rustGDelerMedGrunn=[],muligGlemtFlaterette=[];
+        (parserData.lakkspes||[]).filter(d=>!d.tillegg&&!d.tilstøtende&&d.optype==='G'
+          &&!/plast/i.test((d.materialhint||''))&&!/støtfanger|hengsel|lokk|håndtak|spoiler|spyledyse|p-list|gitter|liste|speil/i.test((d.navn||''))
+        ).forEach(d=>{
+          if(harFlateretteLinjePF(d.navn))rustGDelerMedGrunn.push(`${d.navn} (G)`);
+          else if(harSteinsprutStriperPF(d.navn)){/* ren lakkjobb, ingen varme – ingen rustbeskyttelse, ingen advarsel */}
+          else muligGlemtFlaterette.push(d.navn);
+        });
+        const rustDelerEndelig=[...rustNDeler.map(d=>`${d.navn} (N)`),...rustGDelerMedGrunn];
+        if(rustDelerEndelig.length&&!rustFørtPF){
+          injiserDeterministisk('DET_RUSTBESKYTTELSE',`Vurder å legge til rustbeskyttelse for ${rustDelerEndelig.join(', ')} – 3p skrudd/rettet detalj, 9p sveiset detalj`,'Arbeidsspesifikasjon');
+        }
+        if(muligGlemtFlaterette.length){
+          injiserDeterministisk('DET_MULIG_GLEMT_FLATERETTE',`Sjekk om flaterette er glemt for ${muligGlemtFlaterette.join(', ')} – lakkert (G) uten noen synlig reparasjonsgrunn (verken Flatrette-linje eller steinsprut/striper-utsliping nevnt). Er dette faktisk ren lakkjobb uten metallretting trengs ingen rustbeskyttelse; er flaterette bare glemt lagt inn, legg den til.`,'Arbeidsspesifikasjon');
         }
         // v2.39 Fase 4: Klips – dør/støtfanger skiftes (N) eller demonteres (D/M), klips ikke nevnt
         const dørStøtfangerSkiftes=(parserData.lakkspes||[]).some(d=>!d.tillegg&&d.optype==='N'&&!d.tilstøtende&&d.navn&&/fordør|bakdør|støtfanger/i.test(d.navn))
