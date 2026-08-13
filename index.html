@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.63 – Smart kontroll av takster</title>
+<title>AutoPell v2.64 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.63</div>
+    <div class="version-badge">v2.64</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -275,6 +275,24 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v2.64 – endringer fra v2.63 (1 punkt, den reelle rotårsaken bak v2.62/v2.63-saken):
+
+   KAROSSERI-FLATERETT-PARSER – TALL-FØR-LABEL-LAYOUT. v2.63 fikset matchingen riktig, men
+   løste ikke Volvo V40 SV50250-saken – fordi selve "Flatrette, Skjerm foran H"-linjen ALDRI
+   nådde karosseri_flaterett-arrayet i utgangspunktet. Rå PDF-tekst hadde:
+     Manuell tid 130
+     Flatrette, Skjerm foran H
+   – tallet på linja FØR delnavnet, ikke etter, samme speilvendte rekkefølge som v2.46-fiksen
+   løste for Skift/De-Mo, bare i en annen del av parseren. Den gamle regexen krevde tall på
+   selve linja, så "Flatrette, Skjerm foran H" (uten tall) ble aldri fanget.
+   Ren tilleggs-gren: fanger nå ogsp linjer som starter "Flatrette,"/"Målrette," UTEN tall på
+   egen linje, henter tallet fra "Manuell tid NNN" på forrige linje i stedet. Kan aldri
+   påvirke det som allerede parses riktig (kun et else-forsøk etter at original-regexen
+   allerede har fått sjansen).
+   Testet: nytt tall-før-label-format (Volvo, gir riktig 130p), gammelt samme-linje-format
+   uendret (regresjon), og full ende-til-ende-test av parser+matching sammen (v2.63s fiks
+   finner nå faktisk H Forskjerm-treffet siden dataen endelig finnes å matche mot).
 
 /* AutoPell v2.63 – endringer fra v2.62 (1 punkt, retter falskt positiv fra v2.62 selv):
 
@@ -1746,12 +1764,32 @@ function parseTakst(text){
 
   // ----- KAROSSERI FLATERETT -----
   let inFlate=false;
-  for(const line of lines){
+  for(let li=0;li<lines.length;li++){
+    const line=lines[li];
     if(line.includes('Karosseri - Justering')||line.match(/^Karosseri - Flaterette/)){inFlate=true;continue;}
     if(inFlate&&line.startsWith('Sum Karosseri'))break;
     if(inFlate){
       const m=line.match(/^(Flatrette|Målrette),\s*(.+?)\s+(Manuell tid)?\s*(\d+)$/);
-      if(m){result.karosseri_flaterett.push({type:m[1],del:m[2],tid:parseInt(m[4])});}
+      if(m){
+        result.karosseri_flaterett.push({type:m[1],del:m[2],tid:parseInt(m[4])});
+      }else{
+        // v2.64: TALL-FØR-LABEL-LAYOUT. Bekreftet på Volvo V40 SV50250: rå PDF-tekst hadde
+        // "Manuell tid 130" på linja FØR "Flatrette, Skjerm foran H", ikke etter – samme
+        // speilvendte rekkefølge som v2.46-fiksen løste for Skift/De-Mo, bare i en annen del
+        // av parseren. Uten tall på selve linja bommet regexen over helt, og
+        // karosseri_flaterett ble stående tom for denne delen – matchings-fiksen i v2.63
+        // hadde da ingenting å matche mot, siden selve dataen aldri nådde arrayet.
+        // Ren tilleggs-gren: fanger KUN linjer som starter med "Flatrette,"/"Målrette," og
+        // IKKE har tall på egen linje – kan aldri påvirke det som allerede parses riktig.
+        const mUtenTall=line.match(/^(Flatrette|Målrette),\s*(.+)$/);
+        if(mUtenTall){
+          const forrige=(lines[li-1]||'').match(/Manuell tid\s+(\d+)/);
+          if(forrige){
+            result.karosseri_flaterett.push({type:mUtenTall[1],del:mUtenTall[2].trim(),tid:parseInt(forrige[1])});
+            console.log('[PARSER v2.64] Fanget tall-før-label: "'+mUtenTall[1]+', '+mUtenTall[2].trim()+'" ← '+forrige[1]+'p fra forrige linje');
+          }
+        }
+      }
     }
   }
 
