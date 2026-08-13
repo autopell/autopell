@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.64 – Smart kontroll av takster</title>
+<title>AutoPell v2.65 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.64</div>
+    <div class="version-badge">v2.65</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -275,6 +275,25 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v2.65 – endringer fra v2.64 (1 punkt, den EKTE rotårsaken bak hele v2.62-65-saken):
+
+   SEKSJONSDETEKSJON – KOSTNADSLINJE FEILTOLKET SOM OVERSKRIFT. Sporet med Ctrl+Shift+J og
+   full JSON-debug-dump: karosseri_flaterett var TOM, til tross for at v2.63 (matching) og
+   v2.64 (tall-før-label) begge var korrekte isolert. Fant den faktiske årsaken ved å kjøre
+   selve parser-loopen steg for steg mot ekte råtekst:
+   Sammenstilling-siden (helt først i taksten) har sin EGEN kostnadslinje
+   "Karosseri - Flaterette 130 1 050,00 1 365,00". /^Karosseri - Flaterette/-sjekken matchet
+   DENNE i stedet for den ekte "Karosseri - Justering"-overskriften lenger nede i
+   Arbeidsspesifikasjon. inFlate ble satt altfor tidlig, og loopen brøt ut via
+   "Sum Karosseriarbeide..." lenge FØR den i det hele tatt nådde fram til den virkelige
+   Flatrette-linja. karosseri_flaterett var derfor alltid tom på denne takst-layouten –
+   v2.63/v2.64-fiksene fikk aldri sjansen til å kjøre.
+   Fix: skiller kostnadslinje fra ekte overskrift på om linja har et beløp med komma-desimal
+   (f.eks. "1 050,00") – det har kostnadslinja alltid, det har aldri selve overskriften.
+   Testet mot ekte råtekst fra taksten: full kjede (parser + v2.63s matching) gir nå riktig
+   resultat, PLUSS regresjonstest som bekrefter at en ekte "Karosseri - Flaterette"-overskrift
+   (uten beløp) fortsatt fungerer som før.
 
 /* AutoPell v2.64 – endringer fra v2.63 (1 punkt, den reelle rotårsaken bak v2.62/v2.63-saken):
 
@@ -1766,7 +1785,17 @@ function parseTakst(text){
   let inFlate=false;
   for(let li=0;li<lines.length;li++){
     const line=lines[li];
-    if(line.includes('Karosseri - Justering')||line.match(/^Karosseri - Flaterette/)){inFlate=true;continue;}
+    // v2.65-FIX: EKTE ROTÅRSAK bak hele v2.62/v2.63/v2.64-saken. Sammenstilling-siden (helt
+    // først i taksten) har sin EGEN kostnadslinje "Karosseri - Flaterette 130 1 050,00
+    // 1 365,00" – /^Karosseri - Flaterette/ matchet DENNE i stedet for den ekte "Karosseri -
+    // Justering"-overskriften lenger nede i Arbeidsspesifikasjon. inFlate ble satt altfor
+    // tidlig, og loopen brøt ut (via "Sum Karosseriarbeide...") lenge FØR den nådde den
+    // faktiske Flatrette-linja. karosseri_flaterett ble derfor alltid tom på denne
+    // takst-layouten – v2.63/v2.64-fiksene fikk aldri sjansen til å kjøre i det hele tatt.
+    // Skiller nå kostnadslinje fra ekte overskrift: en kostnadslinje har alltid et beløp med
+    // komma-desimal (f.eks. "1 050,00"), det har aldri selve seksjonsoverskriften.
+    const erKostnadslinjeIkkeOverskrift=/,\d{2}/.test(line);
+    if((line.includes('Karosseri - Justering')||(line.match(/^Karosseri - Flaterette/)&&!erKostnadslinjeIkkeOverskrift))){inFlate=true;continue;}
     if(inFlate&&line.startsWith('Sum Karosseri'))break;
     if(inFlate){
       const m=line.match(/^(Flatrette|Målrette),\s*(.+?)\s+(Manuell tid)?\s*(\d+)$/);
