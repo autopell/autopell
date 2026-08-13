@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.65 – Smart kontroll av takster</title>
+<title>AutoPell v2.66 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.65</div>
+    <div class="version-badge">v2.66</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -275,6 +275,21 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v2.66 – endringer fra v2.65 (1 punkt):
+
+   CLAUDE OVERPRØVDE EGEN "KONSISTENS-SJEKK: OK". Bekreftet på Volvo V40 SV50250 rett etter
+   v2.65: nå som karosseri_flaterett endelig når fram med ekte data, så Claude for FØRSTE gang
+   "Skjerm foran H: 130p" i FLATERETT/MÅLRETT-lista i HURTIGFAKTA – og skrev sin egen fritekst-
+   vurdering ("flaterett er ført uten tilhørende lakk-post"), selv om HURTIGFAKTA samtidig sa
+   "Konsistens-sjekk (reparasjon må ha lakk): OK", og H Forskjerm faktisk HAR lakk-post
+   (124p) i lakkspesen. Ingen kode-bug – ren fritekst fra Claude, ikke en mal-tekst eller
+   deterministisk ID. Rotårsak: Claude koblet ikke "Skjerm foran H" mot "H Forskjerm" selv,
+   presist samme kobling koden allerede gjør riktig via harFlateretteLinjePF (v2.63).
+   Fix: utvidet den eksisterende "IKKE skriv egne forslag for v2.35-sjekker"-instruksen til
+   eksplisitt å dekke Konsistens-sjekk også – stol på "OK", ikke lag konkurrerende vurdering,
+   skriv kun forslag hvis HURTIGFAKTA selv viser "🚨 KRITISK – REPARASJON UTEN LAKK". Ren
+   prompt-justering, ingen kodelogikk endret.
 
 /* AutoPell v2.65 – endringer fra v2.64 (1 punkt, den EKTE rotårsaken bak hele v2.62-65-saken):
 
@@ -2951,6 +2966,7 @@ Du SKAL følge disse reglene UTEN UNNTAK:
 • Hvis HURTIGFAKTA viser "Spylervæske ført i taksten: JA" → IKKE foreslå spylervæske. Den er allerede med.
 • Hvis HURTIGFAKTA viser "Folie nevnt i taksten: JA" → behandle farge-avvik MYKT. Nevn at bilen er foliert og at fargekoden sannsynligvis er riktig. IKKE flagg "sjekk fargekode" som en hard mangel.
 • Hvis HURTIGFAKTA viser "Flaterette-kostnad finnes ... men UB IKKE ført", "Kanal lakkeres ... tilstøtende ikke ført", "⚠️ SMÅDEL PÅ 50%", "⚠️ BRUKT DEL SOM N" eller "Tesla bakdør: JA" → disse håndteres nå AUTOMATISK av koden (v2.35, deterministiske funn med egne ID-er). IKKE skriv egne forslag for disse – de legges til av systemet selv, og dine varianter blir uansett fjernet som duplikater.
+• v2.66: Hvis HURTIGFAKTA viser "Konsistens-sjekk (reparasjon må ha lakk): OK" → koden har ALLEREDE koblet hver flaterett/målrett-post (i FLATERETT/MÅLRETT-lista) mot riktig lakk-post, inkludert når delnavnene er skrevet ulikt (f.eks. "Skjerm foran H" i flaterett-lista er samme del som "H Forskjerm" i lakkspes). IKKE lag din egen konkurrerende vurdering av om en flaterett/målrett-post mangler lakk – stol på "OK" akkurat som du stoler på de andre v2.35-sjekkene over. Skriv KUN et forslag om lakk-dekning for flaterett/målrett hvis HURTIGFAKTA eksplisitt viser "🚨 KRITISK – REPARASJON UTEN LAKK" for den spesifikke delen.
 • Hvis HURTIGFAKTA viser "DELSTATUS PER HOVEDDEL" → dette er en OBLIGATORISK huskeliste. For HVER linje der: finn det navngitte regelavsnittet i INNEBYGDE REGLER og gå gjennom HVERT punkt i det avsnittet mot taksten – ikke bare de punktene du husker eller anser som mest sannsynlige. Hopp aldri over en linje i DELSTATUS uten å ha sjekket det tilhørende avsnittet. For detaljer sjekklisten spør om (f.eks. hjulbueliste, tankluke/dekklokk) som IKKE er synlige i det strukturerte sammendraget – søk også i RÅ PDF-TEKST (spesielt Detaljspesifikasjon-siden) før du konkluderer med at detaljen mangler eller ikke finnes.
 • Du er PLIKTIG til å fylle ut feltet "delsjekk" i JSON-svaret (se format lenger ned) for HVER linje i DELSTATUS – én oppføring per punkt i det tilhørende regelavsnittet, med eksplisitt status. Dette er ikke valgfritt: hvis du hopper over et punkt i delsjekk, har du også hoppet over å vurdere det for taksten, og det regnes som en feil.
 • Tesla bakdør folie/tape: håndteres automatisk av koden (v2.35) – ikke skriv eget forslag.
