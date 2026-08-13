@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.62 – Smart kontroll av takster</title>
+<title>AutoPell v2.63 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.62</div>
+    <div class="version-badge">v2.63</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -275,6 +275,24 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v2.63 – endringer fra v2.62 (1 punkt, retter falskt positiv fra v2.62 selv):
+
+   FLATERETTE-MATCHING – KORT/LANGFORM + "FORAN" SOM EGEN ORDFORM. Bekreftet falskt positiv:
+   Volvo V40 SV50250 hadde "Flatrette, Skjerm foran H" (130p, helt reell), men fikk likevel
+   "mulig glemt flaterette" for H Forskjerm – matchingen krevde eksakt likt ord, og
+   "skjerm"≠"forskjerm" som strenger, selv om det er samme del.
+   Bruker nå samme kort-/langform-normalisering som Detaljspesifikasjon-matchingen
+   (skjerm/dør + bak(re)? → bakskjerm/bakdør). Nytt funn under selve byggingen: "foran" er en
+   HELT EGEN norsk ordform, ikke bare en variant av "frem/fremre" – begge brukes om hverandre
+   i ulike takst-layouter for samme del. Utvidet mønsteret til frem(re)?|foran.
+   ANDRE FEIL FANGET UNDER EGEN TESTING, RETTET FØR PUBLISERING: første forsøk strippet side
+   (V/H) helt bort under normalisering, slik at "V Forskjerm" feilaktig matchet en H-side
+   flaterette-linje. Rettet ved å bevare side som del av sammenligningen.
+   Testet 7 scenarioer: Volvo-saken (nå riktig), feil side (korrekt avvist), riktig side
+   (korrekt godkjent), eksakt match uendret, kortform bak uendret, enkel del uten side, helt
+   urelatert del (korrekt avvist). Ingen regresjon på steinsprut/striper-sjekken, notat-
+   etiketten eller tak-regexen.
 
 /* AutoPell v2.62 – endringer fra v2.61 (2 punkter):
 
@@ -3330,11 +3348,30 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
         //      OG dette er en legitim, komplett forklaring – ikke "mulig glemt flaterette".
         //   3. Verken Flatrette eller steinsprut/striper nevnt → ekte uklarhet, flagges som
         //      mulig glemt flaterette.
+        // v2.63-FIX: bekreftet miss på Volvo V40 SV50250 – "Flatrette, Skjerm foran H"
+        // (ekte, 130p) matchet ikke "H Forskjerm" (lakkspes-delnavnet) fordi ordmatchingen
+        // krevde eksakt likt ord ("skjerm" ≠ "forskjerm"), selv om det åpenbart er samme del.
+        // Samme feilklasse som bakdør/bak og Panel-bakluke-sakene. Bruker nå samme kort-/
+        // langform-normalisering som Detaljspesifikasjon-matchingen – OG et nytt funn under
+        // bygging: "foran" er en EGEN norsk ordform, ikke bare en variant av "frem/fremre"
+        // (begge brukes om hverandre i ulike takst-layouter for samme del).
+        // v2.63-FIX2: bevarer side (V/H) i normaliseringen – oppdaget under egen testing at
+        // "V Forskjerm" feilaktig matchet en H-side flaterette-linje når siden ble strippet
+        // helt bort. Fanget og rettet før publisering.
+        function normaliserHoveddelPF(s){
+          let n=(s||'').toLowerCase().replace(/\s+/g,' ').trim();
+          let side=null;
+          const mFør=n.match(/^([hv])\s+/); if(mFør){side=mFør[1];n=n.replace(/^([hv])\s+/,'');}
+          const mEtter=n.match(/\s+([hv])$/); if(mEtter){side=mEtter[1];n=n.replace(/\s+([hv])$/,'');}
+          n=n.replace(/^dør\s+(?:frem(?:re)?|foran)$/,'fordør').replace(/^dør\s+bak(?:re)?$/,'bakdør')
+             .replace(/^skjerm\s+(?:frem(?:re)?|foran)$/,'forskjerm').replace(/^skjerm\s+bak(?:re)?$/,'bakskjerm');
+          return side?side+' '+n:n;
+        }
         function harFlateretteLinjePF(delNavn){
+          const dn=normaliserHoveddelPF(delNavn);
           return (parserData.karosseri_flaterett||[]).some(f=>{
-            const fOrd=(f.del||'').toLowerCase().split(/\s+/).filter(o=>o.length>=4);
-            const dOrd=(delNavn||'').toLowerCase().split(/\s+/).filter(o=>o.length>=4);
-            return fOrd.some(o=>dOrd.includes(o));
+            const fn=normaliserHoveddelPF(f.del);
+            return fn===dn||(dn.length>=4&&fn.includes(dn))||(fn.length>=4&&dn.includes(fn));
           });
         }
         function harSteinsprutStriperPF(delNavn){
