@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.68 – Smart kontroll av takster</title>
+<title>AutoPell v2.69 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.68</div>
+    <div class="version-badge">v2.69</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -275,6 +275,27 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v2.69 – endringer fra v2.68 (1 punkt, den EKTE, EKTE kilden – bekreftet via konsoll):
+
+   TRE SEPARATE "HAR DENNE DELEN LAKK-POST"-FUNKSJONER I SAMME FIL. Konsollen avslørte det:
+   v2.68s fjernForslag() fjernet faktisk Claudes fritekst-påstand korrekt ("[POST-FILTER]
+   Fjernet resultat..."), MEN rett etterpå la en HELT ANNEN, deterministisk kodesjekk (linje
+   ~4160, "[POST-FILTER] LAGT TIL kritisk mangel...") den samme konklusjonen rett tilbake –
+   uavhengig av Claude helt og holdent. v2.68 var derfor riktig bygget for feil diagnose:
+   dette var aldri Claude som "trosset" instruksjoner, det var kode jeg ikke hadde funnet.
+   Den ekte kilden: manglendeLakk-sjekken (linje ~4048) bruker harLakkPost2 – en HELT ANNEN,
+   mye mer sentralt brukt funksjon enn harFlateretteLinjePF (som v2.63-65 fikset). harLakkPost2
+   sin normaliserDelnavn2 manglet nøyaktig samme kort-/langform-normalisering
+   (foran/frem/fremre, bak/bakre → forskjerm/bakskjerm/fordør/bakdør) – "Skjerm foran H" ble
+   aldri gjenkjent som samme del som "H Forskjerm".
+   Fikset i selve normaliserDelnavn2 (ikke bare harFlateretteLinjePF), siden harLakkPost2
+   brukes MYE bredere i filen (grunning-duplikat v2.58, plastrep-sjekker, manglendeLakk) –
+   retter alle konsumenter samtidig. Fanget og rettet en detalj før publisering: normaliser-
+   Delnavn2 fjernet kun LEDENDE v/h, ikke AVSLUTTENDE – lagt til trailing-strip før kort-/
+   langform-sjekken, ellers ville "Skjerm foran H" beholdt "h" og aldri truffet mønsteret.
+   Testet: hovedsaken (Skjerm foran H / H Forskjerm) nå korrekt true, BMW-spoiler-saken
+   (v2.60, samme funksjon) fortsatt korrekt true, urelatert del fortsatt korrekt false.
 
 /* AutoPell v2.68 – endringer fra v2.67 (1 punkt, siste forsvarslinje):
 
@@ -4004,10 +4025,30 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
         {fra:/støtfangerdeksel/g, til:'støtfanger'},
         {fra:/\bp-list\b/g, til:'list'},
       ];
+      // v2.69-FIX: DEN FAKTISKE KILDEN til hele v2.62-68-saken. Det finnes TRE separate
+      // "har denne delen lakk-post"-funksjoner i filen (harLakkPost/v1, harLakkPost2/v2,
+      // harFlateretteLinjePF/v3-egenbygget for rustbeskyttelse). v2.63-65 fikset kun v3 – men
+      // "Skjerm foran H" (flaterett) sjekkes mot lakkspes via harLakkPost2 (v2), en HELT
+      // ANNEN, mye mer sentralt brukt funksjon jeg aldri rørte. Den manglet nøyaktig samme
+      // kort-/langform-normalisering (foran/frem/fremre, bak/bakre → forskjerm/bakskjerm/
+      // fordør/bakdør). Dette er grunnen til at v2.68s fjernForslag() "virket" i konsollen
+      // (fjernet Claudes fritekst korrekt) men forslaget likevel kom rett tilbake – en HELT
+      // SEPARAT deterministisk sjekk (linje ~4160, bruker harLakkPost2) la det til på nytt,
+      // uavhengig av Claude, rett etter at v2.68 fjernet den første versjonen.
+      // Fikser her i stedet for i harFlateretteLinjePF, siden harLakkPost2 brukes MYE bredere
+      // (grunning-duplikat v2.58, plastrep-sjekker, manglendeLakk) – retter alle på én gang.
       function normaliserDelnavn2(s){
         let n=s.toLowerCase().replace(/^[vh]\s+/,'').replace(/\(.*?\)/g,'').replace(/,.*$/,'').trim();
         n=n.replace(/\b(grunnet|m sportpakke|sport-?pakke|p-radar|p radar|eks)\b/g,'').replace(/\s+/g,' ').trim();
         synonymer2.forEach(syn=>{n=n.replace(syn.fra,syn.til);});
+        // v2.69-FIX2: normaliserDelnavn2 strippet kun LEDENDE v/h ("H Forskjerm"→"forskjerm"),
+        // ikke AVSLUTTENDE v/h – så "Skjerm foran H" beholdt "h" på slutten, og mønsteret over
+        // traff aldri. Samme svake side-håndtering som funksjonen allerede har andre steder
+        // (leder-siden forsvinner også sporløst) – følger etablert mønster, ikke ny side-
+        // bevaring, for konsistens med resten av denne (allerede side-blinde) funksjonen.
+        n=n.replace(/\s+[vh]$/,'').trim();
+        n=n.replace(/^dør\s+(?:frem(?:re)?|foran)$/,'fordør').replace(/^dør\s+bak(?:re)?$/,'bakdør')
+           .replace(/^skjerm\s+(?:frem(?:re)?|foran)$/,'forskjerm').replace(/^skjerm\s+bak(?:re)?$/,'bakskjerm');
         return n.replace(/\s+/g,' ').trim();
       }
       function harLakkPost2(delNavn){
