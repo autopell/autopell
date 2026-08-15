@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.75 – Smart kontroll av takster</title>
+<title>AutoPell v2.76 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.75</div>
+    <div class="version-badge">v2.76</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -276,6 +276,36 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
 
+/* AutoPell v2.76 – endringer fra v2.75 (1 punkt: intern instruksjonstekst lekket ut i DBS-boksen):
+
+   FUNNET (Toyota Auris SV81619, ny kjøring): løftetape-forslaget viste HELE malteksten ordrett i
+   "DETTE MÅ GJØRES I DBS", inkludert ren intern notasjon: status="usikker", (v2.43-regelen),
+   "len mot", "lener bilen mot en av disse karosseriformene". Martin: "jeg trenger ikke så mye
+   tekst. hold det saklig." På forrige kjøring av samme takst sto det kort og riktig – forskjellen
+   er om Claude selv fyller ut "forslag" eller lar det stå tomt.
+
+   MEKANISMEN (kartlagt før bygging – .mal brukes KUN tre steder i hele fila): to deterministiske
+   injeksjoner, og fallbacken p.forslag=regForMal.mal når Claude leverer et punkt uten egen
+   forslagstekst. Da limes malen inn ordrett. Lekkasjen kommer altså fra KODEN, ikke fra Claude.
+
+   FIKS: malene splittet i to felt for de fire oppføringene som inneholdt Claude-rettet tekst
+   (kartlagt: 5 av 71 maler; BAKDOR_HJULBUELISTE har kun "i så fall" og er latt urørt) –
+   BAKSKJERM_G_LOFTETAPE (548 tegn, verst), DOR_FELLES_HTT_HANDTAK, STOTFANGER_50_SMADELER,
+   STOTFANGER_HTT_LOSE:
+     mal:    kort forslagstekst rettet til takstmannen – dette er det eneste som kan vises
+     intern: betingelsene og vurderingsreglene – vises aldri
+   Ingen regel er fjernet, kun flyttet ut av det synlige feltet.
+
+   STØRRE FUNN UNDERVEIS, IKKE FIKSET HER (egen versjon, avtalt med Martin): .mal sendes ALDRI
+   til Claude. DELSTATUS sender kun ID-NAVNENE ("bruk disse ID-ene: X, Y, Z"), og
+   løftetape-veiledningen finnes ingen andre steder i prompten. Claude har altså aldri sett
+   stasjonsvogn/SUV-heuristikken, personbil-betingelsen eller v2.43-biasen for løftetape – de har
+   kun eksistert i et felt koden bruker til å fylle inn tekst i ETTERKANT. Det forklarer en
+   dokumentert observasjon: Claude valgte "ikke relevant" på løftetape i to av tre kjøringer
+   til tross for at regelen sier det motsatte. Det nye intern-feltet er strukturen som trengs for
+   å faktisk levere reglene til Claude – selve leveransen bygges som egen versjon med egen
+   testrunde, siden den endrer hva Claude ser og dermed kan endre resultater bredt.
+*/
 /* AutoPell v2.75 – endringer fra v2.74 (1 punkt: sumlinja teller ikke funn som peker MOT):
 
    BAKGRUNN (MINI Countryman UF87158, ren kjøring): sumlinja viste 15 p for HTT dørhåndtak, mens
@@ -2512,7 +2542,7 @@ function takstSammendrag(t){
     DOR_FELLES_RUST:{deterministisk:true,navn:'Rustbeskyttelse',mal:'',farge:'rød'},
     DOR_FELLES_DEMO:{kat:/\bfordør\b|\bbakdør\b/i,optype:['N','G'],skjulHvisDetaljFunnet:['trekk','deksel','ruteheis','vindusheis'],navn:'De/Mo innvendige detaljer',mal:'Vurder å legge til De/Mo innvendige detaljer (vindusheis, dørtrekk)',farge:'rød'},
     DOR_FELLES_UB:{deterministisk:true,navn:'UB',mal:'',farge:'rød'},
-    DOR_FELLES_HTT_HANDTAK:{poeng:15,kat:/\bfordør\b|\bbakdør\b/i,optype:['N','G'],navn:'HTT dørhåndtak',mal:'RETTET (G): Sjekk om dørhåndtaket er lakkert – i så fall vurder HTT 15p i annetbildet. SKIFTET (N, ny ELLER brukt dør): spør PROAKTIVT om håndtaket fra erstatningsdøra bør lakkeres som tilstøtende siden det normalt ikke matcher bilens farge – nevn HTT 15p for håndtaket i SAMME forslag hvis det lakkeres.',farge:'gul'},
+    DOR_FELLES_HTT_HANDTAK:{poeng:15,kat:/\bfordør\b|\bbakdør\b/i,optype:['N','G'],navn:'HTT dørhåndtak',mal:'Sjekk om dørhåndtaket er lakkert i bilens farge – i så fall HTT 15p i annetbildet.',intern:'RETTET (G): reaktivt spørsmål. SKIFTET (N, ny ELLER brukt dør): spør PROAKTIVT om håndtaket fra erstatningsdøra bør lakkeres som tilstøtende, siden det normalt ikke matcher bilens farge – nevn HTT 15p i SAMME forslag hvis det lakkeres.',farge:'gul'},
     FORDOR_DIAGNOSE_AIRBAG:{kat:/\bfordør\b/i,optype:['N','G'],navn:'Diagnose airbag',mal:'Vurder å legge til diagnose (slette airbag-feilkoder, 50p)',farge:'gul'},
     FORDOR_TILST_BAKDOR:{kat:/\bfordør\b/i,optype:['N','G'],ikkeVedSvart:true,navn:'Tilstøtende bakdør',mal:'Vurder å ta med tilstøtende flate mot bakdør',farge:'gul'},
     FORDOR_TILST_FORSKJERM:{kat:/\bfordør\b/i,optype:['N','G'],ikkeVedSvart:true,navn:'Tilstøtende forskjerm',mal:'Vurder å ta med tilstøtende flate mot forskjerm',farge:'gul'},
@@ -2526,7 +2556,7 @@ function takstSammendrag(t){
     BAKSKJERM_G_TILST_BAKDOR:{kat:/bakskjerm/i,optype:['G'],ikkeVedSvart:true,navn:'Tilstøtende bakdør',mal:'Spør om tilstøtende mot bakdør er aktuelt',farge:'gul'},
     BAKSKJERM_G_HJULBUELISTE:{kat:/bakskjerm/i,optype:['G'],sjekkNevntIRaw:'hjulbueliste',navn:'HTT hjulbueliste',mal:'Sjekk om bakskjerm har lakkerbar hjulbueliste',farge:'gul'},
     BAKSKJERM_G_TANKLUKE:{kat:/bakskjerm/i,optype:['G'],sjekkAlleredeForLakkspes:['tankluk','ladeluk','bensinluk','strøminntak','dekklokk'],skjulHvisDetaljIkkeFunnet:['tankluk','ladeluk','bensinluk','dekklokk'],navn:'Tankluke',mal:'Sjekk om tankluken på bakskjerm bør vurderes som tilstøtende',farge:'gul'},
-    BAKSKJERM_G_LOFTETAPE:{poeng:20,kat:/bakskjerm/i,optype:['G'],sjekkAlleredeForLakkspes:['løftetape','loftetape'],navn:'Løftetape',mal:'Sjekk om det finnes en synlig rute mot bakskjerm – løftetape (20p) brukes til å løfte pakningen rundt ruten (derav navnet), ikke knyttet til selve rettearbeidet (kun personbil, ikke varebil). Nesten alle stasjonsvogner/kombi og de fleste SUV har en rute i bakskjerm – lener bilen mot en av disse karosseriformene og noe på bildet kan ligne en rute, len mot "usikker"/"foreslått" fremfor "ikke relevant". Er du i tvil om det er en rute i bildet: status="usikker", ALDRI "ikke relevant" (v2.43-regelen) – dette er selve eksempelet den regelen nevner.',farge:'gul'},
+    BAKSKJERM_G_LOFTETAPE:{poeng:20,kat:/bakskjerm/i,optype:['G'],sjekkAlleredeForLakkspes:['løftetape','loftetape'],navn:'Løftetape',mal:'Sjekk om det finnes en synlig rute mot bakskjerm som krever løftetape (20p).',intern:'Løftetape løfter pakningen rundt ruten, ikke knyttet til rettearbeidet. Kun personbil, ikke varebil. Nesten alle stasjonsvogner/kombi og de fleste SUV har rute i bakskjerm. Ved tvil: status="usikker", ALDRI "ikke relevant" (v2.43).',farge:'gul'},
     BAKSKJERM_G_POLERE_FLIKK:{poeng:20,kat:/bakskjerm/i,optype:['G'],navn:'Polere flikk',mal:'Vurder polere flikk 20p hvis takstolpe ikke lakkes helt ut',farge:'gul'},
 
     BAKSKJERM_N_RUST:{deterministisk:true,navn:'Rustbeskyttelse',mal:'',farge:'rød'},
@@ -2541,7 +2571,7 @@ function takstSammendrag(t){
     BAKSKJERM_N_DOKUMENTASJON:{kat:/bakskjerm/i,optype:['N'],navn:'Dokumentasjon',mal:'Vurder å ta med kostnad for innhenting av dokumentasjon for skift av bakskjerm',farge:'gul'},
 
     // v2.32 – Fase 1: Støtfanger/plastrep/50%-regelen
-    STOTFANGER_HTT_LOSE:{kat:/støtfanger/i,optype:['N','G'],sjekkHttAllerede:true,navn:'HTT løse deler',mal:'POSITIVLISTE – vurder HTT (15p/del) KUN for: slepekrokdeksel, spyledeksel, lister. Bekreft med bilder før forslag. Gjelder KUN hvis støtfangeren er lakkert i bilens farge. ALDRI foreslå sensorer, sensorholdere, brakketter eller andre deler bak støtfangeren – disse lakkes aldri.',farge:'gul'},
+    STOTFANGER_HTT_LOSE:{kat:/støtfanger/i,optype:['N','G'],sjekkHttAllerede:true,navn:'HTT løse deler',mal:'Vurder HTT 15p per løs del på støtfangeren – slepekrokdeksel, spyledeksel eller lister.',intern:'POSITIVLISTE – KUN slepekrokdeksel, spyledeksel, lister. Bekreft med bilder før forslag. Gjelder KUN hvis støtfangeren er lakkert i bilens farge. ALDRI foreslå sensorer, sensorholdere, brakketter eller andre deler bak støtfangeren – disse lakkes aldri.',farge:'gul'},
     STOTFANGER_DIAGNOSE:{kat:/støtfanger/i,optype:['N','G'],navn:'Diagnose (feilkoder)',mal:'Vurder å legge til diagnose (slette feilkoder, 100p) – støtfanger er demontert',farge:'gul'},
     STOTFANGER_KLIPS:{deterministisk:true,navn:'Klips',mal:'',farge:'gul'},
     STOTFANGER_SVEISEMATERIELL:{kat:/støtfanger/i,optype:['N','G'],navn:'Sveisemateriell plastrep',mal:'Vurder å legge til kostnad for sveisemateriell plastrep – gjelder KUN hvis "ut og innvendig skade" er huket av i plastspesifikasjonen, og kun ved reparasjon (ikke ved skift)',farge:'gul'},
@@ -2555,7 +2585,7 @@ function takstSammendrag(t){
     STOTFANGER_BAK_TILST_BAKSKJERM:{kat:/støtfanger bak/i,optype:['N','G'],krev3sjikt:true,ikkeVedSvart:true,navn:'Tilstøtende bakskjerm (3-sjikt)',mal:'Vurder å ta med tilstøtende flate mot bakskjerm – 3-sjikts farge (Lakktype 3)',farge:'gul'},
     STOTFANGER_50_MASKERING:{kat:/støtfanger/i,optype:['N','G'],navn:'Maskering ved 50%',mal:'Vurder å huke av maskering-boksen i utvendig lakk-tabellen – støtfangeren er satt til 50% lakk',farge:'rød'},
     STOTFANGER_50_POLERE_FLIKK:{poeng:20,kat:/støtfanger/i,optype:['N','G'],navn:'Polere flikk ved 50%',mal:'Vurder polere flikk 20p i annetbildet – påkrevd ved 50%-lakkering av støtfanger',farge:'gul'},
-    STOTFANGER_50_SMADELER:{kat:/støtfanger/i,optype:['N','G'],navn:'Smådeler feilaktig 50%',mal:'POSITIVLISTE – sjekk KUN slepekrokdeksel, spyledeksel og lister for feilaktig 50%-lakk i DBS (skal være 100%, legg til differansen). Bekreft med bilder før forslag. IKKE p-sensorer, sensorholdere eller andre deler bak støtfangeren – disse lakkes aldri og skal aldri stå på 50% i utgangspunktet.',farge:'rød'},
+    STOTFANGER_50_SMADELER:{kat:/støtfanger/i,optype:['N','G'],navn:'Smådeler feilaktig 50%',mal:'Sjekk om slepekrokdeksel, spyledeksel eller lister står på 50% lakk – de skal være 100%, legg til differansen.',intern:'POSITIVLISTE – KUN slepekrokdeksel, spyledeksel, lister. Bekreft med bilder før forslag. IKKE p-sensorer, sensorholdere eller andre deler bak støtfangeren – disse lakkes aldri og skal aldri stå på 50% i utgangspunktet.',farge:'rød'},
 
     // v2.35 – Deterministiske parser-betingelser: injiseres DIREKTE av koden når parseren
     // oppdager betingelsen. Claude er ikke involvert (deterministisk:true → vises aldri i
