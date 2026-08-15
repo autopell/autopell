@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.70 – Smart kontroll av takster</title>
+<title>AutoPell v2.72 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.70</div>
+    <div class="version-badge">v2.72</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -276,6 +276,62 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
 
+/* AutoPell v2.72 – endringer fra v2.71 (1 punkt, retter en designfeil i v2.71 selv):
+
+   POENGSUMMEN TELLER NÅ OGSÅ "usikker", ikke bare "foreslått". v2.71 talte kun "foreslått",
+   som viste seg å utelukke systematisk nettopp de funnene som HAR fast poengverdi:
+   v2.43-biasen sier at bildebaserte punkter ved tvil ALLTID skal lande på "usikker" framfor
+   "ikke relevant" – og løftetape er selve eksempelet den regelen nevner i sin egen mal-tekst.
+   Bekreftet på Toyota Auris SV81619: løftetape var et REELT funn (Martin bekreftet), men sto
+   som "usikker" og ga 0 p, slik at hele sumlinja forsvant på en takst der det faktisk var
+   20 p å hente.
+   Begge statusene betyr det samme for takstmannen – "AutoPell fant noe du må vurdere" – og
+   ordlyden i boksen sier allerede "forslag". "allerede ført" og "ikke relevant" gir fortsatt
+   null, som før.
+   MERK: dette er en prøveordning. Martin: "vi kan jo bare prøve. vi sletter den hvis ikke."
+   Hele poengsum-funksjonen (v2.71 + v2.72) er bevisst bygget som ett avgrenset tillegg –
+   poeng-feltene i REGEL_REGISTRY, timepris-parsingen og sumlinja – og kan fjernes igjen uten
+   at noe annet i programmet påvirkes.
+*/
+/* AutoPell v2.71 – endringer fra v2.70 (1 punkt: poengsum + kroner nederst i resultatlista):
+
+   BAKGRUNN (Martin): han vil ha tall å vise fram når produktet skal selges inn – "hvor mye
+   glipper det egentlig per takst". Avgrensning bestemt underveis: programmet skal fortsatt
+   komme med FORSLAG, ikke love kroner. Løsningen ble poeng (en faktaopplysning om posten,
+   lik for alle verksteder) omregnet til kroner med DENNE takstens egen lakktimepris.
+
+   1. LAKK-TIMEPRIS PARSES FRA TAKSTEN (parseTakst, rett før "UB spesifikt"). Hentes fra
+      Lakkarbeide-raden i Sammenstilling, som har Tid + Deb.faktor + Beløp på samme linje.
+      KRITISK: Deb.faktor VARIERER per rad – på Toyota Auris SV81619 er karosseri 1 125 og
+      lakk 1 175 i samme takst. Den MÅ derfor hentes fra Lakkarbeide-raden spesifikt, aldri
+      fra første beste Deb.faktor. Hvert verksted får dermed automatisk sin egen timepris,
+      uten at noe legges inn eller vedlikeholdes.
+      Selvvaliderende: tid/100*faktor må gi beløpet på samme rad (±1 kr). Stemmer det ikke,
+      settes ingenting og kroner vises ikke i det hele tatt – heller ingen tall enn feil tall.
+      Verifisert mot to ekte takster: SEAT MII EC62653 675p x 1 230 = 8 302,50 og Toyota Auris
+      SV81619 638p x 1 175 = 7 496,50, begge eksakt lik Lakkarbeide-beløpet.
+
+   2. POENG SOM DATA, IKKE FRITEKST. "15p"/"20p" fantes 63 steder i fila, men kun inne i
+      regelbeskrivelser og mal-tekst – REGEL_REGISTRY hadde ikke noe poeng-felt, så ingenting
+      kunne summeres. Lagt til poeng: på de seks oppføringene med FAST verdi (bekreftet av
+      Martin): DOR_FELLES_HTT_HANDTAK 15, BAKSKJERM_G_LOFTETAPE 20, BAKSKJERM_G_POLERE_FLIKK 20,
+      BAKSKJERM_N_POLERE_FLIKK 20, STOTFANGER_50_POLERE_FLIKK 20, DET_TESLA_BAKDOR_FOLIE 50.
+      BEVISST UTELATT: grunning for topplakk (Martin: verdien varierer). Også utelatt:
+      FORSKJERM_N_HTT_LOSE og STOTFANGER_HTT_LOSE – de er "15p PER DEL" med ukjent antall
+      løse deler, så en fast verdi der ville vært gjetting. Arealavhengige poster (tilstøtende
+      flate, manglende lakkpost) og UB i kroner er utelatt av samme grunn.
+
+   3. SUMLINJE nederst i "Forslag til tillegg" (ordlyd bestemt av Martin): "Kontroll av denne
+      takst fant X p = Y kr", med en liten merknad om at kun faste poengverdier er med, slik at
+      summen ikke leses som fullstendig. Teller KUN status="foreslått" – "usikker" og "allerede
+      ført" gir ingen poeng. Dedupe på id+del via Map, så et deterministisk funn og et
+      delsjekk-punkt med samme ID ikke telles to ganger. Deterministiske funn samles i
+      window.POENG_FUNN, som nullstilles per kjøring (ved siden av brukteIDPerDel).
+      Vises ikke i det hele tatt når summen er 0.
+
+   IKKE MED (bevisst): lagring/sum over flere takster. Martin valgte per takst; sum over tid
+   krever localStorage og er en egen jobb.
+*/
 /* AutoPell v2.70 – endringer fra v2.69 (2 punkter, begge GAMLE latente feil som først ble
    synlige etter at v2.65 fikset parseren slik at karosseri_flaterett faktisk får data.
    Bekreftet på SEAT MII ELECTRIC EC62653: tre falske "reparasjon uten lakk"-funn selv om
@@ -1804,6 +1860,20 @@ function parseTakst(text){
       }
     }
   }
+  // v2.71: LAKK-TIMEPRIS. Deb.faktor VARIERER per rad (karosseri 1 125 vs lakk 1 175 på samme
+  // takst), så den må hentes fra Lakkarbeide-raden spesifikt – aldri fra første beste Deb.faktor.
+  // Selvvaliderende: tid/100*faktor skal gi beløpet på samme rad. Gjør den ikke det, settes
+  // ingenting, og kroner vises rett og slett ikke (heller ingen tall enn feil tall).
+  for(const line of lines){
+    const lp=line.match(/^Lakkarbeide\s+(\d[\d\s]*?)\s+([\d\s]+,\d{2})\s+([\d\s]+,\d{2})\s*$/);
+    if(lp){
+      const tid=parseFloat(lp[1].replace(/\s/g,''));
+      const faktor=parseFloat(lp[2].replace(/\s/g,'').replace(',','.'));
+      const belop=parseFloat(lp[3].replace(/\s/g,'').replace(',','.'));
+      if(tid>0&&faktor>0&&Math.abs(tid/100*faktor-belop)<1)result.sammenstilling.lakk_timepris=faktor;
+      break;
+    }
+  }
   // UB spesifikt
   const ubMatch=text.match(/Understellsbehandling\s+Materiale\s+([\d\s,\.]+)/);
   if(ubMatch)result.sammenstilling.ub_kr=parseFloat(ubMatch[1].replace(/\s/g,'').replace(',','.'));
@@ -2314,7 +2384,7 @@ function takstSammendrag(t){
     DOR_FELLES_RUST:{deterministisk:true,navn:'Rustbeskyttelse',mal:'',farge:'rød'},
     DOR_FELLES_DEMO:{kat:/\bfordør\b|\bbakdør\b/i,optype:['N','G'],skjulHvisDetaljFunnet:['trekk','deksel','ruteheis','vindusheis'],navn:'De/Mo innvendige detaljer',mal:'Vurder å legge til De/Mo innvendige detaljer (vindusheis, dørtrekk)',farge:'rød'},
     DOR_FELLES_UB:{deterministisk:true,navn:'UB',mal:'',farge:'rød'},
-    DOR_FELLES_HTT_HANDTAK:{kat:/\bfordør\b|\bbakdør\b/i,optype:['N','G'],navn:'HTT dørhåndtak',mal:'RETTET (G): Sjekk om dørhåndtaket er lakkert – i så fall vurder HTT 15p i annetbildet. SKIFTET (N, ny ELLER brukt dør): spør PROAKTIVT om håndtaket fra erstatningsdøra bør lakkeres som tilstøtende siden det normalt ikke matcher bilens farge – nevn HTT 15p for håndtaket i SAMME forslag hvis det lakkeres.',farge:'gul'},
+    DOR_FELLES_HTT_HANDTAK:{poeng:15,kat:/\bfordør\b|\bbakdør\b/i,optype:['N','G'],navn:'HTT dørhåndtak',mal:'RETTET (G): Sjekk om dørhåndtaket er lakkert – i så fall vurder HTT 15p i annetbildet. SKIFTET (N, ny ELLER brukt dør): spør PROAKTIVT om håndtaket fra erstatningsdøra bør lakkeres som tilstøtende siden det normalt ikke matcher bilens farge – nevn HTT 15p for håndtaket i SAMME forslag hvis det lakkeres.',farge:'gul'},
     FORDOR_DIAGNOSE_AIRBAG:{kat:/\bfordør\b/i,optype:['N','G'],navn:'Diagnose airbag',mal:'Vurder å legge til diagnose (slette airbag-feilkoder, 50p)',farge:'gul'},
     FORDOR_TILST_BAKDOR:{kat:/\bfordør\b/i,optype:['N','G'],ikkeVedSvart:true,navn:'Tilstøtende bakdør',mal:'Vurder å ta med tilstøtende flate mot bakdør',farge:'gul'},
     FORDOR_TILST_FORSKJERM:{kat:/\bfordør\b/i,optype:['N','G'],ikkeVedSvart:true,navn:'Tilstøtende forskjerm',mal:'Vurder å ta med tilstøtende flate mot forskjerm',farge:'gul'},
@@ -2328,14 +2398,14 @@ function takstSammendrag(t){
     BAKSKJERM_G_TILST_BAKDOR:{kat:/bakskjerm/i,optype:['G'],ikkeVedSvart:true,navn:'Tilstøtende bakdør',mal:'Spør om tilstøtende mot bakdør er aktuelt',farge:'gul'},
     BAKSKJERM_G_HJULBUELISTE:{kat:/bakskjerm/i,optype:['G'],sjekkNevntIRaw:'hjulbueliste',navn:'HTT hjulbueliste',mal:'Sjekk om bakskjerm har lakkerbar hjulbueliste',farge:'gul'},
     BAKSKJERM_G_TANKLUKE:{kat:/bakskjerm/i,optype:['G'],sjekkAlleredeForLakkspes:['tankluk','ladeluk','bensinluk','strøminntak','dekklokk'],skjulHvisDetaljIkkeFunnet:['tankluk','ladeluk','bensinluk','dekklokk'],navn:'Tankluke',mal:'Sjekk om tankluken på bakskjerm bør vurderes som tilstøtende',farge:'gul'},
-    BAKSKJERM_G_LOFTETAPE:{kat:/bakskjerm/i,optype:['G'],sjekkAlleredeForLakkspes:['løftetape','loftetape'],navn:'Løftetape',mal:'Sjekk om det finnes en synlig rute mot bakskjerm – løftetape (20p) brukes til å løfte pakningen rundt ruten (derav navnet), ikke knyttet til selve rettearbeidet (kun personbil, ikke varebil). Nesten alle stasjonsvogner/kombi og de fleste SUV har en rute i bakskjerm – lener bilen mot en av disse karosseriformene og noe på bildet kan ligne en rute, len mot "usikker"/"foreslått" fremfor "ikke relevant". Er du i tvil om det er en rute i bildet: status="usikker", ALDRI "ikke relevant" (v2.43-regelen) – dette er selve eksempelet den regelen nevner.',farge:'gul'},
-    BAKSKJERM_G_POLERE_FLIKK:{kat:/bakskjerm/i,optype:['G'],navn:'Polere flikk',mal:'Vurder polere flikk 20p hvis takstolpe ikke lakkes helt ut',farge:'gul'},
+    BAKSKJERM_G_LOFTETAPE:{poeng:20,kat:/bakskjerm/i,optype:['G'],sjekkAlleredeForLakkspes:['løftetape','loftetape'],navn:'Løftetape',mal:'Sjekk om det finnes en synlig rute mot bakskjerm – løftetape (20p) brukes til å løfte pakningen rundt ruten (derav navnet), ikke knyttet til selve rettearbeidet (kun personbil, ikke varebil). Nesten alle stasjonsvogner/kombi og de fleste SUV har en rute i bakskjerm – lener bilen mot en av disse karosseriformene og noe på bildet kan ligne en rute, len mot "usikker"/"foreslått" fremfor "ikke relevant". Er du i tvil om det er en rute i bildet: status="usikker", ALDRI "ikke relevant" (v2.43-regelen) – dette er selve eksempelet den regelen nevner.',farge:'gul'},
+    BAKSKJERM_G_POLERE_FLIKK:{poeng:20,kat:/bakskjerm/i,optype:['G'],navn:'Polere flikk',mal:'Vurder polere flikk 20p hvis takstolpe ikke lakkes helt ut',farge:'gul'},
 
     BAKSKJERM_N_RUST:{deterministisk:true,navn:'Rustbeskyttelse',mal:'',farge:'rød'},
     BAKSKJERM_N_UB:{deterministisk:true,navn:'UB',mal:'',farge:'rød'},
     BAKSKJERM_N_TILST_BAKDOR:{kat:/bakskjerm/i,optype:['N'],ikkeVedSvart:true,navn:'Tilstøtende bakdør',mal:'Vurder å ta med tilstøtende flate mot bakdør',farge:'gul'},
     BAKSKJERM_N_TILST_KANAL:{kat:/bakskjerm/i,optype:['N'],navn:'Tilstøtende kanal',mal:'Spør om tilstøtende bakskjerm eller arealavhengig lakk av kanal er aktuelt',farge:'gul'},
-    BAKSKJERM_N_POLERE_FLIKK:{kat:/bakskjerm/i,optype:['N'],navn:'Polere flikk',mal:'Vurder polere flikk 20p hvis takstolpe/kanal ikke lakkes helt frem',farge:'gul'},
+    BAKSKJERM_N_POLERE_FLIKK:{poeng:20,kat:/bakskjerm/i,optype:['N'],navn:'Polere flikk',mal:'Vurder polere flikk 20p hvis takstolpe/kanal ikke lakkes helt frem',farge:'gul'},
     BAKSKJERM_N_HJULBUELISTE:{kat:/bakskjerm/i,optype:['N'],sjekkNevntIRaw:'hjulbueliste',navn:'HTT hjulbueliste',mal:'Sjekk om bakskjerm har lakkerbar hjulbueliste',farge:'gul'},
     BAKSKJERM_N_TANKLUKE:{kat:/bakskjerm/i,optype:['N'],sjekkAlleredeForLakkspes:['tankluk','ladeluk','bensinluk','strøminntak','dekklokk'],skjulHvisDetaljIkkeFunnet:['tankluk','ladeluk','bensinluk','dekklokk'],navn:'Tankluke',mal:'Sjekk om tankluke sitter på den skiftede bakskjermen',farge:'gul'},
     BAKSKJERM_N_INNV_LAKK:{kat:/bakskjerm/i,optype:['N'],navn:'Innvendig lakkering bakskjermkant',mal:'Vurder å legge til innvendig lakkering bakskjermkant (fremre 62p + bakre 19p)',farge:'rød'},
@@ -2356,14 +2426,14 @@ function takstSammendrag(t){
     STOTFANGER_FORAN_TILST_FORSKJERM:{kat:/støtfanger foran/i,optype:['N','G'],krev3sjikt:true,ikkeVedSvart:true,navn:'Tilstøtende forskjerm (3-sjikt)',mal:'Vurder å ta med tilstøtende flate mot forskjerm – 3-sjikts farge (Lakktype 3)',farge:'gul'},
     STOTFANGER_BAK_TILST_BAKSKJERM:{kat:/støtfanger bak/i,optype:['N','G'],krev3sjikt:true,ikkeVedSvart:true,navn:'Tilstøtende bakskjerm (3-sjikt)',mal:'Vurder å ta med tilstøtende flate mot bakskjerm – 3-sjikts farge (Lakktype 3)',farge:'gul'},
     STOTFANGER_50_MASKERING:{kat:/støtfanger/i,optype:['N','G'],navn:'Maskering ved 50%',mal:'Vurder å huke av maskering-boksen i utvendig lakk-tabellen – støtfangeren er satt til 50% lakk',farge:'rød'},
-    STOTFANGER_50_POLERE_FLIKK:{kat:/støtfanger/i,optype:['N','G'],navn:'Polere flikk ved 50%',mal:'Vurder polere flikk 20p i annetbildet – påkrevd ved 50%-lakkering av støtfanger',farge:'gul'},
+    STOTFANGER_50_POLERE_FLIKK:{poeng:20,kat:/støtfanger/i,optype:['N','G'],navn:'Polere flikk ved 50%',mal:'Vurder polere flikk 20p i annetbildet – påkrevd ved 50%-lakkering av støtfanger',farge:'gul'},
     STOTFANGER_50_SMADELER:{kat:/støtfanger/i,optype:['N','G'],navn:'Smådeler feilaktig 50%',mal:'POSITIVLISTE – sjekk KUN slepekrokdeksel, spyledeksel og lister for feilaktig 50%-lakk i DBS (skal være 100%, legg til differansen). Bekreft med bilder før forslag. IKKE p-sensorer, sensorholdere eller andre deler bak støtfangeren – disse lakkes aldri og skal aldri stå på 50% i utgangspunktet.',farge:'rød'},
 
     // v2.35 – Deterministiske parser-betingelser: injiseres DIREKTE av koden når parseren
     // oppdager betingelsen. Claude er ikke involvert (deterministisk:true → vises aldri i
     // DELSTATUS-ID-listene). Dette fjerner en hel klasse konkurrerende prompt-instrukser.
     DET_BRUKT_DEL_SOM_N:{deterministisk:true,navn:'Brukt del som N',mal:'',farge:'rød'},
-    DET_TESLA_BAKDOR_FOLIE:{deterministisk:true,navn:'Tesla folie/tape-montering',mal:'Vurder å legge til folie/tape-montering 50p arbeid i annetbildet (Tesla-regel ved bakdør)',farge:'gul'},
+    DET_TESLA_BAKDOR_FOLIE:{poeng:50,deterministisk:true,navn:'Tesla folie/tape-montering',mal:'Vurder å legge til folie/tape-montering 50p arbeid i annetbildet (Tesla-regel ved bakdør)',farge:'gul'},
     DET_UB_VED_FLATERETTE:{deterministisk:true,navn:'UB ved flaterette',mal:'Vurder om UB (understellsbehandling) mangler – flaterette-kostnad finnes i taksten men UB er ikke ført. Retting av stål/alu utløser normalt UB.',farge:'gul'},
     DET_KANAL_TILSTOTENDE:{deterministisk:true,navn:'Tilstøtende ved kanal',mal:'',farge:'gul'},
     DET_SMADEL_50:{deterministisk:true,navn:'Smådel på 50%',mal:'',farge:'rød'},
@@ -3399,6 +3469,7 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
       // Fix: eget sett, nøklet på (id, del) i stedet for bare id, brukt KUN til duplikat-
       // sjekken – brukteIDer selv er urørt og fortsetter å tjene de andre to formålene.
       const brukteIDPerDel=new Set();
+      window.POENG_FUNN=[]; // v2.71: nullstilles per kjøring
       // v2.35: DETERMINISTISKE PARSER-FUNN – injiseres direkte av koden, Claude ikke involvert.
       // ID-en seedes i brukteIDer slik at eventuelle Claude-varianter av samme funn dedupes.
       function injiserDeterministisk(id,melding,plassering){
@@ -3407,6 +3478,7 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
         injisertTekst.add(melding.toLowerCase());
         parsed.sammendrag.dbs_handlinger.push(melding);
         parsed.resultater.push({tittel:reg.navn||id,melding:melding,farge:reg.farge||'gul',plassering:plassering||''});
+        if(typeof reg.poeng==='number')window.POENG_FUNN.push({id:id,poeng:reg.poeng,del:(plassering||'').trim().toLowerCase()});
       }
       if(parserData){
         // Smådeler på 50% (<3 dm²) – skal lakkes 100%
@@ -4335,6 +4407,42 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           html+=`</ul></div>`;
         });
         html+=`</div></details>`;
+      }
+
+      // v2.71: POENGSUM NEDERST. Teller KUN poster med fast poengverdi (HTT dørhåndtak 15,
+      // løftetape 20, polere flikk 20, Tesla-folie 50). Grunning for topplakk er BEVISST utelatt
+      // (Martin: verdien varierer). Arealavhengige poster (tilstøtende flate, manglende lakkpost)
+      // og UB i kroner telles ikke – de kan ikke tallfestes før posten faktisk føres.
+      // v2.72: BÅDE "foreslått" OG "usikker" teller. Kun "allerede ført" og "ikke relevant"
+      // gir null. Grunnen: v2.43-biasen sier at bildebaserte punkter ved tvil SKAL lande på
+      // "usikker" – løftetape er selve eksempelet regelen nevner. Å telle kun "foreslått"
+      // utelukket derfor systematisk nettopp den kategorien funn som HAR fast poengverdi.
+      // Bekreftet på Toyota Auris SV81619: løftetape var et REELT funn, men sto som "usikker"
+      // og ga 0 p. Begge statusene betyr uansett "AutoPell fant noe du må vurdere", og
+      // ordlyden sier allerede "forslag".
+      // Dedupe på id+del, så et deterministisk funn og et delsjekk-punkt med samme ID ikke
+      // telles to ganger.
+      const poengTeller=new Map();
+      (window.POENG_FUNN||[]).forEach(f=>poengTeller.set(f.id+'|'+(f.del||''),f.poeng));
+      if(Array.isArray(parsed.delsjekk)){
+        parsed.delsjekk.forEach(d=>{
+          const dRent=(d.del||'').replace(/\s*\[.*?\]\s*/g,'').trim().toLowerCase();
+          if(window.DELSTATUS_GYLDIGE_DELNAVN&&!window.DELSTATUS_GYLDIGE_DELNAVN.has(dRent))return;
+          (d.punkter||[]).forEach(p=>{
+            if(p.status!=='foreslått'&&p.status!=='usikker')return;
+            const reg=p.id&&window.REGEL_REGISTRY&&window.REGEL_REGISTRY[p.id];
+            if(reg&&typeof reg.poeng==='number')poengTeller.set(p.id+'|'+dRent,reg.poeng);
+          });
+        });
+      }
+      const sumPoeng=[...poengTeller.values()].reduce((a,b)=>a+b,0);
+      if(sumPoeng>0){
+        const tp=parserData&&parserData.sammenstilling&&parserData.sammenstilling.lakk_timepris;
+        const kr=tp?Math.round(sumPoeng/100*tp):null;
+        html+=`<div style="margin-top:14px;padding:10px 12px;background:#f6f1e7;border-top:2px solid #8b1a1a;font-size:13px">
+          <strong>Kontroll av denne takst fant ${sumPoeng} p${kr!==null?' = '+kr.toLocaleString('nb-NO')+' kr':''}</strong>
+          <div style="font-size:11px;color:#666;margin-top:5px;font-style:italic">${tp?'Lakktimepris '+tp.toLocaleString('nb-NO')+' kr hentet fra denne taksten. ':'Lakktimepris ikke funnet i taksten – kun poeng vises. '}Kun forslag med fast poengverdi er regnet med. Poster som avhenger av areal, og UB i kroner, kommer i tillegg.</div>
+        </div>`;
       }
       html+=`</div>`;
 
