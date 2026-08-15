@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.76 – Smart kontroll av takster</title>
+<title>AutoPell v2.77 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.76</div>
+    <div class="version-badge">v2.77</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -276,6 +276,42 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
 
+/* AutoPell v2.77 – endringer fra v2.76 (1 sak: falsk "mulig glemt flaterette" ved rustreparasjon):
+
+   FUNNET (BMW 520 D BS41226): DET_MULIG_GLEMT_FLATERETTE fyrte for "Tak uten takstolper (30%)"
+   og "H Bakskjerm, over begrensning" – men taksten dokumenterer jobben tydelig:
+     TAKPLATE, slipe ut rust + etterarbeid      Reparasjon 100
+     SKJERM BAK H, slipe rust + etterarbeid     Reparasjon 120
+   og fører i tillegg "Takplate, Rustbeskyttelse ved retting 3" og "Skjerm bak H,
+   Rustbeskyttelse ved retting 3". v2.62-logikken kjente kun to grunner (Flatrette-linje eller
+   steinsprut/striper) og havnet derfor i utfall (c) "ingen synlig reparasjonsgrunn".
+   Samme mønster som Porsche-saken: en legitim, komplett forklaring koden ikke gjenkjenner.
+
+   1. NY harRustslipingPF – rustsliping behandles som EKTE retting, på linje med Flatrette,
+      ikke som steinsprut. Begrunnelse fra taksten selv: DBS fører "Rustbeskyttelse VED RETTING"
+      for nettopp de delene som har rustsliping. Steinsprut er ren lakkjobb uten varme;
+      rustsliping er metallarbeid. Delen havner derfor i rustGDelerMedGrunn, slik at
+      rustbeskyttelse fortsatt foreslås hvis den mangler.
+      Martin bekreftet samtidig at UB SKAL med på rustreparasjon – UB-funnet på denne taksten
+      var korrekt og er urørt.
+
+   2. NY harRustbeskyttelsePostPF + kjernePF – har delen allerede en rustbeskyttelse-post, ER
+      retting dokumentert, og advarselen skal aldri fyre. Parseren leste dette allerede inn i
+      parserData.rustbeskyttelse (~2149) og viste det i HURTIGFAKTA (~2443), men sjekken
+      konsulterte det aldri. Deterministisk signal, ikke ordleting.
+
+   NAVNEMATCHING – egen kjernePF var nødvendig: rustbeskyttelse-seksjonen og arbeidslinjene
+   bruker kortformer ("Takplate", "SKJERM BAK H") mot lakkspes' langformer ("Tak uten
+   takstolper (30%)", "H Bakskjerm, over begrensning"). Verifisert at normaliserHoveddelPF
+   alene treffer bakskjerm-paret, men IKKE tak-paret. Første forsøk brukte ordoverlapp og bommet
+   på begge – "tak" er under lengdekravet på 4 tegn, og "bakskjerm" står ikke i arbeidslinja.
+   kjernePF trekker ut hoveddel-kjernen (tak/bakskjerm/...) med side, og delnavnet i en
+   arbeidslinje hentes foran komma. Siden beholdes i sammenligningen, så V og H aldri kolliderer.
+
+   Verifisert mot den bygde fila: begge BMW-delene får nå "rustsliping -> rustbeskyttelse
+   relevant"; V Bakskjerm (ingen rustlinje) og H Fordør varsler fortsatt; Panser med
+   steinsprut-linje er fortsatt stille; V/H krysser ikke.
+*/
 /* AutoPell v2.76 – endringer fra v2.75 (1 punkt: intern instruksjonstekst lekket ut i DBS-boksen):
 
    FUNNET (Toyota Auris SV81619, ny kjøring): løftetape-forslaget viste HELE malteksten ordrett i
@@ -3792,6 +3828,37 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
             return dOrd.some(o=>lLower.includes(o));
           });
         }
+        // v2.77: Rustsliping er en ekte retteoperasjon. Taksten selv kaller den det – BMW 520 D
+        // BS41226 fører "Rustbeskyttelse VED RETTING" for nettopp de delene som har
+        // "slipe ut rust + etterarbeid". Behandles derfor som Flatrette-linje, ikke som
+        // steinsprut (steinsprut er ren lakkjobb uten varme; rustsliping er metallarbeid).
+        function harRustslipingPF(delNavn){
+          // Matcher på kjernedelnavn, ikke løse ord: arbeidslinja skriver "TAKPLATE, slipe ut
+          // rust + etterarbeid" mens lakkspes har "Tak uten takstolper (30%)" – ordoverlapp
+          // alene bommer her fordi "tak" er under lengdekravet. Delnavnet står foran komma.
+          const k=kjernePF(delNavn);
+          return (parserData.raw||'').split('\n').some(l=>{
+            if(!/slip\w*\s+(?:ut\s+)?rust/i.test(l))return false;
+            return kjernePF(l.split(',')[0])===k;
+          });
+        }
+        // v2.77: Har delen allerede en rustbeskyttelse-post, ER retting dokumentert i taksten –
+        // da skal "mulig glemt flaterette" aldri fyre. Parseren leser dette allerede inn i
+        // parserData.rustbeskyttelse (linje ~2149) og viser det i HURTIGFAKTA, men sjekken
+        // konsulterte det aldri. Egen navnematcher fordi rustbeskyttelse-seksjonen bruker
+        // kortformer ("Takplate", "Skjerm bak H") mot lakkspes' langformer
+        // ("Tak uten takstolper (30%)", "H Bakskjerm, over begrensning") – verifisert at
+        // normaliserHoveddelPF alene treffer bakskjerm, men IKKE tak-paret.
+        function kjernePF(s2){
+          let n2=normaliserHoveddelPF((s2||'').replace(/\(.*?\)/g,'').replace(/,.*$/,'').trim());
+          let side=''; const m2=n2.match(/^([hv])\s+/); if(m2){side=m2[1]+' ';n2=n2.replace(/^([hv])\s+/,'');}
+          n2=/^tak(plate)?\b/.test(n2)?'tak':n2.split(' ')[0];
+          return side+n2;
+        }
+        function harRustbeskyttelsePostPF(delNavn){
+          const k=kjernePF(delNavn);
+          return (parserData.rustbeskyttelse||[]).some(r=>kjernePF(r.del)===k);
+        }
         const rustNDeler=(parserData.lakkspes||[]).filter(d=>!d.tillegg&&!d.tilstøtende&&d.optype==='N'
           &&!/plast/i.test((d.materialhint||''))&&!/støtfanger|hengsel|lokk|håndtak|spoiler|spyledyse|p-list|gitter|liste|speil/i.test((d.navn||'')));
         const rustGDelerMedGrunn=[],muligGlemtFlaterette=[];
@@ -3799,6 +3866,8 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           &&!/plast/i.test((d.materialhint||''))&&!/støtfanger|hengsel|lokk|håndtak|spoiler|spyledyse|p-list|gitter|liste|speil/i.test((d.navn||''))
         ).forEach(d=>{
           if(harFlateretteLinjePF(d.navn))rustGDelerMedGrunn.push(`${d.navn} (G)`);
+          else if(harRustslipingPF(d.navn))rustGDelerMedGrunn.push(`${d.navn} (G)`); // v2.77: retting, rustbeskyttelse relevant
+          else if(harRustbeskyttelsePostPF(d.navn)){/* v2.77: retting allerede dokumentert via rustbeskyttelse-post – ingen advarsel */}
           else if(harSteinsprutStriperPF(d.navn)){/* ren lakkjobb, ingen varme – ingen rustbeskyttelse, ingen advarsel */}
           else muligGlemtFlaterette.push(d.navn);
         });
