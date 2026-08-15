@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.69 – Smart kontroll av takster</title>
+<title>AutoPell v2.70 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.69</div>
+    <div class="version-badge">v2.70</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -276,6 +276,36 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
 
+/* AutoPell v2.70 – endringer fra v2.69 (2 punkter, begge GAMLE latente feil som først ble
+   synlige etter at v2.65 fikset parseren slik at karosseri_flaterett faktisk får data.
+   Bekreftet på SEAT MII ELECTRIC EC62653: tre falske "reparasjon uten lakk"-funn selv om
+   lakkspes hadde både 7524 G "H Fordør, under begrensning" (75,4 dm²/204) og 7554 G
+   "H Bakdør, under begrensning" (57,7/129) og 7530 G "H Håndtak fordør" (1,4/11).
+
+   FIX 1 – lakkedeNavn (linje ~2519) og lakkedeNavn2 (linje ~4022) filtrerte bort ALT med
+   tilstøtende:true. Parseren (linje 1935) setter det flagget på navn som inneholder
+   "under begrensning" UANSETT op.type – så en helt vanlig G-retting forsvant ut av lista
+   over "deler som har lakk-post", og dermed meldte manglendeLakk KRITISK MANGEL.
+   BEVISST SMAL FIKS: parser-flagget er IKKE rørt. tilstøtende leses ~25 steder i fila
+   (rustbeskyttelse 3527/3530, Tesla-folie 2794/3409, alleredeT 2726/3421, HURTIGFAKTA-
+   lista 2254). Å endre linje 1935 globalt ville endret oppførsel alle de stedene på én
+   gang. Her lar vi kun de to "har delen en lakk-post"-listene slippe inn N/G-rader som
+   bare er flagget via navnet. Op.type T er allerede ekskludert av N/G-testen foran, så
+   ekte tilstøtende-poster påvirkes ikke. Den globale endringen (tilstøtende: m[2]==='T')
+   er fortsatt riktig etter regelen Martin bekreftet, men tas som EGEN versjon med egen
+   testrunde.
+
+   FIX 2 – subdel-eksklusjonen i harLakkPost (2554) og harLakkPost2 (4059) forkastet enhver
+   lakkspes-rad som starter med lokk|sensor|bjelke|hengsel|håndtak|spoiler|... Den er ment
+   å hindre at en smådels lakk-post teller som HOVEDDELENS. Men den slo også ut når delen
+   som sjekkes SELV er smådelen: "H Håndtak fordør grunnet" → "håndtak fordør" mot lakk-
+   raden "H Håndtak fordør" → "håndtak fordør" – identiske, men raden ble kastet før
+   sammenligningen. En del kunne altså aldri matche sin egen lakk-post. Nå ekskluderes
+   raden kun når dn ikke selv starter med samme subdel-ord.
+   MERK (verifisert i simulering): med FIX 1 alene forsvant håndtak-funnet også, men av
+   FEIL grunn – "håndtak fordør" traff da fordør-posten via substring-matchen (lInDn),
+   altså nøyaktig det eksklusjonslista skulle hindre. FIX 2 gjør at den treffer riktig rad.
+*/
 /* AutoPell v2.69 – endringer fra v2.68 (1 punkt, den EKTE, EKTE kilden – bekreftet via konsoll):
 
    TRE SEPARATE "HAR DENNE DELEN LAKK-POST"-FUNKSJONER I SAMME FIL. Konsollen avslørte det:
@@ -2516,7 +2546,7 @@ function takstSammendrag(t){
   // === KRITISK KONSISTENS-SJEKK: REPARASJON UTEN LAKK ===
   // Hvis en del har plastrep, flaterett eller skift → MÅ ha lakk-post (N eller G)
   // Hvis ikke → rød mangel
-  const lakkedeNavn=t.lakkspes.filter(d=>!d.tillegg&&(d.optype==='N'||d.optype==='G')&&!d.tilstøtende).map(d=>d.navn.toLowerCase());
+  const lakkedeNavn=t.lakkspes.filter(d=>!d.tillegg&&(d.optype==='N'||d.optype==='G')&&(!d.tilstøtende||/under begrensning/i.test(d.navn||''))).map(d=>d.navn.toLowerCase());
 
   // v2.4: Synonymordbok – DBS bruker forskjellige navn i plastspes vs lakkspes.
   // Plastspes har tekniske, ofte lange navn (eks: "Støtfangerdeksel bak grunnet M sportpakke p-radar").
@@ -2551,7 +2581,7 @@ function takstSammendrag(t){
       // så regner vi den IKKE som lakk-post for hoveddelen.
       // NB: "deksel" og "p-list" er fjernet fra eksklusjonslisten i v2.4 fordi synonymordboken
       // gjør at "støtfangerdeksel"/"p-list" normaliseres til "støtfanger"/"list" før denne sjekken.
-      if(/^(lokk|sensor|bjelke|hengsel|håndtak|spoiler|spyledyse|fotgjenger|gitter|kabel|innstegslist|skiltbelysning|emblem|refleks)\b/.test(lStripped))return false;
+      {const _sub=/^(lokk|sensor|bjelke|hengsel|håndtak|spoiler|spyledyse|fotgjenger|gitter|kabel|innstegslist|skiltbelysning|emblem|refleks)\b/.exec(lStripped); if(_sub&&!new RegExp('^'+_sub[1]+'\\b').test(dn))return false;}
       // Ord-grense-match (eksakt eller substring med ord-grense)
       const dnEscaped=dn.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
       const lEscaped=lStripped.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
@@ -4019,7 +4049,7 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
 
       // 7. KRITISK – LEGG TIL "reparasjon uten lakk"-mangel hvis Claude glemte den
       // Sjekk alle reparerte deler (plastrep, flaterett) som ikke har lakk-post
-      const lakkedeNavn2=parserData.lakkspes.filter(d=>!d.tillegg&&(d.optype==='N'||d.optype==='G')&&!d.tilstøtende).map(d=>d.navn.toLowerCase());
+      const lakkedeNavn2=parserData.lakkspes.filter(d=>!d.tillegg&&(d.optype==='N'||d.optype==='G')&&(!d.tilstøtende||/under begrensning/i.test(d.navn||''))).map(d=>d.navn.toLowerCase());
       // v2.4: Samme synonymordbok som i takstSammendrag (holdes parallelt)
       const synonymer2=[
         {fra:/støtfangerdeksel/g, til:'støtfanger'},
@@ -4056,7 +4086,7 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
         if(dn.length<4)return false;
         return lakkedeNavn2.some(l=>{
           const lStripped=normaliserDelnavn2(l);
-          if(/^(lokk|sensor|bjelke|hengsel|håndtak|spoiler|spyledyse|fotgjenger|gitter|kabel|innstegslist|skiltbelysning|emblem|refleks)\b/.test(lStripped))return false;
+          {const _sub=/^(lokk|sensor|bjelke|hengsel|håndtak|spoiler|spyledyse|fotgjenger|gitter|kabel|innstegslist|skiltbelysning|emblem|refleks)\b/.exec(lStripped); if(_sub&&!new RegExp('^'+_sub[1]+'\\b').test(dn))return false;}
           const dnEscaped=dn.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
           const lEscaped=lStripped.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
           const dnInL=new RegExp('\\b'+dnEscaped+'\\b').test(lStripped);
