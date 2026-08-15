@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.74 – Smart kontroll av takster</title>
+<title>AutoPell v2.75 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.74</div>
+    <div class="version-badge">v2.75</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -276,6 +276,35 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
 
+/* AutoPell v2.75 – endringer fra v2.74 (1 punkt: sumlinja teller ikke funn som peker MOT):
+
+   BAKGRUNN (MINI Countryman UF87158, ren kjøring): sumlinja viste 15 p for HTT dørhåndtak, mens
+   selve funnteksten sa det motsatte – bildene viste krombelagte håndtak, altså er håndtaket ikke
+   lakkert og HTT skal ikke føres. Punktet sto som "usikker", og usikre teller etter v2.72.
+   Martin: teller ikke når funnet konkluderer med at posten ikke skal føres; teller når det peker
+   mot at posten bør føres, også når det står som usikker.
+
+   HVORFOR IKKE TEKSTANALYSE: koden kan ikke lese om en fritekst argumenterer for eller mot uten
+   å tolke, og Claudes skjønn varierer mellom kjøringer på samme takst (jf. Martins stående
+   bekymring). Sumlinja ville da blitt det eneste stedet i programmet der et tall hviler på at
+   koden gjetter på mening. Løsningen følger i stedet det etablerte prinsippet: gjør vurderingen
+   EKSPLISITT og strukturert, og la koden slippe å tolke noe som helst.
+
+   1. NYTT FELT "anbefaling":"for"|"mot" per punkt i delsjekk. Claude setter retningen selv;
+      koden leser kun feltet. Utelatt felt = "for", så et manglende felt aldri stjeler poeng
+      stille (samme fallback-prinsipp som v2.43: mangler data, behold punktet).
+   2. Prompt-avsnitt som skiller RETNING fra SIKKERHET: "usikker" er fortsatt status-feltet,
+      "mot" skal kun brukes når teksten faktisk konkluderer den veien – ikke som en generell
+      tvilsmarkør. Ved tvil: "for".
+   3. Sumtelleren hopper over anbefaling==="mot". Punktet VISES som før – takstmannen skal se
+      det og avgjøre selv – det holdes kun utenfor summen.
+   4. Punkt-for-punkt-visningen merker slike punkter "(peker mot – teller ikke i sum)", så det
+      er synlig hvorfor et punkt ikke er med i summen.
+
+   MERK: dette er første gang sumlinja avhenger av en Claude-vurdering. Retningen er eksplisitt
+   og synlig i punkt-for-punkt, så feil kan oppdages – men den kan variere mellom kjøringer på
+   samme takst, akkurat som andre bildebaserte vurderinger.
+*/
 /* AutoPell v2.74 – endringer fra v2.73 (1 sak, 3 deler – falsk KRITISK MANGEL på smådeler):
 
    FUNNET (MINI Countryman UF87158): "KRITISK MANGEL: V Skjermutbygger bakskjerm er skiftet (N)
@@ -3480,7 +3509,7 @@ SVAR KUN MED GYLDIG JSON. INGEN ANNEN TEKST. IKKE SKRIV NOE FØR ELLER ETTER JSO
     {
       "del": "V Forskjerm [N]",
       "punkter": [
-        {"id":"FORSKJERM_N_TILST_ASTOLPE (BRUK KUN ID-er fra DELSTATUS-linjen for denne delen – aldri finn opp egne)","status":"foreslått|allerede ført|ikke relevant|usikker","forslag":"Vurder å... (KUN utfylt hvis status er foreslått eller usikker – ellers tom streng, kan avvike noe fra malteksten for å passe taksten, men behold samme mening)","farge":"rød|gul|lilla (KUN hvis status er foreslått eller usikker)"}
+        {"id":"FORSKJERM_N_TILST_ASTOLPE (BRUK KUN ID-er fra DELSTATUS-linjen for denne delen – aldri finn opp egne)","status":"foreslått|allerede ført|ikke relevant|usikker","forslag":"Vurder å... (KUN utfylt hvis status er foreslått eller usikker – ellers tom streng, kan avvike noe fra malteksten for å passe taksten, men behold samme mening)","farge":"rød|gul|lilla (KUN hvis status er foreslått eller usikker)","anbefaling":"for|mot – se eget avsnitt under. Utelat feltet hvis du ikke tar stilling; da regnes det som for."}
       ]
     }
   ],
@@ -3492,6 +3521,12 @@ SVAR KUN MED GYLDIG JSON. INGEN ANNEN TEKST. IKKE SKRIV NOE FØR ELLER ETTER JSO
   "kandidater": ["RÅ liste over ALT du har funnet, FØR duplikat-sjekk – kan inneholde ting som betyr det samme skrevet ulikt. Denne listen skal IKKE vises til brukeren, den er kun et mellomsteg for deg selv."],
   "resultater": [{"tittel":"...","melding":"[Taksten sier]: ... [Regel]: ...","farge":"rød|gul|lilla","plassering":"..."}]
 }
+ANBEFALING-FELTET (v2.75): For punkter med status "foreslått" eller "usikker" kan du sette "anbefaling". Det sier hvilken VEI funnet peker, ikke hvor sikker du er:
+- "for" = det du har sett peker mot at posten BØR føres. Bruk denne når du er i tvil.
+- "mot" = du har et konkret holdepunkt for at posten IKKE skal føres, og teksten din sier det. Eksempel: bildene viser krombelagte dørhåndtak, altså er håndtaket ikke lakkert, og HTT skal da ikke føres.
+Punktet skal fortsatt vises som før uansett hvilken vei det peker – takstmannen skal se det og avgjøre selv. Feltet styrer KUN om poengverdien telles med i sumlinja nederst: "mot" gir null poeng, siden det ville vært misvisende å summere en post din egen tekst argumenterer mot.
+Utelater du feltet, regnes punktet som "for". Bruk "mot" kun når teksten din faktisk konkluderer den veien – ikke som en generell usikkerhetsmarkør; til det finnes status "usikker".
+
 KRITISK OM "delsjekk" OG REGEL-ID-SYSTEMET (v2.30, utvidet v2.32, v2.40): Dette feltet er OBLIGATORISK når HURTIGFAKTA inneholder "DELSTATUS PER HOVEDDEL". For HVER linje i DELSTATUS som viser "bruk disse ID-ene: X, Y, Z" – ett objekt i "punkter" per ID i den listen, med feltet "id" satt til NØYAKTIG den ID-strengen (kopier den, ikke finn opp egne ID-er eller endre stavemåten). Dette er ikke lenger fritekst-tolkning – du skal bare ta stilling til hver oppgitte ID: er den foreslått, allerede ført, ikke relevant, eller usikker. IKKE hopp over noen ID i listen. Bakskjerm, forskjerm, panser, dør, tak og støtfanger er nå ID-migrert. For deler som eventuelt IKKE er ID-migrert (viser "→ sjekk avsnittet ... i reglene" i stedet for ID-liste) – bruk gammelt format: sett "id" til tom streng, og bruk i stedet fritekst "punkt" (kort navn) hentet fra det navngitte avsnittet i INNEBYGDE REGLER, ett per regelpunkt i avsnittet. KRITISK: opprett ALDRI et "delsjekk"-objekt for en del som ikke er nevnt i DELSTATUS-listen i det hele tatt (f.eks. en tilstøtende-post eller en del du kjenner igjen fra egen kunnskap) – hvis delen ikke står i DELSTATUS, la den være helt utenfor delsjekk.
 KRITISK OM USIKKERHET PÅ BILDEBASERTE PUNKTER (v2.43): For ID-er som avhenger av å tolke bilder (f.eks. er det en rute i bakskjermen, er hjulbuelisten lakkert eller ulakkert plast, er en detalj synlig som løs) – hvis du er i TVIL mellom status="ikke relevant" og status="usikker", velg ALLTID "usikker", ALDRI "ikke relevant". Begrunnelse: "ikke relevant" gjør at funnet forsvinner helt og takstmannen aldri får sjansen til å vurdere det selv – "usikker" viser det som et spørsmål takstmannen kan avgjøre på ett sekund. Det er alltid tryggere å spørre én gang for mye enn å la noe forsvinne stille. Bruk "ikke relevant" KUN når du er trygg på at punktet faktisk ikke gjelder (f.eks. bilen er tydelig en varebil og punktet gjelder kun personbil, eller regelen eksplisitt utelukker denne bilen/situasjonen) – ikke som standardvalg når bildene rett og slett ikke gir et klart svar.
 NYANSE FOR TILSTØTENDE-FLATE-VURDERINGER (v2.45): Hvis det markerte/skadde området på bildene ligger langt fra selve tilstøtende-grensen (f.eks. midt på delen, ikke ved dørkant/kant mot nabodel) OG fargen er mørk/svart, er risikoen for synlig fargesprang lavere – dette kan gjøre deg mer tilbøyelig til "ikke relevant". MEN presis avstandsvurdering fra bilder er upålitelig, så bruk dette KUN som en svakere justering av terskelen din, ALDRI som en automatisk, stille undertrykkelse. Ved noe tvil i det hele tatt: fortsatt "usikker", ikke "ikke relevant" – prinsippet over gjelder fortsatt.
@@ -4506,7 +4541,8 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
             const reg=p.id&&window.REGEL_REGISTRY&&window.REGEL_REGISTRY[p.id];
             const navn=(reg&&reg.navn)||p.punkt||p.id||'';
             const idTag=p.id?` <span style="color:#bbb;font-size:10px">[${p.id}]</span>`:'';
-            html+=`<li>${navn}${idTag} — <span style="color:${statusFarge}">${p.status||'?'}</span></li>`;
+            const motTag=p.anbefaling==='mot'?' <span style="color:#888;font-size:10px">(peker mot – teller ikke i sum)</span>':'';
+            html+=`<li>${navn}${idTag} — <span style="color:${statusFarge}">${p.status||'?'}</span>${motTag}</li>`;
           });
           html+=`</ul></div>`;
         });
@@ -4534,6 +4570,8 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           if(window.DELSTATUS_GYLDIGE_DELNAVN&&!window.DELSTATUS_GYLDIGE_DELNAVN.has(dRent))return;
           (d.punkter||[]).forEach(p=>{
             if(p.status!=='foreslått'&&p.status!=='usikker')return;
+            // v2.75: funn som selv argumenterer MOT at posten føres skal ikke telles.
+            if(p.anbefaling==='mot')return;
             const reg=p.id&&window.REGEL_REGISTRY&&window.REGEL_REGISTRY[p.id];
             if(reg&&typeof reg.poeng==='number')poengTeller.set(p.id+'|'+dRent,reg.poeng);
           });
