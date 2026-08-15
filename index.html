@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.72 – Smart kontroll av takster</title>
+<title>AutoPell v2.74 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.72</div>
+    <div class="version-badge">v2.74</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -276,6 +276,85 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
 
+/* AutoPell v2.74 – endringer fra v2.73 (1 sak, 3 deler – falsk KRITISK MANGEL på smådeler):
+
+   FUNNET (MINI Countryman UF87158): "KRITISK MANGEL: V Skjermutbygger bakskjerm er skiftet (N)
+   ... men har INGEN post i det hele tatt i lakkspesifikasjonen." Skjermutbyggeren på denne bilen
+   er ULAKKERT plast og skal aldri flagges.
+   ROT: begge "skiftet uten lakk-post"-sjekkene matcher hoveddel-kategoriene på DELSTRENG.
+   "V Skjermutbygger bakskjerm" inneholder "bakskjerm", så pyntelisten ble behandlet som om den
+   VAR bakskjermen, fant ingen bakskjerm-rad i lakkspes, og utløste rød mangel.
+   Martin, avgjørende presisering: "at det står bakskjerm bak viser bare hvor deler hører til."
+   Hoveddelnavnet er altså en PLASSERING i disse navnene, ikke delen selv. Samme mønster gjelder
+   List bakdør, Hengsel panser, Sensor støtfanger bak, Steinsprutbeskyttelse bakdør osv. – alle
+   ville kunne utløse KRITISK MANGEL for en hoveddel som ikke mangler noe som helst.
+
+   1. NY erSmadelPaaHoveddel() – felles sperre. Treffer navnet et hoveddel-mønster MEN inneholder
+      også et smådel-/plasseringsord (skjermutbygger, hjulbueliste, steinsprutbeskyttelse, list,
+      lokk, sensor, bjelke, hengsel, håndtak, spoiler, gitter, kabel, brakett, holder, tetning,
+      klips m.fl.), er det en smådel plassert PÅ hoveddelen – ikke hoveddelen.
+      Ordlisten er samme prinsipp som subdel-eksklusjonen i harLakkPost2, utvidet med de ordene
+      denne taksten avdekket. "deksel" er BEVISST utelatt: synonymordboken gjør
+      "støtfangerdeksel" → "støtfanger", så det ordet ville truffet en ekte hoveddel.
+
+   2. NY erGrunnet() – GRU gjenkjennes nå som grunnet-markør. Martin: står det grunnet eller GRU
+      bak delen, er den grunnet og SKAL lakkes – da flagges den likevel, sperren i punkt 1 slipper
+      den gjennom. VIKTIG FUNN UNDERVEIS: strengen "GRU" fantes ikke ett eneste sted i koden før
+      nå. Kun hele ordet "grunnet" var gjenkjent, i én regex. Deler merket GRU har altså vært
+      usynlige for ALLE grunnet-sjekker, også v2.52-regelen for støtfanger som ellers virker
+      riktig – dette kan ha kostet ekte funn, ikke bare gitt falske.
+      \bGRU\b treffer ikke inne i "grunnet" (n følger direkte etter gru, ingen ordgrense).
+
+   3. BEGGE IMPLEMENTASJONENE RETTET. Sjekken finnes to steder: HURTIGFAKTA (~2652, via
+      alleDelKategorier med krevGrunnet) og POST-FILTER (~4374, via delReglerPF, uten
+      krevGrunnet – dette var køpunkt 7). Å rette kun den ene ville latt de to kildene si
+      forskjellige ting om samme del, og HURTIGFAKTA ville fortsatt lært Claude det gale –
+      nøyaktig v2.66-68-fella. krevGrunnet-testen for støtfanger bruker nå også erGrunnet(),
+      så støtfanger-regelen får GRU-gjenkjenning på kjøpet.
+*/
+/* AutoPell v2.73 – endringer fra v2.72 (1 punkt: DEN GLOBALE tilstøtende-fiksen, endelig rot):
+
+   BEVISET (MINI Countryman UF87158, skjermbilde av selve DBS-skjermen): tilstøtende er sine
+   EGNE to avkryssingsbokser i DBS – "Tilstøtende fargeavhengig" og "Tilstøtende arealavhengig"
+   – helt adskilt fra Ny/Gammel-kolonnen. På rad 7554 "Bakdør, under begrensning" var Gammel
+   huket av (= G, lakk av gammel flate) og BEGGE tilstøtende-boksene sto tomme.
+   Martin: "den er ikke merket som tilstøtende T i taksten. den er merket med G. lakk av
+   gammel flate." "Under begrensning" er altså KUN en arealbetegnelse i radnavnet og sier
+   ingenting om tilstøtende.
+
+   1. PARSER (linje ~2036): tilstøtende: m[2]==='T' || /under begrensning/i.test(m[4])
+      →  tilstøtende: m[2]==='T'
+      Navnet brukes ikke lenger i det hele tatt. v2.40 fjernet "over begrensning" fra samme
+      test; nå går "under begrensning" samme vei, og testen hviler kun på op.type.
+
+   HVORFOR DEN SMALE v2.70-FIKSEN IKKE HOLDT: v2.70 rettet kun de to "har delen en lakk-post"-
+   listene (lakkedeNavn/lakkedeNavn2), bevisst, for å begrense blast radius. Men flagget leses
+   også av HURTIGFAKTA (linje 2296 gir raden etiketten [TILSTØTENDE], 2355 lister den under
+   "Tilstøtende-poster") og av DELSTATUS-byggeren (2459: if(d.tillegg||d.tilstøtende||...)return).
+   På MINI-taksten var "V Bakdør, under begrensning" den ENESTE raden i lakkspes. Den ble
+   utelatt fra DELSTATUS → DELSTATUS_GYLDIGE_DELNAVN ble tom → ALLE tre blokkene Claude
+   produserte ble merket [AVVIST]. Samtidig så Claude flaterett 250p på bakdøra mot en lakkflate
+   merket "tilstøtende" 196p, og spurte logisk – men på feil premiss – om flaten dekket hele
+   det flateretta området. Lærdom, samme som v2.62-69: en bevisst smal fiks på et flagg som
+   leses ~25 steder utsetter problemet i stedet for å løse det.
+
+   2. PROMPT-TEKST RETTET SAMTIDIG (linje ~3233 og ~3284). To steder lærte mal-teksten Claude
+      NØYAKTIG det motsatte av koden: at "under begrensning" i navnet er et kjennetegn på en
+      tilstøtende-post. Å fikse koden alene ville latt Claude fortsette å produsere det samme
+      gale funnet fra prompten – nøyaktig fellen fra v2.66-68. Begge stedene sier nå eksplisitt
+      at navnet IKKE betyr tilstøtende, og peker på op.type + avkryssingsboksene i stedet.
+      Fjernet samtidig heuristikken "lite areal (typisk 60-100 dm²) = tilstøtende": bakdøra på
+      MINI er 71,3 dm² og er en helt vanlig G-retting, så signalet er direkte misvisende.
+
+   IKKE RØRT (bevisst): v2.70s ekstra klausul i lakkedeNavn/lakkedeNavn2
+   (!d.tilstøtende||/under begrensning/i.test(d.navn)) står igjen. Den er nå DØD kode – filtrene
+   krever N/G, og etter denne fiksen kan N/G-rader aldri være tilstøtende – men den er ufarlig,
+   og å fjerne den ville utvidet testrunden. Ryddes ved neste anledning.
+
+   FORVENTET Å ENDRE OPPFØRSEL (må testes): rustbeskyttelse (3527/3530), Tesla-folie (2794/3409),
+   alleredeT-sjekkene (2726/3421), tilstøtende-lista i HURTIGFAKTA (2355). Alle ser nå
+   "under begrensning"-rader med G som vanlige rettinger.
+*/
 /* AutoPell v2.72 – endringer fra v2.71 (1 punkt, retter en designfeil i v2.71 selv):
 
    POENGSUMMEN TELLER NÅ OGSÅ "usikker", ikke bare "foreslått". v2.71 talte kun "foreslått",
@@ -2032,12 +2111,16 @@ function parseTakst(text){
           navn:m[4].trim(),
           dm2:parseFloat(m[5].replace(',','.')),
           tid:parseInt(m[6]),
-          tilstøtende: m[2]==='T' || /under begrensning/i.test(m[4])
+          // v2.73: KUN op.type avgjør tilstøtende. Navnet skal ALDRI brukes – se changelog.
+          tilstøtende: m[2]==='T'
           // v2.40 FIX 4: "over begrensning" fjernet fra tilstøtende-testen. Domeneregel
           // bekreftet av Martin: "over begrensning" er REELL retting av delen opp til en
           // begrensningslinje – full sjekkliste gjelder (polere flikk, tilstøtende tankluke,
           // rustbeskyttelse, UB, tilstøtende bakdør, løftetape/hjulbueliste betinget).
-          // Kun "under begrensning" er en ekte tilstøtende-post.
+          // v2.73: OGSÅ "under begrensning" fjernet fra testen. Tilstøtende er sine EGNE
+          // avkryssingsbokser i DBS ("Tilstøtende fargeavhengig"/"Tilstøtende arealavhengig"),
+          // helt adskilt fra Ny/Gammel-kolonnen. "Under begrensning" er kun en arealbetegnelse
+          // i radnavnet og sier ingenting om tilstøtende. KUN op.type avgjør.
         });
       }else{
         // Tilleggsrader uten kode: "STØTFANGER FORAN, HTT 15" eller "STØTFANGER FORAN, polere flikk 20"
@@ -2235,6 +2318,22 @@ function parseTakst(text){
 }
 
 // Hjelper: lag lesbar oppsummering av JSON for Claude
+// v2.74: DELPLASSERING vs HOVEDDEL. Et delnavn som "V Skjermutbygger bakskjerm" inneholder
+// ordet "bakskjerm", men bakskjerm er her en PLASSERING – hvor delen hører til – ikke selve
+// hoveddelen. Martin: "at det står bakskjerm bak viser bare hvor deler hører til."
+// Uten denne sperren behandler begge "skiftet uten lakk-post"-sjekkene en pyntelist som om den
+// var hoveddelen, finner ingen hoveddel-rad i lakkspes, og fyrer av KRITISK MANGEL.
+// Gjelder alt som er navngitt etter plassering: List bakdør, Hengsel panser, Sensor støtfanger
+// bak, Steinsprutbeskyttelse bakdør osv.
+function erSmadelPaaHoveddel(navn){
+  return /\b(skjermutbygger|utbygger|hjulbueliste|steinsprutbeskyttelse|beskyttelse|innstegslist|skrapelist|p-list|list|lokk|sensor|bjelke|hengsel|håndtak|spoiler|spyledyse|dyse|gitter|kabel|emblem|refleks|brakett|holder|tetning|klips|luftstyring)\b/i.test(navn||'');
+}
+// v2.74: GRU er DBS' forkortelse for grunnet. Strengen fantes ikke i koden i det hele tatt før
+// nå – kun hele ordet "grunnet" ble gjenkjent – så deler merket GRU var usynlige for ALLE
+// grunnet-sjekker, også de som ellers virker riktig for støtfanger.
+// \bGRU\b treffer ikke inne i "grunnet" (n følger direkte etter gru, ingen ordgrense).
+function erGrunnet(navn){ return /\bgrunnet\b|\bGRU\b/i.test(navn||''); }
+
 function takstSammendrag(t){
   let s=`=== STRUKTURERT TAKST (parset fra PDF) ===\n\n`;
   const _lt=t.bil.lakktype;
@@ -2604,7 +2703,9 @@ function takstSammendrag(t){
     if(!d.navn||d.tiltak!=='Skift')return;
     const match=alleDelKategorier.find(r=>r.re.test(d.navn));
     if(!match)return; // kun kjente lakkerbare hoveddeltyper
-    if(match.krevGrunnet&&!/grunnet/i.test(d.navn))return;
+    // v2.74: smådel navngitt etter plassering er ikke hoveddelen – unntatt når den er grunnet/GRU
+    if(erSmadelPaaHoveddel(d.navn)&&!erGrunnet(d.navn))return;
+    if(match.krevGrunnet&&!erGrunnet(d.navn))return;
     const finnesILakkspes=lakkspesNavnLower.some(l=>match.re.test(l));
     if(!finnesILakkspes)skiftetUtenLakkspesRad.push(d.navn);
   });
@@ -3229,8 +3330,8 @@ Følgende tillegg krever skift (N) eller D/M huket av – og skal ALDRI foreslå
 - Pakninger og festebraketter
 
 HVORDAN KJENNE IGJEN TILSTØTENDE-POST (= IKKE demontering):
-- Delen står med "under begrensning" i navnet (f.eks. "H Fordør, under begrensning")
-- Delen har lite areal sammenlignet med full lakk (typisk 60-100 dm² for dør)
+- "Tilstøtende fargeavhengig" eller "Tilstøtende arealavhengig" er huket av i utvendig lakk-tabellen
+- VIKTIG: "under begrensning" i radnavnet er KUN en arealbetegnelse og betyr IKKE tilstøtende. En rad kan hete "H Fordør, under begrensning" og likevel være en helt vanlig G-retting.
 - "Tilstøtende fargeavhengig" eller "Tilstøtende arealavhengig" er huket av i utvendig lakk-tabellen
 - T (tilstøtende) i Op.Type-kolonnen i stedet for N eller G
 - D/M-fanen er IKKE huket av for delen
@@ -3280,8 +3381,8 @@ For hver del i taksten – sjekk disse punktene:
    - Forskjerm RETTES (G): INGEN tilstøtende A-stolpe. Tilstøtende fordør KAN foreslås som GUL ("vurder") KUN hvis bilder viser at skaden er nær dørkanten – ALDRI som rød mangel. Hvis ingen bilder eller usikkert: ikke foreslå.
    - ALDRI tilstøtende mot panser ved forskjermskift
    - KRITISK – SJEKK OM TILSTØTENDE ALLEREDE ER SATT OPP: Før du foreslår tilstøtende mot en del, sjekk hele lakkspesifikasjonen nøye for om delen allerede har en tilstøtende-post. Tegn på at tilstøtende ALLEREDE er på plass:
-     • Delen står oppført i lakkspesifikasjonen med "under begrensning" i navnet (f.eks. "H Fordør, under begrensning")
-     • Delen har et lite areal (typisk 60-100 dm²) sammenlignet med full lakk-areal
+     • "Tilstøtende fargeavhengig" eller "Tilstøtende arealavhengig" er huket av i utvendig lakk-tabellen for delen
+     • VIKTIG: "under begrensning" i radnavnet betyr IKKE tilstøtende – det er kun en arealbetegnelse. Bruk op.type og tilstøtende-avkryssingene, aldri navnet.
      • Delen har T (tilstøtende) eller annen markering i Op.Type-kolonnen
      • "Tilstøtende fargeavhengig" eller "Tilstøtende arealavhengig" er huket av i utvendig lakk-tabellen for delen
    - Tilstøtende foreslås KUN mot deler som IKKE allerede lakkes/rettes/poleres OG som IKKE allerede har tilstøtende-post i taksten.
@@ -4326,6 +4427,9 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
         if(!d.navn||d.tiltak!=='Skift')return;
         const match=delReglerPF.find(r=>r.re.test(d.navn));
         if(!match)return;
+        // v2.74: samme sperre som i HURTIGFAKTA-sjekken – ellers ville de to kildene sagt
+        // forskjellige ting om samme del (v2.66-68-fella).
+        if(erSmadelPaaHoveddel(d.navn)&&!erGrunnet(d.navn))return;
         const finnesILakkspes=lakkspesNavnLowerPF.some(l=>match.re.test(l));
         if(!finnesILakkspes)skiftetUtenLakkspesRadPF.push(d.navn);
       });
