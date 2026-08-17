@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.77 – Smart kontroll av takster</title>
+<title>AutoPell v2.78 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.77</div>
+    <div class="version-badge">v2.78</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -276,6 +276,53 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
 
+/* AutoPell v2.78 – endringer fra v2.77 (3 punkter, alle fra ekte testtakster denne uka):
+
+   1. SPYLEDEKSEL KUN PÅ STØTFANGER FORAN (Ford Mustang Mach-E ED42647)
+      Martin: "det er jo aldri spyledeksler/spylelokk bak på en støtfanger."
+      STOTFANGER_HTT_LOSE og STOTFANGER_50_SMADELER matcher begge kat:/støtfanger/i uten å
+      skille foran/bak, og positivlista nevner spyledeksel uansett ende. Deterministisk sperre
+      lagt inn i POST-FILTER (ved siden av v2.52-positivlista) framfor prompt-tekst, jf.
+      prinsippet om at prosa alene ikke holder.
+      ORDBRUK-FELLE: intern-teksten sier "ALDRI foreslå sensorer ... bak støtfangeren", der
+      "bak" betyr BAKENFOR, ikke bakre støtfanger. Sperren tester derfor DELNAVNET for
+      bak/bakre, aldri forslagsteksten.
+
+   2. FLATERETTE-MATCHING: KOMMA-HALE + SKRÅSTREK-LISTE (XPENG G6 EP32567)
+      Taksten fører flaterette under "Karosseri - Justering" som ÉN linje for TRE deler:
+      "Flatrette, Bakluke/Dør H/Bakluke nedre H  Manuell tid 600", mens lakkspes har
+      "Bakluke, under begrensning". Verifisert mot bygd kode at 600p ble lest INN riktig –
+      feilen var utelukkende navnematchingen: normaliserHoveddelPF strippet ikke komma-halen,
+      så "bakluke, under begrensning" ble sammenlignet med "bakluke/dør h/bakluke nedre h 2"
+      og ingen av de tre testene traff (bar "Bakluke" traff fint).
+      Fikset med rensDelnavnPF (parentes, komma-hale, fotnotetall) + splitting på "/" der hvert
+      segment testes for seg. Uten splitting fant vi aldri "Dør H" – hadde den vært G-lakkert
+      ville også den fått falskt varsel.
+      Avveining: splitting gjør matchingen løsere og kan i teorien dempe et ekte varsel.
+      Retningen er trygg – vi mister et forslag, vi lager ikke et falskt.
+
+   3. VAREBIL-SYNONYM: "lastdør bakre/øvre" → bakluke (BYD T3 VAREBIL EC32431)
+      Martin: "på varebiler kan bakluke også hete lastdør."
+      KVALIFISERT FORM KUN. En bar "lastdør" mappes bevisst IKKE, fordi en varebils skyvedør
+      på siden også er en lastdør og ikke er bakluken – Martin bekreftet at dette er den
+      sikreste avgrensningen.
+      På BYD-en sto flaterette på "Lastdør bakre/øvre" (100p) og lakken på "Bakluke (40%)"
+      (86,7 dm², G). Begge halvdelene bommet SYMMETRISK: "flaterett uten lakk-post" og
+      "flaterette glemt for bakluke" var samme feil sett fra hver sin side. Synonymet lagt inn
+      begge steder – i synonymer/synonymer2 (lakk-post-retningen) og i flaterette-matcheren.
+      REKKEFØLGE: synonymet kjøres FØR splittingen på "/", fordi skråstreken betyr to
+      forskjellige ting – i "Bakluke/Dør H/Bakluke nedre H" skiller den DELER, i
+      "Lastdør bakre/øvre" skiller den KVALIFIKATORER. Segmenter som kun er posisjonsord
+      (øvre/nedre/h/v/tall) forkastes, så "øvre" aldri blir stående som eget delnavn.
+
+   IKKE MED (bevisst): tilstøtende-punkter som ikke når DBS-boksen (ikke diagnostisert – venter
+   på konsollogg), regelleveransen til Claude (stor, egen versjon), øvre/nedre semantisk dedupe
+   på Ford-en, og delvis lakkert dørhåndtak (Martin: "er så sjelden").
+
+   Verifisert mot den bygde fila, 11 tilfeller: begge XPENG- og BYD-parene treffer nå; bar
+   "Lastdør" og "Lastdør skyvedør H" blandes IKKE med bakluke; v2.77-paret bakskjerm er
+   uendret; urelaterte deler varsler fortsatt; posisjonsord alene gir aldri treff.
+*/
 /* AutoPell v2.77 – endringer fra v2.76 (1 sak: falsk "mulig glemt flaterette" ved rustreparasjon):
 
    FUNNET (BMW 520 D BS41226): DET_MULIG_GLEMT_FLATERETTE fyrte for "Tak uten takstolper (30%)"
@@ -2822,6 +2869,9 @@ function takstSammendrag(t){
   // NB: Vurder nøye før utvidelse – feil synonym kan skjule reelle mangler.
   const synonymer=[
     {fra:/støtfangerdeksel/g, til:'støtfanger'},
+    // v2.78: varebil – bakluke kan hete lastdør. KVALIFISERT form kun (bakre/øvre);
+    // en bar "lastdør" er ofte skyvedør på siden og skal IKKE bli bakluke.
+    {fra:/\blastdør\s*,?\s*(?:bakre|øvre)(?:\s*\/\s*(?:bakre|øvre))*/g, til:'bakluke'},
     {fra:/\bp-list\b/g, til:'list'},
   ];
   function normaliserDelnavn(s){
@@ -3803,6 +3853,17 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
         // v2.63-FIX2: bevarer side (V/H) i normaliseringen – oppdaget under egen testing at
         // "V Forskjerm" feilaktig matchet en H-side flaterette-linje når siden ble strippet
         // helt bort. Fanget og rettet før publisering.
+        // v2.78: VAREBIL-SYNONYM. Martin: "på varebiler kan bakluke også hete lastdør."
+        // KVALIFISERT FORM KUN – en bar "lastdør" mappes bevisst IKKE, fordi en varebils
+        // skyvedør på siden også er en lastdør og IKKE er bakluken. Martin bekreftet at dette
+        // er den sikreste avgrensningen.
+        // Bekreftet BYD T3 VAREBIL EC32431: flaterette sto på "Lastdør bakre/øvre" (100p) mens
+        // lakken sto på "Bakluke (40%)" (86,7 dm², G). Begge halvdelene bommet symmetrisk –
+        // "flaterett uten lakk-post" OG "flaterette glemt for bakluke" var SAMME feil sett fra
+        // hver sin side, og begge forsvinner når navnene knyttes sammen.
+        function anvendVarebilSynonymPF(s2){
+          return (s2||'').replace(/\blastdør\s*,?\s*(bakre|øvre)(\s*\/\s*(bakre|øvre))*/gi,'bakluke');
+        }
         function normaliserHoveddelPF(s){
           let n=(s||'').toLowerCase().replace(/\s+/g,' ').trim();
           let side=null;
@@ -3812,12 +3873,35 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
              .replace(/^skjerm\s+(?:frem(?:re)?|foran)$/,'forskjerm').replace(/^skjerm\s+bak(?:re)?$/,'bakskjerm');
           return side?side+' '+n:n;
         }
+        // v2.78: SYNONYM + SEGMENTERING. To bekreftede feil i navnematchingen:
+        //  (a) Komma-hale: lakkspes skriver "Bakluke, under begrensning" mens flaterette-linja
+        //      skriver "Bakluke". normaliserHoveddelPF strippet ikke halen, så ingen av de tre
+        //      testene traff. Bekreftet XPENG G6 EP32567 (600p flaterette ble lest inn riktig –
+        //      feilen var utelukkende matchingen). Fotnotetall på slutten strippes samtidig.
+        //  (b) Skråstrek-liste: taksten fører ÉN linje for FLERE deler,
+        //      "Flatrette, Bakluke/Dør H/Bakluke nedre H". Uten splitting fant vi aldri "Dør H".
+        // VIKTIG at synonymet kjøres FØR splittingen: skråstreken betyr to forskjellige ting.
+        // I "Bakluke/Dør H/Bakluke nedre H" skiller den tre DELER; i "Lastdør bakre/øvre"
+        // skiller den to KVALIFIKATORER på samme del. Segmenter som kun er posisjonsord
+        // forkastes, så "øvre" aldri blir stående igjen som et eget delnavn.
+        // Kjent avveining: splitting gjør matchingen løsere og kan i teorien dempe et ekte
+        // "glemt flaterette"-varsel. Retningen er trygg – vi mister et forslag, vi lager ikke
+        // et falskt.
+        const posisjonsOrdPF=/^(øvre|nedre|midtre|fremre|bakre|foran|bak|venstre|høyre|indre|ytre|[hv]|\d+)$/i;
+        function flateretteSegmenterPF(navn){
+          const medSynonym=anvendVarebilSynonymPF(navn||'');
+          return medSynonym.split('/').map(x=>normaliserHoveddelPF(rensDelnavnPF(x)))
+            .filter(x=>x.length>=3&&!posisjonsOrdPF.test(x));
+        }
+        function rensDelnavnPF(s2){
+          return (s2||'').replace(/\(.*?\)/g,'').replace(/,.*$/,'').replace(/\s+\d+\s*$/,'').trim();
+        }
         function harFlateretteLinjePF(delNavn){
-          const dn=normaliserHoveddelPF(delNavn);
-          return (parserData.karosseri_flaterett||[]).some(f=>{
-            const fn=normaliserHoveddelPF(f.del);
-            return fn===dn||(dn.length>=4&&fn.includes(dn))||(fn.length>=4&&dn.includes(fn));
-          });
+          const dn=normaliserHoveddelPF(rensDelnavnPF(anvendVarebilSynonymPF(delNavn)));
+          if(dn.length<3)return false;
+          return (parserData.karosseri_flaterett||[]).some(f=>
+            flateretteSegmenterPF(f.del).some(fn=>
+              fn===dn||(dn.length>=4&&fn.includes(dn))||(fn.length>=4&&dn.includes(fn))));
         }
         function harSteinsprutStriperPF(delNavn){
           const dOrd=(delNavn||'').toLowerCase().split(/\s+/).filter(o=>o.length>=4);
@@ -4010,6 +4094,17 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
             const forbudtStotfangerDel=/sensor\w*|\bgitter\b|luftstyring|\bramme\w*|\bbrakett\w*|ryggelys/i;
             if(forbudtStotfangerDel.test(p.forslag)){
               console.log('[POST-FILTER v2.52] Avvist STØTFANGER-forslag utenfor positivliste ('+p.id+'): "'+p.forslag+'"');
+              return;
+            }
+            // v2.78: spyledeksel/spylelokk finnes ALDRI på en BAKRE støtfanger – kun foran.
+            // Martin: "det er jo aldri spyledeksler/spylelokk bak på en støtfanger."
+            // Begge reglene matcher kat:/støtfanger/i uten å skille foran/bak, og positivlista
+            // nevner spyledeksel uansett ende. Deterministisk sperre her framfor prompt-tekst,
+            // jf. prinsippet om at prosa alene ikke holder.
+            // MERK ordbruk: "bak støtfangeren" i intern-teksten betyr BAKENFOR (sensorer o.l.),
+            // ikke bakre støtfanger. Derfor testes DELNAVNET, ikke forslagsteksten, for bak/bakre.
+            if(/\bbak(re)?\b/i.test(delNavnRent)&&!/\bforan\b/i.test(delNavnRent)&&/spyle(deksel|lokk)|spyler(deksel|lokk)/i.test(p.forslag)){
+              console.log('[POST-FILTER v2.78] Avvist spyledeksel på BAKRE støtfanger ('+p.id+'): "'+p.forslag+'"');
               return;
             }
           }
@@ -4360,6 +4455,9 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
       // v2.4: Samme synonymordbok som i takstSammendrag (holdes parallelt)
       const synonymer2=[
         {fra:/støtfangerdeksel/g, til:'støtfanger'},
+        // v2.78: varebil – bakluke kan hete lastdør. KVALIFISERT form kun (bakre/øvre);
+        // en bar "lastdør" er ofte skyvedør på siden og skal IKKE bli bakluke.
+        {fra:/\blastdør\s*,?\s*(?:bakre|øvre)(?:\s*\/\s*(?:bakre|øvre))*/g, til:'bakluke'},
         {fra:/\bp-list\b/g, til:'list'},
       ];
       // v2.69-FIX: DEN FAKTISKE KILDEN til hele v2.62-68-saken. Det finnes TRE separate
