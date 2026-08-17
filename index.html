@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.80 – Smart kontroll av takster</title>
+<title>AutoPell v2.81 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.80</div>
+    <div class="version-badge">v2.81</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -276,6 +276,35 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
 
+/* AutoPell v2.81 – endringer fra v2.80 (1 punkt: skademarkeringen styrer hvilken tilstøtende
+   flate som foreslås):
+
+   BAKGRUNN: v2.80 leverte for første gang regelteksten til Claude, og virkningen var umiddelbar
+   på MG ZS EV EB90341 – begge tilstøtende-ID-ene gikk fra "usikker"/forsvinne til "foreslått"
+   og nådde DBS-boksen. Men den foreslo tilstøtende mot BÅDE bakdør og forskjerm, med den
+   generiske begrunnelsen "siden bakdøren ikke er med i taksten fra før". Skaden er markert i
+   FREMRE del av døra, altså mot forskjermen. Martin: "hadde jo vært litt praktisk hvis den
+   kunne styrt mot markeringene. det som er nærmest neste flate."
+
+   Regelen om at Martins skademarkeringer (røde firkanter/piler) avgjør tilstøtende vs HTT ETTER
+   POSISJON har vært bekreftet lenge, men fantes kun i notatene – aldri i registeret, og dermed
+   aldri levert. v2.80 gjorde leveransen mulig; dette er første regel som utnytter den.
+
+   ENDRINGEN: alle 14 tilstøtende-ID-er har fått intern-tekst (ingen hadde det fra før). Hver
+   ID får sin EGEN naboflate navngitt med hvilken kant av delen den ligger på, f.eks.:
+     FORDOR_TILST_FORSKJERM  → "forskjermen (FREMRE kant av fordøra)"
+     FORDOR_TILST_BAKDOR     → "bakdøra (BAKRE kant av fordøra)"
+     BAKSKJERM_N_TILST_KANAL → "kanalen (NEDRE kant av bakskjermen)"
+   Betingelsen: foreslå KUN når skademarkeringen ligger nærmest denne flaten; ligger den i
+   motsatt ende av delen er det "ikke relevant"; dekker skaden hele delen eller mangler
+   markering, vurderes den som vanlig; og aldri flere tilstøtende flater på samme del uten at
+   skaden faktisk strekker seg dit.
+
+   ÆRLIG BEGRENSNING: dette er en BILDEVURDERING, så den arver ustabiliteten vi har målt på
+   image-baserte punkter (jf. de fire ulike utfallene på MG-en). Den er likevel bedre enn
+   ingenting – i dag foreslås begge sider uansett hvor skaden sitter.
+   Ingen andre endringer i denne versjonen, så testrunden isolerer nøyaktig denne.
+*/
 /* AutoPell v2.80 – endringer fra v2.79 (1 punkt: REGELTEKSTEN LEVERES ENDELIG TIL CLAUDE):
 
    PROBLEMET, oppdaget under v2.76-arbeidet og bekreftet gjentatte ganger siden:
@@ -2675,21 +2704,21 @@ function takstSammendrag(t){
   if(!window.REGEL_REGISTRY)window.REGEL_REGISTRY={
     TAK_RUST:{deterministisk:true,navn:'Rustbeskyttelse',mal:'',farge:'rød'},
     TAK_DEMO:{kat:/\btak(?:plate)?\b/i,optype:['N','G'],skjulHvisDetaljFunnet:['trekk','løsne'],navn:'De/Mo innvendige detaljer',mal:'Vurder å legge til De/Mo innvendige detaljer (himling)',farge:'rød'},
-    TAK_TILST_TAKRENNE:{kat:/\btak(?:plate)?\b/i,optype:['N','G'],navn:'Tilstøtende takrenne/A-stolpe',mal:'Vurder å ta med tilstøtende flate mot takrenne/A-stolpe begge sider (fargeavhengig)',farge:'gul'},
+    TAK_TILST_TAKRENNE:{kat:/\btak(?:plate)?\b/i,optype:['N','G'],navn:'Tilstøtende takrenne/A-stolpe',mal:'Vurder å ta med tilstøtende flate mot takrenne/A-stolpe begge sider (fargeavhengig)',intern:'SKADEMARKERING STYRER SIDEN: takstmannen markerer skaden i bildene med røde firkanter/piler. Foreslå denne tilstøtende flaten KUN når skademarkeringen ligger nærmest takrenna (SIDEKANT av taket). Ligger markeringen i motsatt ende av delen, er dette IKKE riktig flate – sett "ikke relevant". Dekker skaden hele delen, eller er ingen markering synlig i bildene, kan den vurderes som vanlig. Foreslå aldri flere tilstøtende flater på samme del uten at skaden faktisk strekker seg dit.',farge:'gul'},
     TAK_UB_INNVENDIG:{kat:/\btak(?:plate)?\b/i,optype:['N','G'],navn:'UB innvendig tak',mal:'Vurder å legge til UB understellsbehandling innvendig tak (150kr)',farge:'rød'},
     TAK_TAKRAILS:{kat:/\btak(?:plate)?\b/i,optype:['N','G'],navn:'Takrails/skinner',mal:'Sjekk om takrails/skinner må demonteres',farge:'gul'},
     TAK_ANTENNER:{kat:/\btak(?:plate)?\b/i,optype:['N','G'],skjulHvisDetaljFunnet:['antenne'],navn:'Antenner',mal:'Sjekk om antenner må demonteres',farge:'gul'},
 
     FORSKJERM_N_RUST:{deterministisk:true,navn:'Rustbeskyttelse',mal:'',farge:'rød'},
     FORSKJERM_N_UB:{deterministisk:true,navn:'UB',mal:'',farge:'rød'},
-    FORSKJERM_N_TILST_FORDOR:{kat:/forskjerm/i,optype:['N'],navn:'Tilstøtende fordør',mal:'Vurder å ta med tilstøtende flate mot fordør, hvis fordør ikke lakkes i taksten',farge:'gul'},
-    FORSKJERM_N_TILST_ASTOLPE:{kat:/forskjerm/i,optype:['N'],navn:'Tilstøtende A-stolpe',mal:'Vurder å legge til tilstøtende flate mot A-stolpe',farge:'rød'},
+    FORSKJERM_N_TILST_FORDOR:{kat:/forskjerm/i,optype:['N'],navn:'Tilstøtende fordør',mal:'Vurder å ta med tilstøtende flate mot fordør, hvis fordør ikke lakkes i taksten',intern:'SKADEMARKERING STYRER SIDEN: takstmannen markerer skaden i bildene med røde firkanter/piler. Foreslå denne tilstøtende flaten KUN når skademarkeringen ligger nærmest fordøra (BAKRE kant av forskjermen). Ligger markeringen i motsatt ende av delen, er dette IKKE riktig flate – sett "ikke relevant". Dekker skaden hele delen, eller er ingen markering synlig i bildene, kan den vurderes som vanlig. Foreslå aldri flere tilstøtende flater på samme del uten at skaden faktisk strekker seg dit.',farge:'gul'},
+    FORSKJERM_N_TILST_ASTOLPE:{kat:/forskjerm/i,optype:['N'],navn:'Tilstøtende A-stolpe',mal:'Vurder å legge til tilstøtende flate mot A-stolpe',intern:'SKADEMARKERING STYRER SIDEN: takstmannen markerer skaden i bildene med røde firkanter/piler. Foreslå denne tilstøtende flaten KUN når skademarkeringen ligger nærmest A-stolpen (BAKRE/ØVRE kant av forskjermen). Ligger markeringen i motsatt ende av delen, er dette IKKE riktig flate – sett "ikke relevant". Dekker skaden hele delen, eller er ingen markering synlig i bildene, kan den vurderes som vanlig. Foreslå aldri flere tilstøtende flater på samme del uten at skaden faktisk strekker seg dit.',farge:'rød'},
     FORSKJERM_N_HTT_LOSE:{kat:/forskjerm/i,optype:['N'],navn:'HTT løse deler',mal:'Sjekk løse deler på forskjerm i lakklisten for manglende HTT',farge:'gul'},
 
     PANSER_RUST:{deterministisk:true,navn:'Rustbeskyttelse',mal:'',farge:'rød'},
     PANSER_DEMO:{kat:/\bpanser\b/i,optype:['N','G'],navn:'De/Mo innvendige detaljer',mal:'Vurder å legge til De/Mo innvendige detaljer (pansermatte)',farge:'rød'},
-    PANSER_TILST_ASTOLPE:{kat:/\bpanser\b/i,optype:['N','G'],navn:'Tilstøtende A-stolpe',mal:'Vurder å ta med tilstøtende flate mot A-stolpe begge sider (fargeavhengig)',farge:'gul'},
-    PANSER_TILST_FORSKJERM:{kat:/\bpanser\b/i,optype:['N','G'],ikkeVedSvart:true,navn:'Tilstøtende forskjerm',mal:'Vurder å ta med tilstøtende flate mot forskjerm begge sider (fargeavhengig)',farge:'gul'},
+    PANSER_TILST_ASTOLPE:{kat:/\bpanser\b/i,optype:['N','G'],navn:'Tilstøtende A-stolpe',mal:'Vurder å ta med tilstøtende flate mot A-stolpe begge sider (fargeavhengig)',intern:'SKADEMARKERING STYRER SIDEN: takstmannen markerer skaden i bildene med røde firkanter/piler. Foreslå denne tilstøtende flaten KUN når skademarkeringen ligger nærmest A-stolpen (BAKRE kant av panseret). Ligger markeringen i motsatt ende av delen, er dette IKKE riktig flate – sett "ikke relevant". Dekker skaden hele delen, eller er ingen markering synlig i bildene, kan den vurderes som vanlig. Foreslå aldri flere tilstøtende flater på samme del uten at skaden faktisk strekker seg dit.',farge:'gul'},
+    PANSER_TILST_FORSKJERM:{kat:/\bpanser\b/i,optype:['N','G'],ikkeVedSvart:true,navn:'Tilstøtende forskjerm',mal:'Vurder å ta med tilstøtende flate mot forskjerm begge sider (fargeavhengig)',intern:'SKADEMARKERING STYRER SIDEN: takstmannen markerer skaden i bildene med røde firkanter/piler. Foreslå denne tilstøtende flaten KUN når skademarkeringen ligger nærmest forskjermen (SIDEKANT av panseret). Ligger markeringen i motsatt ende av delen, er dette IKKE riktig flate – sett "ikke relevant". Dekker skaden hele delen, eller er ingen markering synlig i bildene, kan den vurderes som vanlig. Foreslå aldri flere tilstøtende flater på samme del uten at skaden faktisk strekker seg dit.',farge:'gul'},
     PANSER_EMBLEM:{kat:/\bpanser\b/i,optype:['N','G'],skjulHvisDetaljIkkeFunnet:'emblem',navn:'Emblem',mal:'Sjekk om emblem på panser må bestilles nytt',farge:'gul'},
 
     DOR_FELLES_RUST:{deterministisk:true,navn:'Rustbeskyttelse',mal:'',farge:'rød'},
@@ -2697,16 +2726,16 @@ function takstSammendrag(t){
     DOR_FELLES_UB:{deterministisk:true,navn:'UB',mal:'',farge:'rød'},
     DOR_FELLES_HTT_HANDTAK:{poeng:15,kat:/\bfordør\b|\bbakdør\b/i,optype:['N','G'],navn:'HTT dørhåndtak',mal:'Sjekk om dørhåndtaket er lakkert i bilens farge – i så fall HTT 15p i annetbildet.',intern:'RETTET (G): reaktivt spørsmål. SKIFTET (N, ny ELLER brukt dør): spør PROAKTIVT om håndtaket fra erstatningsdøra bør lakkeres som tilstøtende, siden det normalt ikke matcher bilens farge – nevn HTT 15p i SAMME forslag hvis det lakkeres.',farge:'gul'},
     FORDOR_DIAGNOSE_AIRBAG:{kat:/\bfordør\b/i,optype:['N','G'],navn:'Diagnose airbag',mal:'Vurder å legge til diagnose (slette airbag-feilkoder, 50p)',farge:'gul'},
-    FORDOR_TILST_BAKDOR:{kat:/\bfordør\b/i,optype:['N','G'],ikkeVedSvart:true,navn:'Tilstøtende bakdør',mal:'Vurder å ta med tilstøtende flate mot bakdør',farge:'gul'},
-    FORDOR_TILST_FORSKJERM:{kat:/\bfordør\b/i,optype:['N','G'],ikkeVedSvart:true,navn:'Tilstøtende forskjerm',mal:'Vurder å ta med tilstøtende flate mot forskjerm',farge:'gul'},
-    BAKDOR_TILST_BAKSKJERM:{kat:/\bbakdør\b/i,optype:['N','G'],ikkeVedSvart:true,navn:'Tilstøtende bakskjerm',mal:'Vurder å ta med tilstøtende flate mot bakskjerm',farge:'gul'},
-    BAKDOR_TILST_FORDOR:{kat:/\bbakdør\b/i,optype:['N','G'],navn:'Tilstøtende fordør',mal:'Vurder å ta med tilstøtende flate mot fordør',farge:'gul'},
+    FORDOR_TILST_BAKDOR:{kat:/\bfordør\b/i,optype:['N','G'],ikkeVedSvart:true,navn:'Tilstøtende bakdør',mal:'Vurder å ta med tilstøtende flate mot bakdør',intern:'SKADEMARKERING STYRER SIDEN: takstmannen markerer skaden i bildene med røde firkanter/piler. Foreslå denne tilstøtende flaten KUN når skademarkeringen ligger nærmest bakdøra (BAKRE kant av fordøra). Ligger markeringen i motsatt ende av delen, er dette IKKE riktig flate – sett "ikke relevant". Dekker skaden hele delen, eller er ingen markering synlig i bildene, kan den vurderes som vanlig. Foreslå aldri flere tilstøtende flater på samme del uten at skaden faktisk strekker seg dit.',farge:'gul'},
+    FORDOR_TILST_FORSKJERM:{kat:/\bfordør\b/i,optype:['N','G'],ikkeVedSvart:true,navn:'Tilstøtende forskjerm',mal:'Vurder å ta med tilstøtende flate mot forskjerm',intern:'SKADEMARKERING STYRER SIDEN: takstmannen markerer skaden i bildene med røde firkanter/piler. Foreslå denne tilstøtende flaten KUN når skademarkeringen ligger nærmest forskjermen (FREMRE kant av fordøra). Ligger markeringen i motsatt ende av delen, er dette IKKE riktig flate – sett "ikke relevant". Dekker skaden hele delen, eller er ingen markering synlig i bildene, kan den vurderes som vanlig. Foreslå aldri flere tilstøtende flater på samme del uten at skaden faktisk strekker seg dit.',farge:'gul'},
+    BAKDOR_TILST_BAKSKJERM:{kat:/\bbakdør\b/i,optype:['N','G'],ikkeVedSvart:true,navn:'Tilstøtende bakskjerm',mal:'Vurder å ta med tilstøtende flate mot bakskjerm',intern:'SKADEMARKERING STYRER SIDEN: takstmannen markerer skaden i bildene med røde firkanter/piler. Foreslå denne tilstøtende flaten KUN når skademarkeringen ligger nærmest bakskjermen (BAKRE kant av bakdøra). Ligger markeringen i motsatt ende av delen, er dette IKKE riktig flate – sett "ikke relevant". Dekker skaden hele delen, eller er ingen markering synlig i bildene, kan den vurderes som vanlig. Foreslå aldri flere tilstøtende flater på samme del uten at skaden faktisk strekker seg dit.',farge:'gul'},
+    BAKDOR_TILST_FORDOR:{kat:/\bbakdør\b/i,optype:['N','G'],navn:'Tilstøtende fordør',mal:'Vurder å ta med tilstøtende flate mot fordør',intern:'SKADEMARKERING STYRER SIDEN: takstmannen markerer skaden i bildene med røde firkanter/piler. Foreslå denne tilstøtende flaten KUN når skademarkeringen ligger nærmest fordøra (FREMRE kant av bakdøra). Ligger markeringen i motsatt ende av delen, er dette IKKE riktig flate – sett "ikke relevant". Dekker skaden hele delen, eller er ingen markering synlig i bildene, kan den vurderes som vanlig. Foreslå aldri flere tilstøtende flater på samme del uten at skaden faktisk strekker seg dit.',farge:'gul'},
     BAKDOR_HJULBUELISTE:{kat:/\bbakdør\b/i,optype:['N','G'],sjekkNevntIRaw:'hjulbueliste',navn:'HTT hjulbueliste',mal:'Sjekk om hjulbueliste er lakkerbar – i så fall vurder HTT 15p',farge:'gul'},
 
     BAKSKJERM_G_RUST:{deterministisk:true,navn:'Rustbeskyttelse',mal:'',farge:'rød'},
     BAKSKJERM_G_DEMO:{kat:/bakskjerm/i,optype:['G'],navn:'De/Mo innvendige detaljer',mal:'Vurder å legge til De/Mo innvendige detaljer',farge:'rød'},
     BAKSKJERM_G_UB:{deterministisk:true,navn:'UB',mal:'',farge:'rød'},
-    BAKSKJERM_G_TILST_BAKDOR:{kat:/bakskjerm/i,optype:['G'],ikkeVedSvart:true,navn:'Tilstøtende bakdør',mal:'Spør om tilstøtende mot bakdør er aktuelt',farge:'gul'},
+    BAKSKJERM_G_TILST_BAKDOR:{kat:/bakskjerm/i,optype:['G'],ikkeVedSvart:true,navn:'Tilstøtende bakdør',mal:'Spør om tilstøtende mot bakdør er aktuelt',intern:'SKADEMARKERING STYRER SIDEN: takstmannen markerer skaden i bildene med røde firkanter/piler. Foreslå denne tilstøtende flaten KUN når skademarkeringen ligger nærmest bakdøra (FREMRE kant av bakskjermen). Ligger markeringen i motsatt ende av delen, er dette IKKE riktig flate – sett "ikke relevant". Dekker skaden hele delen, eller er ingen markering synlig i bildene, kan den vurderes som vanlig. Foreslå aldri flere tilstøtende flater på samme del uten at skaden faktisk strekker seg dit.',farge:'gul'},
     BAKSKJERM_G_HJULBUELISTE:{kat:/bakskjerm/i,optype:['G'],sjekkNevntIRaw:'hjulbueliste',navn:'HTT hjulbueliste',mal:'Sjekk om bakskjerm har lakkerbar hjulbueliste',farge:'gul'},
     BAKSKJERM_G_TANKLUKE:{kat:/bakskjerm/i,optype:['G'],sjekkAlleredeForLakkspes:['tankluk','ladeluk','bensinluk','strøminntak','dekklokk'],skjulHvisDetaljIkkeFunnet:['tankluk','ladeluk','bensinluk','dekklokk'],navn:'Tankluke',mal:'Sjekk om tankluken på bakskjerm bør vurderes som tilstøtende',farge:'gul'},
     BAKSKJERM_G_LOFTETAPE:{poeng:20,kat:/bakskjerm/i,optype:['G'],sjekkAlleredeForLakkspes:['løftetape','loftetape'],navn:'Løftetape',mal:'Sjekk om det finnes en synlig rute mot bakskjerm som krever løftetape (20p).',intern:'Løftetape løfter pakningen rundt ruten, ikke knyttet til rettearbeidet. Kun personbil, ikke varebil. Nesten alle stasjonsvogner/kombi og de fleste SUV har rute i bakskjerm. Ved tvil: status="usikker", ALDRI "ikke relevant" (v2.43).',farge:'gul'},
@@ -2714,8 +2743,8 @@ function takstSammendrag(t){
 
     BAKSKJERM_N_RUST:{deterministisk:true,navn:'Rustbeskyttelse',mal:'',farge:'rød'},
     BAKSKJERM_N_UB:{deterministisk:true,navn:'UB',mal:'',farge:'rød'},
-    BAKSKJERM_N_TILST_BAKDOR:{kat:/bakskjerm/i,optype:['N'],ikkeVedSvart:true,navn:'Tilstøtende bakdør',mal:'Vurder å ta med tilstøtende flate mot bakdør',farge:'gul'},
-    BAKSKJERM_N_TILST_KANAL:{kat:/bakskjerm/i,optype:['N'],navn:'Tilstøtende kanal',mal:'Spør om tilstøtende bakskjerm eller arealavhengig lakk av kanal er aktuelt',farge:'gul'},
+    BAKSKJERM_N_TILST_BAKDOR:{kat:/bakskjerm/i,optype:['N'],ikkeVedSvart:true,navn:'Tilstøtende bakdør',mal:'Vurder å ta med tilstøtende flate mot bakdør',intern:'SKADEMARKERING STYRER SIDEN: takstmannen markerer skaden i bildene med røde firkanter/piler. Foreslå denne tilstøtende flaten KUN når skademarkeringen ligger nærmest bakdøra (FREMRE kant av bakskjermen). Ligger markeringen i motsatt ende av delen, er dette IKKE riktig flate – sett "ikke relevant". Dekker skaden hele delen, eller er ingen markering synlig i bildene, kan den vurderes som vanlig. Foreslå aldri flere tilstøtende flater på samme del uten at skaden faktisk strekker seg dit.',farge:'gul'},
+    BAKSKJERM_N_TILST_KANAL:{kat:/bakskjerm/i,optype:['N'],navn:'Tilstøtende kanal',mal:'Spør om tilstøtende bakskjerm eller arealavhengig lakk av kanal er aktuelt',intern:'SKADEMARKERING STYRER SIDEN: takstmannen markerer skaden i bildene med røde firkanter/piler. Foreslå denne tilstøtende flaten KUN når skademarkeringen ligger nærmest kanalen (NEDRE kant av bakskjermen). Ligger markeringen i motsatt ende av delen, er dette IKKE riktig flate – sett "ikke relevant". Dekker skaden hele delen, eller er ingen markering synlig i bildene, kan den vurderes som vanlig. Foreslå aldri flere tilstøtende flater på samme del uten at skaden faktisk strekker seg dit.',farge:'gul'},
     BAKSKJERM_N_POLERE_FLIKK:{poeng:20,kat:/bakskjerm/i,optype:['N'],navn:'Polere flikk',mal:'Vurder polere flikk 20p hvis takstolpe/kanal ikke lakkes helt frem',farge:'gul'},
     BAKSKJERM_N_HJULBUELISTE:{kat:/bakskjerm/i,optype:['N'],sjekkNevntIRaw:'hjulbueliste',navn:'HTT hjulbueliste',mal:'Sjekk om bakskjerm har lakkerbar hjulbueliste',farge:'gul'},
     BAKSKJERM_N_TANKLUKE:{kat:/bakskjerm/i,optype:['N'],sjekkAlleredeForLakkspes:['tankluk','ladeluk','bensinluk','strøminntak','dekklokk'],skjulHvisDetaljIkkeFunnet:['tankluk','ladeluk','bensinluk','dekklokk'],navn:'Tankluke',mal:'Sjekk om tankluke sitter på den skiftede bakskjermen',farge:'gul'},
@@ -2734,8 +2763,8 @@ function takstSammendrag(t){
     STOTFANGER_BAK_FILSKIFTESENSOR:{deterministisk:true,navn:'Kalibrering filskiftesensor',mal:'',farge:'lilla'},
     // v2.47: krev3sjikt – disse to gjelder KUN ved 3-sjikts farge. Lakktype leses
     // deterministisk fra taksten (kun Lakktype 3 = 3-sjikt) i stedet for at Claude gjetter.
-    STOTFANGER_FORAN_TILST_FORSKJERM:{kat:/støtfanger foran/i,optype:['N','G'],krev3sjikt:true,ikkeVedSvart:true,navn:'Tilstøtende forskjerm (3-sjikt)',mal:'Vurder å ta med tilstøtende flate mot forskjerm – 3-sjikts farge (Lakktype 3)',farge:'gul'},
-    STOTFANGER_BAK_TILST_BAKSKJERM:{kat:/støtfanger bak/i,optype:['N','G'],krev3sjikt:true,ikkeVedSvart:true,navn:'Tilstøtende bakskjerm (3-sjikt)',mal:'Vurder å ta med tilstøtende flate mot bakskjerm – 3-sjikts farge (Lakktype 3)',farge:'gul'},
+    STOTFANGER_FORAN_TILST_FORSKJERM:{kat:/støtfanger foran/i,optype:['N','G'],krev3sjikt:true,ikkeVedSvart:true,navn:'Tilstøtende forskjerm (3-sjikt)',mal:'Vurder å ta med tilstøtende flate mot forskjerm – 3-sjikts farge (Lakktype 3)',intern:'SKADEMARKERING STYRER SIDEN: takstmannen markerer skaden i bildene med røde firkanter/piler. Foreslå denne tilstøtende flaten KUN når skademarkeringen ligger nærmest forskjermen (SIDEKANT av fremre støtfanger). Ligger markeringen i motsatt ende av delen, er dette IKKE riktig flate – sett "ikke relevant". Dekker skaden hele delen, eller er ingen markering synlig i bildene, kan den vurderes som vanlig. Foreslå aldri flere tilstøtende flater på samme del uten at skaden faktisk strekker seg dit.',farge:'gul'},
+    STOTFANGER_BAK_TILST_BAKSKJERM:{kat:/støtfanger bak/i,optype:['N','G'],krev3sjikt:true,ikkeVedSvart:true,navn:'Tilstøtende bakskjerm (3-sjikt)',mal:'Vurder å ta med tilstøtende flate mot bakskjerm – 3-sjikts farge (Lakktype 3)',intern:'SKADEMARKERING STYRER SIDEN: takstmannen markerer skaden i bildene med røde firkanter/piler. Foreslå denne tilstøtende flaten KUN når skademarkeringen ligger nærmest bakskjermen (SIDEKANT av bakre støtfanger). Ligger markeringen i motsatt ende av delen, er dette IKKE riktig flate – sett "ikke relevant". Dekker skaden hele delen, eller er ingen markering synlig i bildene, kan den vurderes som vanlig. Foreslå aldri flere tilstøtende flater på samme del uten at skaden faktisk strekker seg dit.',farge:'gul'},
     STOTFANGER_50_MASKERING:{kat:/støtfanger/i,optype:['N','G'],navn:'Maskering ved 50%',mal:'Vurder å huke av maskering-boksen i utvendig lakk-tabellen – støtfangeren er satt til 50% lakk',farge:'rød'},
     STOTFANGER_50_POLERE_FLIKK:{poeng:20,kat:/støtfanger/i,optype:['N','G'],navn:'Polere flikk ved 50%',mal:'Vurder polere flikk 20p i annetbildet – påkrevd ved 50%-lakkering av støtfanger',farge:'gul'},
     STOTFANGER_50_SMADELER:{kat:/støtfanger/i,optype:['N','G'],navn:'Smådeler feilaktig 50%',mal:'Sjekk om slepekrokdeksel, spyledeksel eller lister står på 50% lakk – de skal være 100%, legg til differansen.',intern:'POSITIVLISTE – KUN slepekrokdeksel, spyledeksel, lister. Bekreft med bilder før forslag. IKKE p-sensorer, sensorholdere eller andre deler bak støtfangeren – disse lakkes aldri og skal aldri stå på 50% i utgangspunktet.',farge:'rød'},
