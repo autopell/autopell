@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.78 – Smart kontroll av takster</title>
+<title>AutoPell v2.79 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.78</div>
+    <div class="version-badge">v2.79</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -276,6 +276,37 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
 
+/* AutoPell v2.79 – endringer fra v2.78 (1 sak, to feil i samme sperre):
+
+   FUNNET (MG ZS EV EB90341): Claude påsto "Huk av \'Lakk\' for H Fordør ... siden delen er
+   flateretting (150p) uten tilhørende lakk-post", enda lakkspes har "H Fordør, mellom
+   begrensninger" 7522 G 75,5 dm² 204. v2.68-sperren som skal fjerne akkurat slike påstander
+   fanget den ikke.
+
+   ROT (verifisert ved å kjøre den FAKTISKE filterkoden mot de FAKTISKE dataene, ikke resonnert):
+   sperren bygget søkemønsteret av RÅ ord fra flaterette-linja med lengdekrav 4 tegn. Linja er
+   "Flatrette, Dør fremre H", så kjerneord ble ['fremre'] – "Dør" er 3 tegn og "H" ett. Claude
+   skrev "Fordør", som ikke inneholder "fremre", så mønsteret bommet. Samtidig VISSTE koden at
+   døra var dekket: dekketAvLakk=true og harFlateretteLinjePF=true. Sperren fantes altså og
+   virket – den bommet kun på ordvalg.
+   IKKE en v2.78-regresjon: svakheten har ligget der siden v2.68, og viste seg først nå fordi
+   Claude tilfeldigvis formulerte seg med "Fordør" istedenfor "Dør fremre".
+
+   1. Mønsteret bygges nå av NORMALISERT navn OG rått navn i union ("fordør|fremre"), så
+      påstanden fanges uansett hvilken form Claude velger.
+
+   2. TREDJE IMPLEMENTASJON FJERNET. Kommentaren på sperren påsto at den sjekket mot
+      harFlateretteLinjePF, men koden hadde sin EGEN innebygde navnematching. Den fikk derfor
+      aldri v2.78-forbedringene – komma-hale, skråstrek-splitting, varebil-synonym. Nøyaktig
+      v2.69-lærdommen om flere uavhengige implementasjoner av samme logiske sjekk. Sperren
+      bruker nå de samme hjelperne som harFlateretteLinjePF: flateretteSegmenterPF,
+      rensDelnavnPF og anvendVarebilSynonymPF. Sideeffekt: sperren arver v2.78 automatisk, så
+      den håndterer nå også bundtede flaterette-linjer og varebil-navn.
+
+   Verifisert mot den bygde fila, 6 tilfeller: MG-saken fjernes med begge formuleringene;
+   et EKTE funn (døra faktisk ikke i lakkspes) beholdes; urelaterte forslag røres ikke;
+   XPENG-bundtingen og BYD-synonymet fanges også av sperren nå.
+*/
 /* AutoPell v2.78 – endringer fra v2.77 (3 punkter, alle fra ekte testtakster denne uka):
 
    1. SPYLEDEKSEL KUN PÅ STØTFANGER FORAN (Ford Mustang Mach-E ED42647)
@@ -4302,21 +4333,35 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
       // akkurat samme feilaktige konklusjon derfra. Dette er derfor den eneste garanterte
       // metoden: sjekk Claudes FAKTISKE svar mot det koden allerede vet er riktig
       // (harFlateretteLinjePF), og fjern eksplisitt hvis Claude likevel påsto noe annet.
+      // v2.79: TO FEIL RETTET HER.
+      // (a) Søkemønsteret ble bygget av RÅ ord fra flaterette-linja, med lengdekrav 4.
+      //     MG ZS EV EB90341: linja er "Flatrette, Dør fremre H" → kjerneord ble ['fremre']
+      //     ("Dør" er 3 tegn, "H" ett). Claude skrev "H Fordør" – ingen "fremre" i teksten –
+      //     så mønsteret bommet og den falske påstanden ble stående, selv om koden VISSTE at
+      //     døra var dekket (dekketAvLakk=true, harFlateretteLinjePF=true). Verifisert ved å
+      //     kjøre den faktiske filterkoden mot de faktiske dataene.
+      //     Nå bygges mønsteret av NORMALISERT navn OG rått navn i union, så påstanden fanges
+      //     uansett hvilken form Claude velger ("fordør" eller "fremre").
+      // (b) Kommentaren her påsto at sjekken gikk mot harFlateretteLinjePF, men koden hadde
+      //     sin EGEN innebygde matching – en tredje uavhengig implementasjon, som derfor aldri
+      //     fikk v2.78-forbedringene (komma-hale, skråstrek-splitting, varebil-synonym).
+      //     Nøyaktig v2.69-lærdommen. Nå brukes de samme hjelperne som harFlateretteLinjePF:
+      //     flateretteSegmenterPF + rensDelnavnPF + anvendVarebilSynonymPF.
+      const escRegexPF=t=>t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
       (parserData.karosseri_flaterett||[]).forEach(flat=>{
-        const dnFlat=normaliserHoveddelPF(flat.del);
-        const dekketAvLakk=(parserData.lakkspes||[]).some(d=>{
-          if(d.tillegg)return false;
-          const dnLakk=normaliserHoveddelPF(d.navn);
-          return dnLakk===dnFlat||(dnFlat.length>=4&&dnLakk.includes(dnFlat))||(dnLakk.length>=4&&dnFlat.includes(dnLakk));
+        flateretteSegmenterPF(flat.del).forEach(seg=>{
+          const dekketAvLakk=(parserData.lakkspes||[]).some(d=>{
+            if(d.tillegg)return false;
+            const dnLakk=normaliserHoveddelPF(rensDelnavnPF(anvendVarebilSynonymPF(d.navn)));
+            return dnLakk===seg||(seg.length>=4&&dnLakk.includes(seg))||(dnLakk.length>=4&&seg.includes(dnLakk));
+          });
+          if(!dekketAvLakk)return;
+          const kjerneord=[...new Set((seg+' '+(flat.del||'')).toLowerCase().split(/[\s\/]+/))]
+            .filter(o=>o.length>=4).map(escRegexPF);
+          if(!kjerneord.length)return;
+          const feilPåstandRegex=new RegExp(`(?=.*(?:${kjerneord.join('|')}))(?=.*flat(?:e)?rett)(?=.*lakk)(?=.*(?:mangler|ingen|uten|kritisk))`,'i');
+          fjernForslag(feilPåstandRegex,`Claude påsto manglende lakk for "${seg}" (fra "${flat.del}") – koden vet dette faktisk er dekket`);
         });
-        if(dekketAvLakk){
-          const kjerneord=(flat.del||'').toLowerCase().split(/\s+/).filter(o=>o.length>=4).map(o=>o.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'));
-          if(kjerneord.length){
-            const ordAlternativ=kjerneord.join('|');
-            const feilPåstandRegex=new RegExp(`(?=.*(?:${ordAlternativ}))(?=.*flat(?:e)?rett)(?=.*lakk)(?=.*(?:mangler|ingen|uten|kritisk))`,'i');
-            fjernForslag(feilPåstandRegex,`Claude påsto manglende lakk for "${flat.del}" – koden vet dette faktisk er dekket (harFlateretteLinjePF)`);
-          }
-        }
       });
 
       // 1. Diagnose airbag – fjern hvis fordøren er kun tilstøtende
