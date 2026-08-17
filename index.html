@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.79 – Smart kontroll av takster</title>
+<title>AutoPell v2.80 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.79</div>
+    <div class="version-badge">v2.80</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -276,6 +276,45 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
 
+/* AutoPell v2.80 – endringer fra v2.79 (1 punkt: REGELTEKSTEN LEVERES ENDELIG TIL CLAUDE):
+
+   PROBLEMET, oppdaget under v2.76-arbeidet og bekreftet gjentatte ganger siden:
+   DELSTATUS har hele tiden sendt kun ID-NAVNENE ("bruk disse ID-ene: X, Y, Z"). Selve
+   regelinnholdet i REGEL_REGISTRY (mal + intern) ble ALDRI sendt til Claude – .mal brukes kun
+   tre steder i fila, og alle tre er ETTER at Claude har svart (to deterministiske injeksjoner
+   og fallback-teksten p.forslag=regForMal.mal).
+   Claude har altså tatt stilling til ID-er uten å se hva de betyr.
+
+   DETTE FORKLARER FLERE OBSERVERTE SYMPTOMER:
+   - Løftetape ble "ikke relevant" i to av tre kjøringer, til tross for at regelen sier det
+     motsatte. Stasjonsvogn/SUV-heuristikken, personbil-betingelsen og v2.43-biasen for
+     løftetape finnes KUN i malen – aldri sett av modellen.
+   - MG ZS EV EB90341: tilstøtende ble foreslått mot BAKDØR, mens skaden var markert mot
+     FORSKJERM. Regelen om at Martins skademarkeringer avgjør side finnes, men har aldri nådd
+     Claude. Martin: "den burde jo heller foreslått tilstøtende mot forskjerm."
+   - Fire ulike utfall på samme MG-takst med identiske bilder (funn med 15p / funn med
+     anbefaling "mot" / ingenting å bemerke / feil side). Variasjon er størst nettopp der
+     Claude må avgjøre noe den ikke har grunnlag for.
+
+   ENDRINGEN: etter DELSTATUS-blokken legges nå "REGELTEKST FOR ID-ENE OVER" – én linje per ID
+   med navn, mal, og intern-teksten merket [BETINGELSER: ...] der den finnes, med eksplisitt
+   beskjed om at betingelsene er vurderingsregler til modellen og ALDRI skal gjengis i
+   forslaget (v2.76-lærdommen om lekkasje til DBS-boksen).
+
+   RISIKOSTYRING – dette er endringen med størst rekkevidde så langt, siden den endrer hva
+   Claude ser på HVER kjøring:
+   - Kun ID-er som FAKTISK er tilbudt denne kjøringen tas med, så størrelsen følger taksten.
+     Målt mot registeret: 4 ID-er (MG) = 675 tegn, 18 unike (XPENG, 3 deler) = 962 tegn,
+     absolutt verstefall med alle 71 = 7 480 tegn. Ubetydelig mot råteksten som allerede sendes.
+   - INGEN andre endringer i denne versjonen, så en testrunde isolerer nøyaktig denne.
+   - KAN SLÅS AV UTEN NY BYGGING: sett LEVER_REGELTEKST=false for v2.79-oppførsel.
+   - Baseline finnes på fem takster (XPENG EP32567, BMW BS41226, MINI UF87158, BYD EC32431,
+     MG EB90341), så en forverring skal være mulig å oppdage.
+
+   FORVENTET: flere punkter treffer riktig status, og færre kollapser til "ikke relevant".
+   Men den kan også gi FLERE forslag enn før, siden Claude nå faktisk kjenner betingelsene.
+   Det må vurderes mot baseline, ikke antas.
+*/
 /* AutoPell v2.79 – endringer fra v2.78 (1 sak, to feil i samme sperre):
 
    FUNNET (MG ZS EV EB90341): Claude påsto "Huk av \'Lakk\' for H Fordør ... siden delen er
@@ -2852,6 +2891,31 @@ function takstSammendrag(t){
   });
   if(delstatusLinjer.length){
     s+=`DELSTATUS PER HOVEDDEL (bruk til å finne riktig sjekkliste for hver del – ikke hopp over noen av disse):\n${delstatusLinjer.join('\n')}\n`;
+    // v2.80: REGELTEKST LEVERES TIL CLAUDE. Fram til nå sendte DELSTATUS kun ID-NAVNENE.
+    // Selve regelinnholdet (mal + intern i REGEL_REGISTRY) ble ALDRI sendt – det ble kun brukt
+    // som fallback-tekst ETTER at Claude hadde svart. Claude har altså tatt stilling til ID-er
+    // uten å se hva de betyr. Det forklarer bl.a. at løftetape ble "ikke relevant" i to av tre
+    // kjøringer, og at tilstøtende ble foreslått mot FEIL side på MG ZS EV EB90341 (skaden var
+    // markert mot forskjerm, forslaget kom mot bakdør) – regelen om at Martins skademarkeringer
+    // avgjør side finnes, men har aldri nådd modellen.
+    // AVGRENSET MED VILJE: kun ID-er som FAKTISK er tilbudt denne kjøringen tas med, så
+    // størrelsen følger taksten. Ingen andre endringer i denne versjonen.
+    // KAN SLÅS AV: sett LEVER_REGELTEKST=false for å gå tilbake til v2.79-oppførsel uten å
+    // bygge ny versjon.
+    const LEVER_REGELTEKST=true;
+    if(LEVER_REGELTEKST&&window.DELSTATUS_GYLDIGE_IDER&&window.DELSTATUS_GYLDIGE_IDER.size){
+      const regelLinjer=[];
+      [...window.DELSTATUS_GYLDIGE_IDER].forEach(id=>{
+        const r=REGEL_REGISTRY[id];
+        if(!r)return;
+        let linje=`  • ${id} (${r.navn||''}): ${r.mal||''}`;
+        if(r.intern)linje+=` [BETINGELSER: ${r.intern}]`;
+        regelLinjer.push(linje);
+      });
+      if(regelLinjer.length){
+        s+=`REGELTEKST FOR ID-ENE OVER (dette er hva hver ID faktisk betyr – bruk den når du setter status. Teksten etter BETINGELSER er vurderingsregler til deg, og skal ALDRI gjengis i forslaget ditt):\n${regelLinjer.join('\n')}\n`;
+      }
+    }
   }
 
   // v2.26: KRITISK – hoveddel skiftet i arbeidsspes men HELT FRAVÆRENDE i lakkspesifikasjonen.
