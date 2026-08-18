@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.83 – Smart kontroll av takster</title>
+<title>AutoPell v2.84 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.83</div>
+    <div class="version-badge">v2.84</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -276,6 +276,50 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
 
+/* AutoPell v2.84 – endringer fra v2.83 (4 punkter, ALLE fra Ford Galaxy AY25775 der samtlige
+   fire funn var falske):
+
+   A. "FESTE" MANGLET I SMÅDEL-SPERREN. Reservedelslista har fire varianter av
+      "Feste støtfangerdeksel bak" (V/H/uten side). Dette er BRAKETTER og lakkes aldri, men
+      navnet inneholder "støtfangerdeksel" som synonymlista gjør om til "støtfanger" – så hver
+      av dem utløste KRITISK MANGEL. erSmadelPaaHoveddel kjente brakett, holder og klips, men
+      ikke feste. Lagt til: feste, festebrakett, hengerfeste, dekklokk.
+      ("dekklokk" slapp også gjennom fordi \blokk\b krever ordgrense – "dekklokk" har ingen.)
+
+   B. GRUNNET-KRAV PÅ STØTFANGER I delReglerPF – KØPUNKT 7, ÅPEN SIDEN v2.26.
+      alleDelKategorier har krevGrunnet:true på støtfanger siden v2.52, men POST-FILTER-
+      varianten fikk den aldri. Uten den behandles ENHVER del med "støtfanger" i navnet som
+      lakkerbar hoveddel. Med den på plass ville A-funnene ikke fyrt uansett – to uavhengige
+      sperrer mot samme feil, som er med vilje.
+
+   C. ULAKKERT-STØTFANGER-STIGEN. Martin var bekymret for at overflate/farge/øvre-nedre skulle
+      bli "litt virvar". Løsningen er REKKEFØLGE: la taksten avgjøre først, spør bildet sist.
+        (1) Egen lakk-post i lakkspes → lakkert, ferdig, ingen bildevurdering
+        (2) "nedre del støtfanger" eller "spoiler" i reservedelslista → nedre del skiftes som
+            egen del, øvre er lakkert
+        (3) Ført med 50% fordeling øvre/nedre → øvre lakkert, nedre ulakkert
+        (4) FØRST NÅ bildet: matt og ru uten gjenskinn = ulakkert; blank som speiler = lakkert.
+            Sammenlign med karosseriet like over i samme bilde. Gjelder også svarte biler –
+            samme farge, ulik overflate. Ved tvil: "usikker" (v2.43).
+      Trinn 2 og 3 er deterministiske og står i tekst vi allerede parser. Levert som ÉN stige
+      framfor fire spredte betingelser: lettere for modellen å følge, og vi ser hvilket trinn
+      den landet på. Lagt på de fem lakk-relaterte støtfanger-ID-ene (HTT_LOSE, 50_SMADELER,
+      GRUNNING_TOPPLAKK, 50_MASKERING, 50_POLERE_FLIKK).
+      Bekreftet på Ford Galaxy AY25775: HELE støtfangeren er ulakkert svart plast – bakluka
+      over reflekslinja speiler taklyset, støtfangeren under er matt. Martin bekreftet at den
+      ikke skal lakkes.
+
+   D. HTT SKRIVES OGSÅ "H/T X1" OG MULIGENS "HT". X-tallet er ANTALLET (X1 = ett håndtak).
+      Alle HTT-sjekker matchet kun bokstavene "HTT": sjekkHttAllerede-undertrykkingen og
+      tilstøtende-post-filteret. En takst skrevet "H/T X1" var usynlig for begge, så AutoPell
+      ville foreslått en HTT som allerede står ført. Ordgrense ETTER T-ene er nødvendig fordi
+      "H" også er sidemarkør for høyre – verifisert at "H Takplate" og "BAKLUKE/DØR H/TAKPLATE"
+      ikke treffer. Antallet fanges ikke opp ennå.
+
+   Verifisert mot den bygde fila, 19 tilfeller: alle Ford-delene (feste x3, p-radar-deksel,
+   dekklokk, klips, sensor) er stille; grunnet/GRU-varianter og ekte hoveddeler flagges
+   fortsatt; HTT-mønsteret treffer alle tre skrivemåtene uten falske treff.
+*/
 /* AutoPell v2.83 – endringer fra v2.82 (1 punkt: holdepunkter for å finne bilens retning i bildet):
 
    FUNNET (MG ZS EV EB90341, v2.82-kjøring): mekanismen fra v2.81/82 virket – den valgte ÉN side
@@ -2624,7 +2668,7 @@ function parseTakst(text){
 // Gjelder alt som er navngitt etter plassering: List bakdør, Hengsel panser, Sensor støtfanger
 // bak, Steinsprutbeskyttelse bakdør osv.
 function erSmadelPaaHoveddel(navn){
-  return /\b(skjermutbygger|utbygger|hjulbueliste|steinsprutbeskyttelse|beskyttelse|innstegslist|skrapelist|p-list|list|lokk|sensor|bjelke|hengsel|håndtak|spoiler|spyledyse|dyse|gitter|kabel|emblem|refleks|brakett|holder|tetning|klips|luftstyring)\b/i.test(navn||'');
+  return /\b(skjermutbygger|utbygger|hjulbueliste|steinsprutbeskyttelse|beskyttelse|innstegslist|skrapelist|p-list|list|lokk|dekklokk|sensor|bjelke|hengsel|håndtak|spoiler|spyledyse|dyse|gitter|kabel|emblem|refleks|brakett|feste|festebrakett|hengerfeste|holder|tetning|klips|luftstyring)\b/i.test(navn||'');
 }
 // v2.74: GRU er DBS' forkortelse for grunnet. Strengen fantes ikke i koden i det hele tatt før
 // nå – kun hele ordet "grunnet" ble gjenkjent – så deler merket GRU var usynlige for ALLE
@@ -2810,11 +2854,11 @@ function takstSammendrag(t){
     BAKSKJERM_N_DOKUMENTASJON:{kat:/bakskjerm/i,optype:['N'],navn:'Dokumentasjon',mal:'Vurder å ta med kostnad for innhenting av dokumentasjon for skift av bakskjerm',farge:'gul'},
 
     // v2.32 – Fase 1: Støtfanger/plastrep/50%-regelen
-    STOTFANGER_HTT_LOSE:{kat:/støtfanger/i,optype:['N','G'],sjekkHttAllerede:true,navn:'HTT løse deler',mal:'Vurder HTT 15p per løs del på støtfangeren – slepekrokdeksel, spyledeksel eller lister.',intern:'POSITIVLISTE – KUN slepekrokdeksel, spyledeksel, lister. Bekreft med bilder før forslag. Gjelder KUN hvis støtfangeren er lakkert i bilens farge. ALDRI foreslå sensorer, sensorholdere, brakketter eller andre deler bak støtfangeren – disse lakkes aldri.',farge:'gul'},
+    STOTFANGER_HTT_LOSE:{kat:/støtfanger/i,optype:['N','G'],sjekkHttAllerede:true,navn:'HTT løse deler',mal:'Vurder HTT 15p per løs del på støtfangeren – slepekrokdeksel, spyledeksel eller lister.',intern:'ER STØTFANGEREN I DET HELE TATT LAKKERT? Følg stigen i rekkefølge og STOPP på første trinn som gir svar. (1) Har støtfangeren egen lakk-post i lakkspesifikasjonen? Da er den lakkert – ferdig, ikke vurder bildet. (2) Står \"nedre del støtfanger\" eller \"spoiler\" i reservedelslista? Da skiftes nedre del som egen del, og øvre del er lakkert. (3) Er støtfangeren ført med 50% fordeling øvre/nedre? Da er øvre del lakkert og nedre del ulakkert. (4) FØRST NÅ: se på bildet. Ulakkert plast er MATT og ru uten gjenskinn, ofte med synlig kornet tekstur; lakkert flate er BLANK og speiler omgivelsene. Sammenlign støtfangeren direkte med karosseriet like over i samme bilde – er kontrasten tydelig, er den ulakkert. Dette gjelder også svarte biler: samme farge, ulik overflate. En ULAKKERT støtfanger skal ALDRI ha lakk-post, HTT, grunning eller maskering – heller ikke når den skiftes. Klarer du ikke å avgjøre overflaten, sett \"usikker\" (v2.43). POSITIVLISTE – KUN slepekrokdeksel, spyledeksel, lister. Bekreft med bilder før forslag. Gjelder KUN hvis støtfangeren er lakkert i bilens farge. ALDRI foreslå sensorer, sensorholdere, brakketter eller andre deler bak støtfangeren – disse lakkes aldri.',farge:'gul'},
     STOTFANGER_DIAGNOSE:{kat:/støtfanger/i,optype:['N','G'],navn:'Diagnose (feilkoder)',mal:'Vurder å legge til diagnose (slette feilkoder, 100p) – støtfanger er demontert',farge:'gul'},
     STOTFANGER_KLIPS:{deterministisk:true,navn:'Klips',mal:'',farge:'gul'},
     STOTFANGER_SVEISEMATERIELL:{kat:/støtfanger/i,optype:['N','G'],navn:'Sveisemateriell plastrep',mal:'Vurder å legge til kostnad for sveisemateriell plastrep – gjelder KUN hvis "ut og innvendig skade" er huket av i plastspesifikasjonen, og kun ved reparasjon (ikke ved skift)',farge:'gul'},
-    STOTFANGER_GRUNNING_TOPPLAKK:{kat:/støtfanger/i,optype:['N','G'],navn:'Grunning for topplakk',mal:'Vurder å legge til grunning for topplakk i annetbilde',farge:'rød'},
+    STOTFANGER_GRUNNING_TOPPLAKK:{kat:/støtfanger/i,optype:['N','G'],navn:'Grunning for topplakk',mal:'Vurder å legge til grunning for topplakk i annetbilde',intern:'ER STØTFANGEREN I DET HELE TATT LAKKERT? Følg stigen i rekkefølge og STOPP på første trinn som gir svar. (1) Har støtfangeren egen lakk-post i lakkspesifikasjonen? Da er den lakkert – ferdig, ikke vurder bildet. (2) Står \"nedre del støtfanger\" eller \"spoiler\" i reservedelslista? Da skiftes nedre del som egen del, og øvre del er lakkert. (3) Er støtfangeren ført med 50% fordeling øvre/nedre? Da er øvre del lakkert og nedre del ulakkert. (4) FØRST NÅ: se på bildet. Ulakkert plast er MATT og ru uten gjenskinn, ofte med synlig kornet tekstur; lakkert flate er BLANK og speiler omgivelsene. Sammenlign støtfangeren direkte med karosseriet like over i samme bilde – er kontrasten tydelig, er den ulakkert. Dette gjelder også svarte biler: samme farge, ulik overflate. En ULAKKERT støtfanger skal ALDRI ha lakk-post, HTT, grunning eller maskering – heller ikke når den skiftes. Klarer du ikke å avgjøre overflaten, sett \"usikker\" (v2.43).',farge:'rød'},
     STOTFANGER_FORAN_KALIBRERING_RADAR:{deterministisk:true,navn:'Kalibrering radar',mal:'',farge:'lilla'},
     STOTFANGER_FORAN_SPYLEVAESKE:{kat:/støtfanger foran/i,optype:['N','G'],navn:'Spylervæske',mal:'Vurder å legge til kostnad for spylervæske (100kr) – bilen har lyktespylere som demonteres',farge:'gul'},
     STOTFANGER_BAK_FILSKIFTESENSOR:{deterministisk:true,navn:'Kalibrering filskiftesensor',mal:'',farge:'lilla'},
@@ -2822,9 +2866,9 @@ function takstSammendrag(t){
     // deterministisk fra taksten (kun Lakktype 3 = 3-sjikt) i stedet for at Claude gjetter.
     STOTFANGER_FORAN_TILST_FORSKJERM:{kat:/støtfanger foran/i,optype:['N','G'],krev3sjikt:true,ikkeVedSvart:true,navn:'Tilstøtende forskjerm (3-sjikt)',mal:'Vurder å ta med tilstøtende flate mot forskjerm – 3-sjikts farge (Lakktype 3)',intern:'SKADEMARKERING STYRER SIDEN: takstmannen markerer skaden i bildene med røde firkanter/piler. FINN BILENS RETNING FØRST. Ikke anta at venstre i bildet er fremover – det avhenger av hvilken side av bilen som er fotografert. Faste holdepunkter: sidespeilet sitter alltid i FREMRE ende av fordøra. Frontrute og vindusviskere står mot FRONTEN; bakrute og eventuell takspoiler mot HEKKEN. Hjulbuen foran en fordør er FORhjulet; hjulbuen bak en bakdør er BAKhjulet. Dørhåndtak sitter i BAKRE halvdel av sin egen dør. Tanklokk sitter alltid på bakskjermen. B-stolpen er den brede stolpen mellom fordør og bakdør. Klarer du ikke å fastslå retningen ut fra minst ETT slikt holdepunkt, skal posisjonsvurderingen under IKKE brukes – sett \"usikker\". Naboflaten for denne ID-en er forskjermen (SIDEKANT av fremre støtfanger). Ligger skaden nærmest DENNE flaten, er den aktuell. Ligger den tydelig i motsatt ende av delen, er den lite aktuell. Sitter markeringen midt på delen, regn den mot den NÆRMESTE kanten framfor å utelukke begge. VIKTIG: bruk ALDRI "ikke relevant" på grunn av tvil om plassering – tvil gir "usikker" (v2.43-regelen). "ikke relevant" er kun for tilfeller der flaten åpenbart ikke er berørt, eller der en annen regel utelukker den (svart bil, tilstøtende-post, delen allerede i lakkspes). Unngå å foreslå BEGGE naboflatene på samme del med mindre skaden faktisk strekker seg over hele delen.',farge:'gul'},
     STOTFANGER_BAK_TILST_BAKSKJERM:{kat:/støtfanger bak/i,optype:['N','G'],krev3sjikt:true,ikkeVedSvart:true,navn:'Tilstøtende bakskjerm (3-sjikt)',mal:'Vurder å ta med tilstøtende flate mot bakskjerm – 3-sjikts farge (Lakktype 3)',intern:'SKADEMARKERING STYRER SIDEN: takstmannen markerer skaden i bildene med røde firkanter/piler. FINN BILENS RETNING FØRST. Ikke anta at venstre i bildet er fremover – det avhenger av hvilken side av bilen som er fotografert. Faste holdepunkter: sidespeilet sitter alltid i FREMRE ende av fordøra. Frontrute og vindusviskere står mot FRONTEN; bakrute og eventuell takspoiler mot HEKKEN. Hjulbuen foran en fordør er FORhjulet; hjulbuen bak en bakdør er BAKhjulet. Dørhåndtak sitter i BAKRE halvdel av sin egen dør. Tanklokk sitter alltid på bakskjermen. B-stolpen er den brede stolpen mellom fordør og bakdør. Klarer du ikke å fastslå retningen ut fra minst ETT slikt holdepunkt, skal posisjonsvurderingen under IKKE brukes – sett \"usikker\". Naboflaten for denne ID-en er bakskjermen (SIDEKANT av bakre støtfanger). Ligger skaden nærmest DENNE flaten, er den aktuell. Ligger den tydelig i motsatt ende av delen, er den lite aktuell. Sitter markeringen midt på delen, regn den mot den NÆRMESTE kanten framfor å utelukke begge. VIKTIG: bruk ALDRI "ikke relevant" på grunn av tvil om plassering – tvil gir "usikker" (v2.43-regelen). "ikke relevant" er kun for tilfeller der flaten åpenbart ikke er berørt, eller der en annen regel utelukker den (svart bil, tilstøtende-post, delen allerede i lakkspes). Unngå å foreslå BEGGE naboflatene på samme del med mindre skaden faktisk strekker seg over hele delen.',farge:'gul'},
-    STOTFANGER_50_MASKERING:{kat:/støtfanger/i,optype:['N','G'],navn:'Maskering ved 50%',mal:'Vurder å huke av maskering-boksen i utvendig lakk-tabellen – støtfangeren er satt til 50% lakk',farge:'rød'},
-    STOTFANGER_50_POLERE_FLIKK:{poeng:20,kat:/støtfanger/i,optype:['N','G'],navn:'Polere flikk ved 50%',mal:'Vurder polere flikk 20p i annetbildet – påkrevd ved 50%-lakkering av støtfanger',farge:'gul'},
-    STOTFANGER_50_SMADELER:{kat:/støtfanger/i,optype:['N','G'],navn:'Smådeler feilaktig 50%',mal:'Sjekk om slepekrokdeksel, spyledeksel eller lister står på 50% lakk – de skal være 100%, legg til differansen.',intern:'POSITIVLISTE – KUN slepekrokdeksel, spyledeksel, lister. Bekreft med bilder før forslag. IKKE p-sensorer, sensorholdere eller andre deler bak støtfangeren – disse lakkes aldri og skal aldri stå på 50% i utgangspunktet.',farge:'rød'},
+    STOTFANGER_50_MASKERING:{kat:/støtfanger/i,optype:['N','G'],navn:'Maskering ved 50%',mal:'Vurder å huke av maskering-boksen i utvendig lakk-tabellen – støtfangeren er satt til 50% lakk',intern:'ER STØTFANGEREN I DET HELE TATT LAKKERT? Følg stigen i rekkefølge og STOPP på første trinn som gir svar. (1) Har støtfangeren egen lakk-post i lakkspesifikasjonen? Da er den lakkert – ferdig, ikke vurder bildet. (2) Står \"nedre del støtfanger\" eller \"spoiler\" i reservedelslista? Da skiftes nedre del som egen del, og øvre del er lakkert. (3) Er støtfangeren ført med 50% fordeling øvre/nedre? Da er øvre del lakkert og nedre del ulakkert. (4) FØRST NÅ: se på bildet. Ulakkert plast er MATT og ru uten gjenskinn, ofte med synlig kornet tekstur; lakkert flate er BLANK og speiler omgivelsene. Sammenlign støtfangeren direkte med karosseriet like over i samme bilde – er kontrasten tydelig, er den ulakkert. Dette gjelder også svarte biler: samme farge, ulik overflate. En ULAKKERT støtfanger skal ALDRI ha lakk-post, HTT, grunning eller maskering – heller ikke når den skiftes. Klarer du ikke å avgjøre overflaten, sett \"usikker\" (v2.43).',farge:'rød'},
+    STOTFANGER_50_POLERE_FLIKK:{poeng:20,kat:/støtfanger/i,optype:['N','G'],navn:'Polere flikk ved 50%',mal:'Vurder polere flikk 20p i annetbildet – påkrevd ved 50%-lakkering av støtfanger',intern:'ER STØTFANGEREN I DET HELE TATT LAKKERT? Følg stigen i rekkefølge og STOPP på første trinn som gir svar. (1) Har støtfangeren egen lakk-post i lakkspesifikasjonen? Da er den lakkert – ferdig, ikke vurder bildet. (2) Står \"nedre del støtfanger\" eller \"spoiler\" i reservedelslista? Da skiftes nedre del som egen del, og øvre del er lakkert. (3) Er støtfangeren ført med 50% fordeling øvre/nedre? Da er øvre del lakkert og nedre del ulakkert. (4) FØRST NÅ: se på bildet. Ulakkert plast er MATT og ru uten gjenskinn, ofte med synlig kornet tekstur; lakkert flate er BLANK og speiler omgivelsene. Sammenlign støtfangeren direkte med karosseriet like over i samme bilde – er kontrasten tydelig, er den ulakkert. Dette gjelder også svarte biler: samme farge, ulik overflate. En ULAKKERT støtfanger skal ALDRI ha lakk-post, HTT, grunning eller maskering – heller ikke når den skiftes. Klarer du ikke å avgjøre overflaten, sett \"usikker\" (v2.43).',farge:'gul'},
+    STOTFANGER_50_SMADELER:{kat:/støtfanger/i,optype:['N','G'],navn:'Smådeler feilaktig 50%',mal:'Sjekk om slepekrokdeksel, spyledeksel eller lister står på 50% lakk – de skal være 100%, legg til differansen.',intern:'ER STØTFANGEREN I DET HELE TATT LAKKERT? Følg stigen i rekkefølge og STOPP på første trinn som gir svar. (1) Har støtfangeren egen lakk-post i lakkspesifikasjonen? Da er den lakkert – ferdig, ikke vurder bildet. (2) Står \"nedre del støtfanger\" eller \"spoiler\" i reservedelslista? Da skiftes nedre del som egen del, og øvre del er lakkert. (3) Er støtfangeren ført med 50% fordeling øvre/nedre? Da er øvre del lakkert og nedre del ulakkert. (4) FØRST NÅ: se på bildet. Ulakkert plast er MATT og ru uten gjenskinn, ofte med synlig kornet tekstur; lakkert flate er BLANK og speiler omgivelsene. Sammenlign støtfangeren direkte med karosseriet like over i samme bilde – er kontrasten tydelig, er den ulakkert. Dette gjelder også svarte biler: samme farge, ulik overflate. En ULAKKERT støtfanger skal ALDRI ha lakk-post, HTT, grunning eller maskering – heller ikke når den skiftes. Klarer du ikke å avgjøre overflaten, sett \"usikker\" (v2.43). POSITIVLISTE – KUN slepekrokdeksel, spyledeksel, lister. Bekreft med bilder før forslag. IKKE p-sensorer, sensorholdere eller andre deler bak støtfangeren – disse lakkes aldri og skal aldri stå på 50% i utgangspunktet.',farge:'rød'},
 
     // v2.35 – Deterministiske parser-betingelser: injiseres DIREKTE av koden når parseren
     // oppdager betingelsen. Claude er ikke involvert (deterministisk:true → vises aldri i
@@ -2886,7 +2930,8 @@ function takstSammendrag(t){
           // v2.50-fix: forankret til linjestart (^, m-flagg) slik at en spesifikk post
           // MED delnavn foran ("Spyledeksel støtfanger foran, HTT") IKKE feiltolkes som
           // generisk – kun en linje som faktisk STARTER med "Støtfanger foran/bak" teller.
-          const re=new RegExp('^\\s*st[øo]tfanger\\s+'+pos+'\\s*,?\\s*HTT','im');
+          // v2.84: HTT skrives også "H/T X1" (X-tallet er ANTALL) og muligens "HT".
+          const re=new RegExp('^\\s*st[øo]tfanger\\s+'+pos+'\\s*,?\\s*(?:HTT|H\\s*\\/\\s*T|HT)\\b','im');
           if(re.test(t.raw||''))return false;
         }
       }
@@ -4553,7 +4598,7 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
       // er det per definisjon feil – tilstøtende lakkering er allerede HTT (15p i lakkmateriell).
       // Gjelder f.eks. håndtak, speil, list, spoiler ført som T.
       const httMatch=parsed.sammendrag&&parsed.sammendrag.dbs_handlinger
-        ?parsed.sammendrag.dbs_handlinger.filter(d=>/\bHTT\b/i.test(d))
+        ?parsed.sammendrag.dbs_handlinger.filter(d=>/\b(?:HTT|H\s*\/\s*T|HT)\b/i.test(d)) // v2.84
         :[];
       httMatch.forEach(httLinje=>{
         const lc=httLinje.toLowerCase();
@@ -4846,7 +4891,9 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
       // DELSTATUS (som kun bygges fra eksisterende lakkspes-rader).
       const delReglerPF=[
         {re:/bakskjerm/i},{re:/forskjerm/i},{re:/\bpanser\b/i},
-        {re:/\bfordør\b/i},{re:/\bbakdør\b/i},{re:/\btak(?:plate)?\b/i},{re:/støtfanger/i},
+        {re:/\bfordør\b/i},{re:/\bbakdør\b/i},{re:/\btak(?:plate)?\b/i},
+        // v2.84: krevGrunnet – speiler v2.52 i alleDelKategorier, som POST-FILTER aldri fikk (køpunkt 7, åpen siden v2.26)
+        {re:/støtfanger/i,krevGrunnet:true},
       ];
       const lakkspesNavnLowerPF=parserData.lakkspes.filter(d=>!d.tillegg).map(d=>(d.navn||'').toLowerCase());
       const skiftetUtenLakkspesRadPF=[];
@@ -4857,6 +4904,7 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
         // v2.74: samme sperre som i HURTIGFAKTA-sjekken – ellers ville de to kildene sagt
         // forskjellige ting om samme del (v2.66-68-fella).
         if(erSmadelPaaHoveddel(d.navn)&&!erGrunnet(d.navn))return;
+        if(match.krevGrunnet&&!erGrunnet(d.navn))return; // v2.84
         const finnesILakkspes=lakkspesNavnLowerPF.some(l=>match.re.test(l));
         if(!finnesILakkspes)skiftetUtenLakkspesRadPF.push(d.navn);
       });
