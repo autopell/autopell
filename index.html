@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.84 – Smart kontroll av takster</title>
+<title>AutoPell v2.85 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.84</div>
+    <div class="version-badge">v2.85</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -276,6 +276,47 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
 
+/* AutoPell v2.85 – endringer fra v2.84 (NAVNEMATCHING – tre takster på rad hadde SAMME feil
+   med tre ulike årsaker):
+
+   MØNSTERET: flaterette-linja og lakkspes bruker forskjellige ord om SAMME del. Da bommer
+   BEGGE retninger samtidig – "flaterett uten lakk-post" OG "flaterette er glemt" – og på
+   E-Transit også v2.77s rustbeskyttelse-sperre. Tre årsaker så langt: synonymer (BYD:
+   lastdør/bakluke, v2.78), ordpar (Mercedes: sideplate/karosseriside), og forkortelser
+   (E-Transit: "Skjerm fr"). Å legge inn ordpar ett om gangen holder ikke tritt – derfor
+   utvides NORMALISERINGEN, som dekker alle deler på én gang.
+
+   1. FORKORTELSER I KORT-/LANGFORM-MØNSTERET. "fr" = fremre, "bk" = bakre, med eller uten
+      punktum, pluss "bakr". Prinsippet Martin godkjente: godta AVKORTEDE FORMER AV ORD VI
+      ALLEREDE KJENNER – ingen nye betydninger oppfunnet. Forkortede DELNAVN gjettes aldri;
+      "hjørnpl" kom fra Martin, og nye legges inn når vi faktisk ser dem.
+      Mønsteret fantes i TRE uavhengige kopier (linje ~2984, ~4099, ~4726) – alle tre oppdatert,
+      og de sto fra før med ULIK ordlyd (én manglet "foran"). Samme lærdom som v2.69/v2.79.
+
+   2. GENERELLE DELSYNONYMER. anvendVarebilSynonymPF utvidet fra varebil-navn til
+      sideplate→karosseriside og terskel→kanal (bekreftet av Martin på Mercedes E-Vito TV99491:
+      "irriterende nok bruker de av og til forskjellige navn"). Kanonisert til ETT ord, så
+      retningen spiller ingen rolle. Samme par lagt i synonymer/synonymer2 for lakk-post-siden.
+
+   3. KJERNE-FALLBACK I harFlateretteLinjePF. Mercedes viste at hele navn ofte ikke overlapper
+      i det hele tatt: "Sideplate hel H" mot "H Karosseriside bakre nedre begrensning" – ingen
+      felles delstreng selv MED synonymet. Kjernen (hoveddel + side) er derimot lik. Prøves KUN
+      når helnavn-sammenligningen bommer, så eksisterende oppførsel er uendret.
+
+   4. kjerneMedSidePF FOR RUSTBESKYTTELSE. Rustbeskyttelse-raden kan ha samme sammensatte form
+      som flaterette-linja ("Skjerm fr/hjørnpl V, Rustbeskyttelse ved retting"). kjernePF tok
+      første ORD av hele strengen og ga "v skjerm" – aldri lik "v forskjerm" fra lakkspes, så
+      v2.77-sperren fyrte ikke. Nå brukes første SKRÅSTREK-SEGMENT som kjerne, mens siden hentes
+      fra hele navnet (den står ofte bakerst, etter siste segment).
+
+   Verifisert mot den bygde fila, 15 tilfeller: E-Transit-forkortelsen, begge Mercedes-parene,
+   og regresjon på XPENG/BYD/MG/BMW treffer alle. Feil side, motsatt dør, foran-mot-bak og
+   urelaterte deler matcher fortsatt IKKE. Rustbeskyttelse-sperren treffer nå på E-Transit uten
+   å krysse side eller del.
+
+   BYGGENOTAT: første forsøk skrev fr\\.? (dobbel backslash) inn i regexen, som matcher literal
+   backslash i stedet for valgfritt punktum – fanget kun fordi testen kjørte mot den BYGDE fila.
+*/
 /* AutoPell v2.84 – endringer fra v2.83 (4 punkter, ALLE fra Ford Galaxy AY25775 der samtlige
    fire funn var falske):
 
@@ -2980,8 +3021,8 @@ function takstSammendrag(t){
             // strenge \bbakre$/\bfremre$-mønsteret. BAKSKJERM_G_TANKLUKE ble aldri
             // undertrykt fordi blokken rett og slett ikke ble funnet (fallback beholdt ID-en
             // av feil grunn). Godtar nå BÅDE kort- og langform (bak/bakre, frem/fremre).
-            pn=pn.replace(/^dør\s+frem(?:re)?$/,'fordør').replace(/^dør\s+bak(?:re)?$/,'bakdør')
-                 .replace(/^skjerm\s+frem(?:re)?$/,'forskjerm').replace(/^skjerm\s+bak(?:re)?$/,'bakskjerm');
+            pn=pn.replace(/^dør\s+(?:frem(?:re)?|foran|fr\.?|fre\.?)$/,'fordør').replace(/^dør\s+(?:bak(?:re|r)?|bk\.?)$/,'bakdør')
+                 .replace(/^skjerm\s+(?:frem(?:re)?|foran|fr\.?|fre\.?)$/,'forskjerm').replace(/^skjerm\s+(?:bak(?:re|r)?|bk\.?)$/,'bakskjerm');
             return pn===dn||dn.includes(pn)||pn.includes(dn);
           });
         };
@@ -3094,6 +3135,9 @@ function takstSammendrag(t){
   // FORMAT: lengre/tekniske navn → kortere/lakkspes-navn
   // NB: Vurder nøye før utvidelse – feil synonym kan skjule reelle mangler.
   const synonymer=[
+    // v2.85: DBS bruker ulike ord for samme del – bekreftet Mercedes E-Vito TV99491.
+    {fra:/\bsideplate\b/g, til:'karosseriside'},
+    {fra:/\bterskel\b/g, til:'kanal'},
     {fra:/støtfangerdeksel/g, til:'støtfanger'},
     // v2.78: varebil – bakluke kan hete lastdør. KVALIFISERT form kun (bakre/øvre);
     // en bar "lastdør" er ofte skyvedør på siden og skal IKKE bli bakluke.
@@ -4088,15 +4132,23 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
         // "flaterett uten lakk-post" OG "flaterette glemt for bakluke" var SAMME feil sett fra
         // hver sin side, og begge forsvinner når navnene knyttes sammen.
         function anvendVarebilSynonymPF(s2){
-          return (s2||'').replace(/\blastdør\s*,?\s*(bakre|øvre)(\s*\/\s*(bakre|øvre))*/gi,'bakluke');
+          // v2.85: utvidet fra varebil-synonym til generelle delsynonymer. DBS bruker ulike ord
+          // for SAMME del avhengig av hvor i taksten den står – bekreftet av Martin:
+          // "irriterende nok bruker de av og til forskjellige navn."
+          //   sideplate = karosseriside  |  terskel = kanal   (Mercedes E-Vito TV99491)
+          // Begge kanoniseres til ETT ord, så retningen spiller ingen rolle.
+          return (s2||'')
+            .replace(/\blastdør\s*,?\s*(bakre|øvre)(\s*\/\s*(bakre|øvre))*/gi,'bakluke')
+            .replace(/\bsideplate\b/gi,'karosseriside')
+            .replace(/\bterskel\b/gi,'kanal');
         }
         function normaliserHoveddelPF(s){
           let n=(s||'').toLowerCase().replace(/\s+/g,' ').trim();
           let side=null;
           const mFør=n.match(/^([hv])\s+/); if(mFør){side=mFør[1];n=n.replace(/^([hv])\s+/,'');}
           const mEtter=n.match(/\s+([hv])$/); if(mEtter){side=mEtter[1];n=n.replace(/\s+([hv])$/,'');}
-          n=n.replace(/^dør\s+(?:frem(?:re)?|foran)$/,'fordør').replace(/^dør\s+bak(?:re)?$/,'bakdør')
-             .replace(/^skjerm\s+(?:frem(?:re)?|foran)$/,'forskjerm').replace(/^skjerm\s+bak(?:re)?$/,'bakskjerm');
+          n=n.replace(/^dør\s+(?:frem(?:re)?|foran|fr\.?|fre\.?)$/,'fordør').replace(/^dør\s+(?:bak(?:re|r)?|bk\.?)$/,'bakdør')
+             .replace(/^skjerm\s+(?:frem(?:re)?|foran|fr\.?|fre\.?)$/,'forskjerm').replace(/^skjerm\s+(?:bak(?:re|r)?|bk\.?)$/,'bakskjerm');
           return side?side+' '+n:n;
         }
         // v2.78: SYNONYM + SEGMENTERING. To bekreftede feil i navnematchingen:
@@ -4125,9 +4177,16 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
         function harFlateretteLinjePF(delNavn){
           const dn=normaliserHoveddelPF(rensDelnavnPF(anvendVarebilSynonymPF(delNavn)));
           if(dn.length<3)return false;
+          // v2.85: KJERNE-fallback. Mercedes E-Vito TV99491 viste at hele navn ofte ikke
+          // overlapper i det hele tatt: flaterett "Sideplate hel H" mot lakkspes
+          // "H Karosseriside bakre nedre begrensning" – ingen felles delstreng, selv MED
+          // synonymet. Kjernen (hoveddel + side) er derimot lik på begge. Prøves KUN når
+          // helnavn-sammenligningen bommer, så eksisterende oppførsel er uendret.
+          const kjerne=kjernePF(delNavn);
           return (parserData.karosseri_flaterett||[]).some(f=>
             flateretteSegmenterPF(f.del).some(fn=>
-              fn===dn||(dn.length>=4&&fn.includes(dn))||(fn.length>=4&&dn.includes(fn))));
+              fn===dn||(dn.length>=4&&fn.includes(dn))||(fn.length>=4&&dn.includes(fn))
+              ||(kjerne.length>=4&&kjernePF(fn)===kjerne)));
         }
         function harSteinsprutStriperPF(delNavn){
           const dOrd=(delNavn||'').toLowerCase().split(/\s+/).filter(o=>o.length>=4);
@@ -4165,9 +4224,26 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           n2=/^tak(plate)?\b/.test(n2)?'tak':n2.split(' ')[0];
           return side+n2;
         }
+        // v2.85: rustbeskyttelse-raden kan ha SAMME sammensatte form som flaterette-linja
+        // ("Skjerm fr/hjørnpl V, Rustbeskyttelse ved retting"). kjernePF alene tok første ORD
+        // av hele strengen og ga "v skjerm" – aldri lik "v forskjerm" fra lakkspes, så v2.77-
+        // sperren fyrte ikke på Ford E-Transit EJ68606. Nå brukes første SKRÅSTREK-SEGMENT som
+        // kjerne, mens siden hentes fra hele navnet (den står ofte bakerst, etter siste segment).
+        function kjerneMedSidePF(navn){
+          const hel=(navn||'').toLowerCase();
+          const mS=hel.match(/^\s*([hv])\s+/)||hel.match(/\s+([hv])\s*$/);
+          const forsteSegment=rensDelnavnPF(anvendVarebilSynonymPF(navn)).split('/')[0];
+          let k=kjernePF(forsteSegment).replace(/^[hv]\s+/,'');
+          return {kjerne:k, side:mS?mS[1]:''};
+        }
         function harRustbeskyttelsePostPF(delNavn){
-          const k=kjernePF(delNavn);
-          return (parserData.rustbeskyttelse||[]).some(r=>kjernePF(r.del)===k);
+          const a=kjerneMedSidePF(delNavn);
+          if(a.kjerne.length<3)return false;
+          return (parserData.rustbeskyttelse||[]).some(r=>{
+            const b=kjerneMedSidePF(r.del);
+            if(b.kjerne!==a.kjerne)return false;
+            return !a.side||!b.side||a.side===b.side; // side kolliderer aldri, men mangler den er den ikke diskvalifiserende
+          });
         }
         const rustNDeler=(parserData.lakkspes||[]).filter(d=>!d.tillegg&&!d.tilstøtende&&d.optype==='N'
           &&!/plast/i.test((d.materialhint||''))&&!/støtfanger|hengsel|lokk|håndtak|spoiler|spyledyse|p-list|gitter|liste|speil/i.test((d.navn||'')));
@@ -4694,6 +4770,9 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
       const lakkedeNavn2=parserData.lakkspes.filter(d=>!d.tillegg&&(d.optype==='N'||d.optype==='G')&&(!d.tilstøtende||/under begrensning/i.test(d.navn||''))).map(d=>d.navn.toLowerCase());
       // v2.4: Samme synonymordbok som i takstSammendrag (holdes parallelt)
       const synonymer2=[
+        // v2.85: DBS bruker ulike ord for samme del – bekreftet Mercedes E-Vito TV99491.
+        {fra:/\bsideplate\b/g, til:'karosseriside'},
+        {fra:/\bterskel\b/g, til:'kanal'},
         {fra:/støtfangerdeksel/g, til:'støtfanger'},
         // v2.78: varebil – bakluke kan hete lastdør. KVALIFISERT form kun (bakre/øvre);
         // en bar "lastdør" er ofte skyvedør på siden og skal IKKE bli bakluke.
@@ -4722,8 +4801,8 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
         // (leder-siden forsvinner også sporløst) – følger etablert mønster, ikke ny side-
         // bevaring, for konsistens med resten av denne (allerede side-blinde) funksjonen.
         n=n.replace(/\s+[vh]$/,'').trim();
-        n=n.replace(/^dør\s+(?:frem(?:re)?|foran)$/,'fordør').replace(/^dør\s+bak(?:re)?$/,'bakdør')
-           .replace(/^skjerm\s+(?:frem(?:re)?|foran)$/,'forskjerm').replace(/^skjerm\s+bak(?:re)?$/,'bakskjerm');
+        n=n.replace(/^dør\s+(?:frem(?:re)?|foran|fr\.?|fre\.?)$/,'fordør').replace(/^dør\s+(?:bak(?:re|r)?|bk\.?)$/,'bakdør')
+           .replace(/^skjerm\s+(?:frem(?:re)?|foran|fr\.?|fre\.?)$/,'forskjerm').replace(/^skjerm\s+(?:bak(?:re|r)?|bk\.?)$/,'bakskjerm');
         return n.replace(/\s+/g,' ').trim();
       }
       function harLakkPost2(delNavn){
