@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.85 – Smart kontroll av takster</title>
+<title>AutoPell v2.86 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.85</div>
+    <div class="version-badge">v2.86</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -276,6 +276,34 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
 
+/* AutoPell v2.86 – endringer fra v2.85 (2 punkter, begge funnet på Ford E-Transit EJ68606
+   etter at v2.85 fjernet halve feilen):
+
+   1. SKRÅSTREK-SEGMENTERING I harLakkPost2. v2.85 fikset flaterett-retningen ("flaterette er
+      glemt" forsvant), men KRITISK MANGEL sto igjen. Kjørt mot den bygde koden:
+        "Skjerm fr/hjørnpl V" → "skjerm fr/hjørnpl" → INGEN lakk-post
+        "Skjerm fr V"         → "forskjerm"         → HAR lakk-post
+      Forkortelsen virket altså; det som manglet var splittingen på skråstrek.
+      harFlateretteLinjePF fikk segmenteringen i v2.78 – harLakkPost2, den ANDRE halvdelen av
+      nøyaktig samme sammenligning, fikk den aldri. Presis samme v2.69-lærdom: to uavhengige
+      funksjoner gjør samme jobb, og bare den ene får forbedringen.
+      Delnavnet splittes nå på "/", posisjonsord forkastes, og hvert segment prøves. Helnavnet
+      prøves fortsatt FØRST, så eksisterende oppførsel er uendret.
+
+   2. BELØPS-REGEXEN I SAMMENSTILLINGEN VAR GRÅDIG. [\d\s]+ slukte tallet foran når linja
+      mangler deb.faktor. Side 9 "Sum pr. kunde" har "Lakkarbeide 201 2 090,40" (tid og beløp
+      uten faktor imellom) → gammel regex ga 2 012 090,40. Parseren går gjennom ALLE linjer og
+      lar den siste vinne, så side 9 overskrev den riktige verdien fra side 1, og Claude fikk
+      presentert lakkarbeidet som to millioner kroner i HURTIGFAKTA.
+      Nå kreves tusengrupper på nøyaktig tre siffer, så bare det siste tallet fanges. Verifisert
+      mot ni linjeformer: "Arbeide 570 5 928,00" ga 5 705 928 før, 5 928 nå; alle øvrige
+      uendret. v2.71-timeprisen var upåvirket – den leses av sin egen selvvaliderende regex.
+
+   FUNN UNDERVEIS, IKKE FIKSET HER (egen vurdering, se notater): harLakkPost2 er SIDEBLIND.
+   normaliserDelnavn2 stripper V/H uten å ta vare på siden, så "V Forskjerm" regnes som dekket
+   av en lakk-post på "H Forskjerm". Verifisert at dette gjelder v2.85 og tidligere – det er
+   IKKE innført her. Konsekvensen er tapte funn, ikke falske, og en fiks endrer oppførsel bredt.
+*/
 /* AutoPell v2.85 – endringer fra v2.84 (NAVNEMATCHING – tre takster på rad hadde SAMME feil
    med tre ulike årsaker):
 
@@ -2315,7 +2343,13 @@ function parseTakst(text){
     for(const k of sammKeys){
       if(line.startsWith(k)&&!line.endsWith('Tid')){
         // Hent siste tall i linja (beløpet)
-        const beløpMatch=line.match(/([\d\s]+,\d{2})\s*$/);
+        // v2.86: [\d\s]+ var GRÅDIG og slukte tallet foran når linja mangler deb.faktor.
+        // Ford E-Transit EJ68606: side 9 "Sum pr. kunde" har "Lakkarbeide 201 2 090,40" (tid
+        // og beløp uten faktor imellom) → gammel regex ga 2 012 090,40. Parseren går gjennom
+        // ALLE linjer og lar den siste vinne, så side 9 overskrev den riktige verdien fra
+        // side 1. Claude fikk dermed presentert lakkarbeidet som to millioner kroner.
+        // Nå kreves tusengrupper på nøyaktig tre siffer, så bare det siste tallet fanges.
+        const beløpMatch=line.match(/(\d{1,3}(?:\s\d{3})*,\d{2})\s*$/);
         if(beløpMatch){
           result.sammenstilling[k]=parseFloat(beløpMatch[1].replace(/\s/g,'').replace(',','.'));
         }
@@ -4806,8 +4840,20 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
         return n.replace(/\s+/g,' ').trim();
       }
       function harLakkPost2(delNavn){
+        // v2.86: sammensatte delnavn må splittes på skråstrek her OGSÅ. harFlateretteLinjePF
+        // fikk segmenteringen i v2.78, men harLakkPost2 – den andre halvdelen av samme
+        // sammenligning – fikk den aldri. Ford E-Transit EJ68606: "Skjerm fr/hjørnpl V" ble
+        // stående som én klump ("skjerm fr/hjørnpl"), så ^skjerm fr$-mønsteret traff aldri og
+        // KRITISK MANGEL fyrte selv om "V Forskjerm" står i lakkspes. Samme v2.69-lærdom:
+        // to uavhengige funksjoner gjør samme jobb, og bare den ene fikk forbedringen.
+        const dnSegmenter=[...new Set((delNavn||'').split('/').map(x=>normaliserDelnavn2(x))
+          .filter(x=>x.length>=3&&!/^(øvre|nedre|midtre|fremre|bakre|foran|bak|venstre|høyre|indre|ytre|[hv]|\d+)$/i.test(x)))];
         const dn=normaliserDelnavn2(delNavn);
-        if(dn.length<4)return false;
+        if(dn.length<4&&!dnSegmenter.length)return false;
+        if(dn.length>=4&&harLakkPostForNavn2(dn))return true;
+        return dnSegmenter.some(seg=>seg!==dn&&seg.length>=4&&harLakkPostForNavn2(seg));
+      }
+      function harLakkPostForNavn2(dn){
         return lakkedeNavn2.some(l=>{
           const lStripped=normaliserDelnavn2(l);
           {const _sub=/^(lokk|sensor|bjelke|hengsel|håndtak|spoiler|spyledyse|fotgjenger|gitter|kabel|innstegslist|skiltbelysning|emblem|refleks)\b/.exec(lStripped); if(_sub&&!new RegExp('^'+_sub[1]+'\\b').test(dn))return false;}
