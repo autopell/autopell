@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.88 – Smart kontroll av takster</title>
+<title>AutoPell v2.89 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.88</div>
+    <div class="version-badge">v2.89</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -276,6 +276,41 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
 
+/* AutoPell v2.89 – endringer fra v2.88 (4 punkter):
+
+   1. TILSTØTENDE-SPERREN FJERNET EKTE FUNN – viktigste fiks her, og den eneste av alle vi har
+      gjort som fjernet RIKTIGE forslag i stedet for falske.
+      Sperren skal hindre at Claude foreslår tilstøtende mot en del som ALLEREDE lakkes. Men
+      mønsteret var new RegExp('tilst[øo]tende.*'+delNavn) – det leste HELE setningen, ikke
+      hvilken flate forslaget gjaldt. Ford Transit Custom SX38080, direkte fra konsollen:
+        [POST-FILTER] Fjernet resultat: "Tilstøtende A-stolpe"
+        – forskjerm er allerede i lakkspes – ingen tilstøtende mot den
+      Forslaget gjaldt A-STOLPEN. Ordet "forskjermen" sto bare i begrunnelsen ("forskjermen
+      skiftes (N)"). Og forskjermen SKAL stå i lakkspes – den skiftes og lakkes, og det er
+      nettopp derfor tilstøtende mot naboen er aktuelt. Sperren traff altså vertsdelen.
+      Dette forklarer hvorfor tilstøtende-punkter har dukket opp og forsvunnet uten mønster på
+      MINI UF87158, MG EB90341 og nå Transit: utfallet avhang av om Claude tilfeldigvis nevnte
+      vertsdelen i begrunnelsen sin. Lukker gammelt køpunkt 20.
+      NÅ kreves naboflaten rett etter "mot", slik forslagene faktisk formuleres. Verifisert mot
+      seks tilfeller: A-stolpe-funnet beholdes, fordør/bakdør-forslag fjernes fortsatt når de
+      delene står i lakkspes, og et bakskjerm-forslag som NEVNER bakdør beholdes.
+
+   2. KAMERA-KALIBRERING VAR FOR BRED. /kamera/ traff også ryggekamera, som ikke trenger
+      kalibrering (bekreftet av Martin i regelgjennomgangen). Nå ekskluderes rygge-, bakke-,
+      parkerings- og reverskamera, mens frontmonterte beholdes. Verifisert: "Grill kamera (eks)"
+      fra Transit-taksten gir fortsatt kalibrering – den var et ekte funn.
+      MERK: første forsøk brukte en ikke-forankret lookahead, som ikke virker – regexmotoren
+      starter bare matchingen lenger inne i strengen. Fanget fordi testen kjørte mot ekte navn.
+
+   3. LYSKASTER-KODING avgrenset i intern-teksten: kun LED, Bi-Xenon og adaptiv. Sier delnavnet
+      tydelig HALOGEN skal det ikke foreslås; ellers står den som spørsmål, slik den allerede
+      gjorde. Kan ikke avgjøres i kode – delnavnet sier sjelden hvilken type det er.
+      Transit-taksten hadde "H Lyskaster aktiv LED komplett", der navnet sier LED rett ut.
+
+   4. MERCEDES-RIPEFAST fikk krevAarFra:2007. Mal-teksten har alltid sagt "etter 2007", men
+      koden sjekket bare at modellnavnet inneholdt "Mercedes". Bruker registreringsåret som
+      v2.87 begynte å parse.
+*/
 /* AutoPell v2.88 – endringer fra v2.87 (6 punkter: ALLE fjerner FALSKE funn):
 
    1. TESLA-FOLIE KUN MODEL Y. Den alvorligste feilen så langt, og av motsatt type enn alle de
@@ -3052,14 +3087,14 @@ function takstSammendrag(t){
     DET_KANAL_TILSTOTENDE:{deterministisk:true,navn:'Tilstøtende ved kanal',mal:'',farge:'gul'},
     DET_SMADEL_50:{deterministisk:true,navn:'Smådel på 50%',mal:'',farge:'rød'},
     DET_FRONTKAMERA_KALIBRERING:{deterministisk:true,navn:'Kalibrering frontkamera',mal:'',farge:'lilla'},
-    DET_LYSKASTER_KODING:{deterministisk:true,navn:'Lyskaster koding',mal:'',farge:'lilla'},
+    DET_LYSKASTER_KODING:{deterministisk:true,navn:'Lyskaster koding',mal:'',intern:'KUN LED, Bi-Xenon og adaptive lyskastere krever koding. Delnavnet sier sjelden hvilken type det er – står det LED, Xenon eller adaptiv i navnet, er forslaget klart aktuelt. Sier navnet tydelig HALOGEN, skal det IKKE foreslås. Ellers still det som et spørsmål, slik teksten allerede gjør.',farge:'lilla'},
     DET_UB_MANGLER:{deterministisk:true,navn:'UB mangler',mal:'',farge:'rød'},
     DET_RUSTBESKYTTELSE:{deterministisk:true,navn:'Rustbeskyttelse mangler',mal:'',farge:'rød'},
     DET_KLIPS:{deterministisk:true,navn:'Klipssett',mal:'',farge:'gul'},
     DET_BESKYTTELSESFOLIE:{deterministisk:true,navn:'Beskyttelsesfolie',mal:'',farge:'gul'},
     DET_MULIG_GLEMT_FLATERETTE:{deterministisk:true,navn:'Mulig glemt flaterette',mal:'',farge:'gul'},
     DET_TREKKETARN:{deterministisk:true,navn:'Trekketårn/rigging',mal:'',farge:'gul'},
-    DET_MERCEDES_RIPEFAST:{deterministisk:true,navn:'Mercedes ripefast klarlakk',mal:'',farge:'gul'},
+    DET_MERCEDES_RIPEFAST:{krevAarFra:2007,deterministisk:true,navn:'Mercedes ripefast klarlakk',mal:'',farge:'gul'},
   };
   const REGEL_REGISTRY=window.REGEL_REGISTRY;
 
@@ -4240,7 +4275,7 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           const kalibKategorier=[
             {id:'STOTFANGER_BAK_FILSKIFTESENSOR',re:/filskifte|blindsone|lane.?change/i,tekst:navn=>`Vurder å legge til kalibrering av filskiftesensor – ${navn} skiftes`},
             {id:'STOTFANGER_FORAN_KALIBRERING_RADAR',re:/\bradar\b/i,tekst:navn=>`Vurder å legge til kalibrering av radar – ${navn} skiftes`},
-            {id:'DET_FRONTKAMERA_KALIBRERING',re:/kamera/i,tekst:navn=>`Vurder å legge til kalibrering av frontkamera – ${navn} skiftes`},
+            {id:'DET_FRONTKAMERA_KALIBRERING',re:/^(?!.*(?:rygge|bakke|park(?:erings)?|revers)\s*kamera).*kamera/i,tekst:navn=>`Vurder å legge til kalibrering av frontkamera – ${navn} skiftes`},
             {id:'DET_LYSKASTER_KODING',re:/lyskaster|hovedlys|frontlys/i,tekst:navn=>`Sjekk om lyskasteren krever koding mot bilen (Bi-Xenon/adaptiv/LED) – ${navn} skiftes`},
           ];
           kalibKategorier.forEach(kat=>{
@@ -4901,12 +4936,22 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
       const delerILakkspes=parserData.lakkspes
         .filter(d=>!d.tillegg&&d.optype)
         .map(d=>d.navn.toLowerCase().replace(/^[vh]\s+/,'').replace(/,.*$/,'').trim());
-      // Sjekk hver dbs_handling for "tilstøtende mot [X]" der X er en del som allerede er der
+      // v2.89: SPERREN LESTE HELE SETNINGEN, IKKE HVILKEN FLATE FORSLAGET GJALDT.
+      // Mønsteret var new RegExp('tilst[øo]tende.*'+delNavn). Med delNavn='forskjerm' traff det
+      // teksten "Vurder å ta med tilstøtende flate mot A-stolpe – FORSKJERMEN skiftes (N)..."
+      // fordi ordet sto i BEGRUNNELSEN. Ford Transit Custom SX38080: et ekte A-stolpe-funn ble
+      // fjernet med grunnen "forskjerm er allerede i lakkspes" – men forskjermen SKAL stå i
+      // lakkspes, den skiftes og lakkes, og det er nettopp derfor tilstøtende mot naboen er
+      // aktuelt. Sperren traff altså på vertsdelen i stedet for naboflaten.
+      // Dette forklarer hvorfor tilstøtende-punkter har dukket opp og forsvunnet uten mønster
+      // på MINI UF87158, MG EB90341 og nå Transit: utfallet avhang av om Claude tilfeldigvis
+      // nevnte vertsdelen i begrunnelsen sin. Lukker gammelt køpunkt 20.
+      // NÅ: kravet er at NABOFLATEN står rett etter "mot", slik forslagene faktisk formuleres
+      // ("tilstøtende flate mot fordør"). Ord lenger ute i setningen teller ikke lenger.
       if(parsed.sammendrag&&Array.isArray(parsed.sammendrag.dbs_handlinger)){
         ['fordør','bakdør','panser','bakskjerm','forskjerm'].forEach(delNavn=>{
           if(delerILakkspes.some(d=>d.startsWith(delNavn))){
-            // Delen er allerede i lakkspes – Claude skal ikke foreslå tilstøtende mot den
-            fjernForslag(new RegExp('tilst[øo]tende.*'+delNavn,'i'),`${delNavn} er allerede i lakkspes – ingen tilstøtende mot den`);
+            fjernForslag(new RegExp('tilst[øo]tende[^.]{0,40}?\\bmot\\s+'+delNavn,'i'),`${delNavn} er allerede i lakkspes – ingen tilstøtende mot den`);
           }
         });
       }
