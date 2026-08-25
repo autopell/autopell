@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.90 – Smart kontroll av takster</title>
+<title>AutoPell v2.91 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.90</div>
+    <div class="version-badge">v2.91</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -275,6 +275,50 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v2.91 – endringer fra v2.90 (6 punkter – dette er mekanikk-runden):
+
+   1. ÅRSMODELL PARSES. Modellkoden i sidehodet slutter på årsmodellen (05-29300-2023,
+      58-29549-2026) og gjentas på hver side. Registreringsdato beholdes ved siden av, men
+      årsmodell er riktigere: en 2026-modell kan være registrert i 2025.
+
+   2. NYTT FLAGG ikkeVedModellAar – modell OG år samtidig, noe hverken ikkeVedModell (kun navn)
+      eller krevAarFra (kun år) kunne uttrykke. PANSER_EMBLEM gjelder ikke Model Y 2026
+      (Martin: kun den årsmodellen, ikke hele FL-serien). Mangler både årsmodell og
+      registreringsår, beholdes ID-en – vi undertrykker aldri på manglende data.
+
+   3. SKYVEDØR = DØR BAKRE PÅ PROACE CITY. Proace City EP40372 ga TO falske funn samtidig –
+      falsk KRITISK "flaterett uten lakk-post" for dør bakre H, og "lakkert uten
+      reparasjonsgrunn" for H Skyvedør – fordi det er SAMME dør under to navn. Synonymet er
+      modell-avgrenset etter Martins beslutning ("kun på denne no. det er vel tryggest"), og
+      defineres ÉN gang i ekstraModellSynonymer() som alle TRE navnematcherne bruker
+      (normaliserDelnavn, normaliserDelnavn2, anvendVarebilSynonymPF). Det er tre-kopi-fella
+      fra v2.62–69 som gjorde at bare to av tre sjekker arvet en fiks.
+
+   4. ÉN DIAGNOSE PER TAKST. Nytt flagg énPerTakst gjør dedupe-nøkkelen ID-basert i stedet for
+      (ID + del). Diagnose er én jobb på bilen selv om både støtfanger foran og bak demonteres;
+      Mercedes-varebilen ga to identiske linjer i DBS-boksen. Prosa-instruksen om å slå sammen
+      duplikater fantes fra før og holdt ikke – samme lærdom som ikkeVedModell i v2.88.
+
+   5. KODE-OVERSTYRING VISES. Tesla EP94160: grunning for topplakk sto som "ikke relevant" i
+      punkt-for-punkt mens forslaget lå i DBS-boksen, fordi manglendeGrunning kun hopper over
+      seg selv når Claude har sagt foreslått/usikker (v2.58). Koden hadde rett
+      (plastspesifikasjonen sa "IKKE UTFYLT"), men brukeren så to motstridende svar. Punktet
+      merkes nå "[overstyrt av kode]" i stedet for at motsetningen står uforklart.
+
+   6. DEKNINGSOVERSIKT + detaljspes_pos I DEBUGVISNINGEN. Tabell over kategorier med N/G-antall
+      (forskjerm 3N/0G er fortsatt eneste tomme celle), PLUSS en advarsel per takst om
+      hoveddeler som ikke traff noen regel i det hele tatt – det hullet vises ikke som tom
+      celle, siden deler uten kategori ikke finnes i tabellen (kanal, bakluke, A-/B-stolpe,
+      skyvedør). detaljspes_pos vises nå også, etter at NH16233 bare kunne avgjøres via
+      JSON-fanen. BEGGE ligger bak "Vis hva parser leser" og rører ikke FORSLAG-boksen –
+      Martin: en takstmann som leser at verktøyet mangler regler for en del, mister tilliten
+      til hele kontrollen.
+
+   IKKE MED: den tomme STOTFANGER_KLIPS og valget mellom DET_UB_VED_FLATERETTE og
+   DET_UB_MANGLER (sistnevnte navngir delene, førstnevnte ikke – argument for hvilken som
+   skal overleve). Fortsatt bevisst utelatt: poster ført for MYE.
+*/
 
 /* AutoPell v2.90 – endringer fra v2.89 (6 punkter, alle registernære – ingen ny mekanikk):
 
@@ -2439,6 +2483,7 @@ function parseTakst(text){
   // v2.5: Pre-prosesser tekst for å fikse kolonner-i-omvendt-rekkefølge fra pdf.js
   text=preprosesserPdfTekst(text);
 
+  window.AP_MODELL='';
   const result={
     bil:{},
     sammenstilling:{},
@@ -2462,8 +2507,12 @@ function parseTakst(text){
   // ----- BIL-INFO -----
   // Søk etter merke/modell-linje (format: "08-28771-2022 EQB 350 4MATIC ED63794" eller "183-29301-2026 XPENG G9 STV 5D ER27239")
   for(const line of lines){
-    const m=line.match(/^\d{2,3}-\d{3,5}-\d{4}\s+(.+?)\s+([A-Z]{2}\d{5})\s*$/);
-    if(m){result.bil.modell=m[1].trim();result.bil.reg=m[2];break;}
+    // v2.91: ÅRSMODELL. Modellkoden i sidehodet slutter på årsmodellen (05-29300-2023,
+    // 58-29549-2026) og gjentas på HVER side. Dette er den faktiske årsmodellen, i motsetning
+    // til Registreringsdato som er en dato og kan ligge i året før (Martin: "du finner årstall
+    // i sammendrag i taksten"). registreringsaar beholdes uendret ved siden av.
+    const m=line.match(/^\d{2,3}-\d{3,5}-(\d{4})\s+(.+?)\s+([A-Z]{2}\d{5})\s*$/);
+    if(m){result.bil.aarsmodell=parseInt(m[1]);result.bil.modell=m[2].trim();result.bil.reg=m[3];window.AP_MODELL=result.bil.modell;break;}
   }
   // Lakktype
   const lakktypeMatch=text.match(/Lakktype\s*\n+\s*(\d+)/);
@@ -2918,6 +2967,17 @@ function parseTakst(text){
 // var hoveddelen, finner ingen hoveddel-rad i lakkspes, og fyrer av KRITISK MANGEL.
 // Gjelder alt som er navngitt etter plassering: List bakdør, Hengsel panser, Sensor støtfanger
 // bak, Steinsprutbeskyttelse bakdør osv.
+// v2.91: MODELLAVHENGIGE DELSYNONYMER. Toyota Proace City kaller SAMME dør "dør bakre" i
+// flaterette-linja og "skyvedør" i lakkspes (Martin: "er det det samme. jeg vet det er
+// forvirrende" – og på spørsmål om rekkevidde: "kun på denne no. det er vel tryggest").
+// Derfor modell-avgrenset, ikke generelt for varebiler med skyvedør.
+// Definert ÉN gang og brukt fra alle tre navnematcherne (normaliserDelnavn, normaliserDelnavn2
+// og anvendVarebilSynonymPF) – det er nettopp tre-kopi-fella fra v2.62–69 vi unngår her.
+function ekstraModellSynonymer(modell){
+  const ut=[];
+  if(/proace\s*city/i.test(modell||''))ut.push({fra:/\bskyvedør\b/g,til:'bakdør'});
+  return ut;
+}
 function erSmadelPaaHoveddel(navn){
   return /\b(skjermutbygger|utbygger|hjulbueliste|steinsprutbeskyttelse|beskyttelse|innstegslist|skrapelist|p-list|list|lokk|dekklokk|sensor|bjelke|hengsel|håndtak|spoiler|spyledyse|dyse|gitter|kabel|emblem|refleks|brakett|feste|festebrakett|hengerfeste|holder|tetning|klips|luftstyring)\b/i.test(navn||'');
 }
@@ -3071,7 +3131,7 @@ function takstSammendrag(t){
     PANSER_DEMO:{kat:/\bpanser\b/i,optype:['N','G'],navn:'De/Mo innvendige detaljer',mal:'Vurder å legge til De/Mo innvendige detaljer (pansermatte)',farge:'rød'},
     PANSER_TILST_ASTOLPE:{kat:/\bpanser\b/i,optype:['N','G'],navn:'Tilstøtende A-stolpe',mal:'Vurder å ta med tilstøtende flate mot A-stolpe begge sider (fargeavhengig)',intern:'SKADEMARKERING STYRER SIDEN: takstmannen markerer skaden i bildene med røde firkanter/piler. FINN BILENS RETNING FØRST. Ikke anta at venstre i bildet er fremover – det avhenger av hvilken side av bilen som er fotografert. Faste holdepunkter: sidespeilet sitter alltid i FREMRE ende av fordøra. Frontrute og vindusviskere står mot FRONTEN; bakrute og eventuell takspoiler mot HEKKEN. Hjulbuen foran en fordør er FORhjulet; hjulbuen bak en bakdør er BAKhjulet. Dørhåndtak sitter i BAKRE halvdel av sin egen dør. Tanklokk sitter alltid på bakskjermen. B-stolpen er den brede stolpen mellom fordør og bakdør. Klarer du ikke å fastslå retningen ut fra minst ETT slikt holdepunkt, skal posisjonsvurderingen under IKKE brukes – sett \"usikker\". ÉN LINJE VED UKJENT RETNING: klarer du ikke å fastslå retningen, skal du IKKE skrive et eget forslag per naboflate. Skriv ÉN linje som ber takstmannen vurdere tilstøtende mot den flaten skaden ligger nærmest, og la de øvrige tilstøtende-punktene stå som \"usikker\" UTEN egen forslagstekst. To nesten like linjer om samme vurdering er støy. Naboflaten for denne ID-en er A-stolpen (BAKRE kant av panseret). Ligger skaden nærmest DENNE flaten, er den aktuell. Ligger den tydelig i motsatt ende av delen, er den lite aktuell. Sitter markeringen midt på delen, regn den mot den NÆRMESTE kanten framfor å utelukke begge. VIKTIG: bruk ALDRI "ikke relevant" på grunn av tvil om plassering – tvil gir "usikker" (v2.43-regelen). "ikke relevant" er kun for tilfeller der flaten åpenbart ikke er berørt, eller der en annen regel utelukker den (svart bil, tilstøtende-post, delen allerede i lakkspes). Unngå å foreslå BEGGE naboflatene på samme del med mindre skaden faktisk strekker seg over hele delen.',farge:'gul'},
     PANSER_TILST_FORSKJERM:{kat:/\bpanser\b/i,optype:['N','G'],ikkeVedSvart:true,navn:'Tilstøtende forskjerm',mal:'Vurder å ta med tilstøtende flate mot forskjerm begge sider (fargeavhengig)',intern:'SKADEMARKERING STYRER SIDEN: takstmannen markerer skaden i bildene med røde firkanter/piler. FINN BILENS RETNING FØRST. Ikke anta at venstre i bildet er fremover – det avhenger av hvilken side av bilen som er fotografert. Faste holdepunkter: sidespeilet sitter alltid i FREMRE ende av fordøra. Frontrute og vindusviskere står mot FRONTEN; bakrute og eventuell takspoiler mot HEKKEN. Hjulbuen foran en fordør er FORhjulet; hjulbuen bak en bakdør er BAKhjulet. Dørhåndtak sitter i BAKRE halvdel av sin egen dør. Tanklokk sitter alltid på bakskjermen. B-stolpen er den brede stolpen mellom fordør og bakdør. Klarer du ikke å fastslå retningen ut fra minst ETT slikt holdepunkt, skal posisjonsvurderingen under IKKE brukes – sett \"usikker\". ÉN LINJE VED UKJENT RETNING: klarer du ikke å fastslå retningen, skal du IKKE skrive et eget forslag per naboflate. Skriv ÉN linje som ber takstmannen vurdere tilstøtende mot den flaten skaden ligger nærmest, og la de øvrige tilstøtende-punktene stå som \"usikker\" UTEN egen forslagstekst. To nesten like linjer om samme vurdering er støy. Naboflaten for denne ID-en er forskjermen (SIDEKANT av panseret). Ligger skaden nærmest DENNE flaten, er den aktuell. Ligger den tydelig i motsatt ende av delen, er den lite aktuell. Sitter markeringen midt på delen, regn den mot den NÆRMESTE kanten framfor å utelukke begge. VIKTIG: bruk ALDRI "ikke relevant" på grunn av tvil om plassering – tvil gir "usikker" (v2.43-regelen). "ikke relevant" er kun for tilfeller der flaten åpenbart ikke er berørt, eller der en annen regel utelukker den (svart bil, tilstøtende-post, delen allerede i lakkspes). Unngå å foreslå BEGGE naboflatene på samme del med mindre skaden faktisk strekker seg over hele delen.',farge:'gul'},
-    PANSER_EMBLEM:{kat:/\bpanser\b/i,optype:['N','G'],skjulHvisDetaljIkkeFunnet:'emblem',navn:'Emblem',mal:'Sjekk om emblem på panser må bestilles nytt',farge:'gul'},
+    PANSER_EMBLEM:{kat:/\bpanser\b/i,optype:['N','G'],skjulHvisDetaljIkkeFunnet:'emblem',ikkeVedModellAar:[{modell:/tesla.*model\s*y/i,aar:2026}],navn:'Emblem',mal:'Sjekk om emblem på panser må bestilles nytt',farge:'gul'},
 
     DOR_FELLES_RUST:{deterministisk:true,navn:'Rustbeskyttelse',mal:'',farge:'rød'},
     DOR_FELLES_DEMO:{kat:/\bfordør\b|\bbakdør\b/i,optype:['N','G'],skjulHvisDetaljFunnet:['trekk','deksel','ruteheis','vindusheis'],navn:'De/Mo innvendige detaljer',mal:'Vurder å legge til De/Mo innvendige detaljer (vindusheis, dørtrekk)',farge:'rød'},
@@ -3106,7 +3166,7 @@ function takstSammendrag(t){
 
     // v2.32 – Fase 1: Støtfanger/plastrep/50%-regelen
     STOTFANGER_HTT_LOSE:{kat:/støtfanger/i,optype:['N','G'],sjekkHttAllerede:true,navn:'HTT løse deler',mal:'Vurder HTT 15p per løs del på støtfangeren – slepekrokdeksel, spyledeksel eller lister.',intern:'ER STØTFANGEREN I DET HELE TATT LAKKERT? Følg stigen i rekkefølge og STOPP på første trinn som gir svar. (1) Har støtfangeren egen lakk-post i lakkspesifikasjonen? Da er den lakkert – ferdig, ikke vurder bildet. (2) Står \"nedre del støtfanger\" eller \"spoiler\" i reservedelslista? Da skiftes nedre del som egen del, og øvre del er lakkert. (3) Er støtfangeren ført med 50% fordeling øvre/nedre? Da er øvre del lakkert og nedre del ulakkert. (4) FØRST NÅ: se på bildet. Ulakkert plast er MATT og ru uten gjenskinn, ofte med synlig kornet tekstur; lakkert flate er BLANK og speiler omgivelsene. Sammenlign støtfangeren direkte med karosseriet like over i samme bilde – er kontrasten tydelig, er den ulakkert. Dette gjelder også svarte biler: samme farge, ulik overflate. En ULAKKERT støtfanger skal ALDRI ha lakk-post, HTT, grunning eller maskering – heller ikke når den skiftes. Klarer du ikke å avgjøre overflaten, sett \"usikker\" (v2.43). POSITIVLISTE – KUN slepekrokdeksel, spyledeksel, lister. Bekreft med bilder før forslag. Gjelder KUN hvis støtfangeren er lakkert i bilens farge. ALDRI foreslå sensorer, sensorholdere, brakketter eller andre deler bak støtfangeren – disse lakkes aldri.',farge:'gul'},
-    STOTFANGER_DIAGNOSE:{kat:/støtfanger/i,optype:['N','G'],krevAarFra:2017,ikkeVedModell:[/tesla/i],navn:'Diagnose (feilkoder)',mal:'Vurder å legge til diagnose (slette feilkoder, 100p) – støtfanger er demontert',farge:'gul'},
+    STOTFANGER_DIAGNOSE:{kat:/støtfanger/i,optype:['N','G'],krevAarFra:2017,ikkeVedModell:[/tesla/i],énPerTakst:true,navn:'Diagnose (feilkoder)',mal:'Vurder å legge til diagnose (slette feilkoder, 100p) – støtfanger er demontert',farge:'gul'},
     STOTFANGER_KLIPS:{deterministisk:true,navn:'Klips',mal:'',farge:'gul'},
     STOTFANGER_SVEISEMATERIELL:{krevPlastrepOver:300,kat:/støtfanger/i,optype:['N','G'],navn:'Sveisemateriell plastrep',mal:'Vurder å legge til kostnad for plastsveisemateriell',intern:'TERSKEL: foreslås KUN når plastreparasjonen på DENNE delen er over 300p – grensen gjelder per del, ikke summen. Les Plastreparasjon-seksjonen i arbeidsspesifikasjonen, der hver del står med sin egen tid. Er delen under 300p: ikke relevant. Krever i tillegg at "ut og innvendig skade" er huket av i plastspesifikasjonen, og gjelder kun ved reparasjon, ikke skift. Over 300p betyr ikke i seg selv at delen ER sveist – skriv forslaget med delnavn og tall, og med sveising som forutsetning, slik: "Støtfangerdeksel bak er plastreparert med 340p – er den sveist, vurder å ta med kostnad for plastsveisemateriell."',farge:'gul'},
     STOTFANGER_GRUNNING_TOPPLAKK:{kat:/støtfanger/i,optype:['N','G'],navn:'Grunning for topplakk',mal:'Vurder å legge til grunning for topplakk i annetbilde',intern:'ER STØTFANGEREN I DET HELE TATT LAKKERT? Følg stigen i rekkefølge og STOPP på første trinn som gir svar. (1) Har støtfangeren egen lakk-post i lakkspesifikasjonen? Da er den lakkert – ferdig, ikke vurder bildet. (2) Står \"nedre del støtfanger\" eller \"spoiler\" i reservedelslista? Da skiftes nedre del som egen del, og øvre del er lakkert. (3) Er støtfangeren ført med 50% fordeling øvre/nedre? Da er øvre del lakkert og nedre del ulakkert. (4) FØRST NÅ: se på bildet. Ulakkert plast er MATT og ru uten gjenskinn, ofte med synlig kornet tekstur; lakkert flate er BLANK og speiler omgivelsene. Sammenlign støtfangeren direkte med karosseriet like over i samme bilde – er kontrasten tydelig, er den ulakkert. Dette gjelder også svarte biler: samme farge, ulik overflate. En ULAKKERT støtfanger skal ALDRI ha lakk-post, HTT, grunning eller maskering – heller ikke når den skiftes. Klarer du ikke å avgjøre overflaten, sett \"usikker\" (v2.43).',farge:'rød'},
@@ -3199,6 +3259,16 @@ function takstSammendrag(t){
       if(r.ikkeVedModell&&Array.isArray(r.ikkeVedModell)){
         const mod=(t.bil&&t.bil.modell)||'';
         if(mod&&r.ikkeVedModell.some(re=>re.test(mod)))return false;
+      }
+      // v2.91: ikkeVedModellAar – unntak som gjelder EN modell i ETT årsmodellår. Hverken
+      // ikkeVedModell (kun navn) eller krevAarFra (kun år) kan uttrykke dette alene.
+      // Martin: Model Y har ikke emblem på panser på 2026-årsmodellen – ikke hele FL-serien.
+      // Årsmodell foretrekkes, registreringsår er fallback. Mangler BEGGE, beholdes ID-en
+      // (samme prinsipp som krev3sjikt/krevAarFra – vi undertrykker aldri på manglende data).
+      if(r.ikkeVedModellAar&&Array.isArray(r.ikkeVedModellAar)){
+        const mod=(t.bil&&t.bil.modell)||'';
+        const aar=(t.bil&&(t.bil.aarsmodell||t.bil.registreringsaar))||null;
+        if(mod&&typeof aar==='number'&&r.ikkeVedModellAar.some(u=>u.modell.test(mod)&&u.aar===aar))return false;
       }
       if(r.krevAarFra){
         const aar=t.bil&&t.bil.registreringsaar;
@@ -3416,8 +3486,8 @@ function takstSammendrag(t){
       .trim();
     // Strip beskrivende suffikser (M sportpakke, p-radar, grunnet osv.) – beholdes som metadata, fjernes for matching
     n=n.replace(/\b(grunnet|m sportpakke|sport-?pakke|p-radar|p radar|eks)\b/g,'').replace(/\s+/g,' ').trim();
-    // Bruk synonymer (lengre → kortere)
-    synonymer.forEach(syn=>{n=n.replace(syn.fra,syn.til);});
+    // Bruk synonymer (lengre → kortere). v2.91: modellavhengige synonymer legges til her.
+    synonymer.concat(ekstraModellSynonymer((t.bil&&t.bil.modell)||window.AP_MODELL)).forEach(syn=>{n=n.replace(syn.fra,syn.til);});
     n=n.replace(/\s+/g,' ').trim();
     // v2.88: KORT-/LANGFORM manglet HELT i v1 – den fantes kun i normaliserDelnavn2 og
     // normaliserHoveddelPF. Uten den ble "skjerm bak" aldri til "bakskjerm", og HURTIGFAKTA
@@ -3825,6 +3895,51 @@ Regler: ${getActiveRules()}`;
   }
 }
 
+// v2.91: DEKNINGSOVERSIKT. Viser hvilke hoveddel-kategorier registeret faktisk dekker, delt
+// på N (skift) og G (retting/lakk). Tomme celler er hull vi VET om. Men det farligste hullet
+// vises IKKE som en tom celle: deler som ikke har noen kategori i det hele tatt finnes ikke i
+// tabellen – kanal, bakluke, A-/B-stolpe, skyvedør. Bekreftet live på Proace City EP40372,
+// der H Kanal og H Skyvedør fikk null regel-ID-er. Derfor kommer advarselen per takst i
+// tillegg til tabellen. BEGGE ligger bak "Vis hva parser leser" og ALDRI i FORSLAG-boksen –
+// Martin: en takstmann som leser at verktøyet ikke har regler for en del, mister tilliten til
+// hele kontrollen og kan ikke gjøre noe med opplysningen uansett.
+function byggDekningsoversikt(t){
+  const REG=window.REGEL_REGISTRY||{};
+  const kats={};
+  Object.keys(REG).forEach(id=>{
+    const r=REG[id];
+    if(r.deterministisk||!r.kat||!r.optype)return;
+    const k=r.kat.source;
+    kats[k]=kats[k]||{N:0,G:0};
+    if(r.optype.includes('N'))kats[k].N++;
+    if(r.optype.includes('G'))kats[k].G++;
+  });
+  const antDet=Object.keys(REG).filter(id=>REG[id].deterministisk).length;
+  const rader=Object.entries(kats).sort((a,b)=>(b[1].N+b[1].G)-(a[1].N+a[1].G))
+    .map(([k,v])=>{
+      const tom=(!v.N||!v.G)?' <span style="color:#c0392b">← tom celle</span>':'';
+      return `<tr><td style="padding:2px 10px 2px 0">${k.replace(/</g,'&lt;')}</td><td style="text-align:right;padding:2px 10px">${v.N}</td><td style="text-align:right;padding:2px 10px">${v.G}</td><td>${tom}</td></tr>`;
+    }).join('');
+  // Per takst: hvilke hoveddeler i DENNE taksten fikk ingen regler i det hele tatt?
+  let udekket='';
+  if(t&&Array.isArray(t.lakkspes)){
+    const gyldige=window.DELSTATUS_GYLDIGE_DELNAVN||new Set();
+    const mangler=t.lakkspes.filter(d=>!d.tillegg&&d.navn&&(d.optype==='N'||d.optype==='G')
+      &&!gyldige.has(d.navn.toLowerCase().trim()))
+      .map(d=>`${d.navn} (${d.optype})`);
+    udekket=mangler.length
+      ? `<div style="margin-top:8px;color:#c0392b"><strong>Ingen regler for i denne taksten:</strong> ${mangler.join(', ')}</div>`
+      : `<div style="margin-top:8px;color:#2e7d32">Alle hoveddeler i denne taksten traff minst én regel.</div>`;
+  }
+  return `<table style="font-size:12px;border-collapse:collapse">
+      <tr style="font-weight:bold"><td style="padding-right:10px">Kategori</td><td style="text-align:right;padding:0 10px">N</td><td style="text-align:right;padding:0 10px">G</td><td></td></tr>
+      ${rader}
+    </table>
+    <div style="margin-top:6px;color:#666">${Object.keys(kats).length} kategorier med kat+optype, ${antDet} deterministiske regler uten.</div>
+    ${udekket}
+    <div style="margin-top:6px;color:#666;font-style:italic">Merk: deler uten kategori i det hele tatt vises ikke som tom celle – de finnes ikke i tabellen. Linja over fanger dem per takst.</div>`;
+}
+
 async function visParserDebug(){
   if(!files['veil-takst']){alert('Last opp taksten først.');return;}
   const f=files['veil-takst'];
@@ -3842,6 +3957,12 @@ async function visParserDebug(){
         <p style="margin:0 0 8px 0;color:#666;font-size:13px">Dette er det AutoPell faktisk leser fra PDF-en. Hvis noe mangler eller er feil, vet vi hvor problemet er.</p>
         <details style="margin-bottom:10px"><summary style="cursor:pointer;font-weight:bold">📋 Strukturert sammendrag (det Claude får)</summary>
           <pre style="background:#f5f5f5;padding:10px;overflow:auto;font-size:12px;white-space:pre-wrap">${sammendrag.replace(/</g,'&lt;')}</pre>
+        </details>
+        <details style="margin-bottom:10px"><summary style="cursor:pointer;font-weight:bold">📊 Dekningsoversikt (hvilke deler har regler)</summary>
+          <div style="background:#f5f5f5;padding:10px">${byggDekningsoversikt(t)}</div>
+        </details>
+        <details style="margin-bottom:10px"><summary style="cursor:pointer;font-weight:bold">🧩 Detaljspesifikasjon per posisjon (detaljspes_pos)</summary>
+          <pre style="background:#f5f5f5;padding:10px;overflow:auto;font-size:11px;max-height:300px;white-space:pre-wrap">${(t.detaljspes_pos||[]).map(b=>`Pos: ${b.pos}\n  ${(b.items||[]).join(', ')||'(tom)'}`).join('\n\n').replace(/</g,'&lt;')||'(ingen blokker parset)'}</pre>
         </details>
         <details><summary style="cursor:pointer;font-weight:bold">📄 Rå PDF-tekst (linje-for-linje)</summary>
           <pre style="background:#f5f5f5;padding:10px;overflow:auto;font-size:11px;max-height:400px;white-space:pre-wrap">${text.replace(/</g,'&lt;')}</pre>
@@ -4268,11 +4389,21 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
       // Fix: eget sett, nøklet på (id, del) i stedet for bare id, brukt KUN til duplikat-
       // sjekken – brukteIDer selv er urørt og fortsetter å tjene de andre to formålene.
       const brukteIDPerDel=new Set();
-      window.POENG_FUNN=[]; // v2.71: nullstilles per kjøring
+      window.POENG_FUNN=[];window.KODE_OVERSTYRT=new Set(); // v2.71: nullstilles per kjøring
       // v2.35: DETERMINISTISKE PARSER-FUNN – injiseres direkte av koden, Claude ikke involvert.
       // ID-en seedes i brukteIDer slik at eventuelle Claude-varianter av samme funn dedupes.
       function injiserDeterministisk(id,melding,plassering){
         const reg=window.REGEL_REGISTRY[id]||{};
+        // v2.91: Når koden legger inn et funn for en ID som Claude satte til "ikke relevant",
+        // ser brukeren to motstridende svar på samme linje: forslaget i DBS-boksen og
+        // "ikke relevant" i punkt-for-punkt. Bekreftet på Tesla EP94160 (grunning for topplakk,
+        // der plastspesifikasjonen sa "IKKE UTFYLT" og koden hadde rett). Vi merker punktet
+        // som overstyrt i stedet for å skjule motsetningen.
+        if(Array.isArray(parsed.delsjekk)){
+          parsed.delsjekk.forEach(d=>(d.punkter||[]).forEach(p2=>{
+            if(p2.id===id&&(p2.status==='ikke relevant'||p2.status==='allerede ført'))window.KODE_OVERSTYRT.add(id);
+          }));
+        }
         brukteIDer.add(id);
         injisertTekst.add(melding.toLowerCase());
         parsed.sammendrag.dbs_handlinger.push(melding);
@@ -4415,10 +4546,14 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           // "irriterende nok bruker de av og til forskjellige navn."
           //   sideplate = karosseriside  |  terskel = kanal   (Mercedes E-Vito TV99491)
           // Begge kanoniseres til ETT ord, så retningen spiller ingen rolle.
-          return (s2||'')
+          let ut=(s2||'')
             .replace(/\blastdør\s*,?\s*(bakre|øvre)(\s*\/\s*(bakre|øvre))*/gi,'bakluke')
             .replace(/\bsideplate\b/gi,'karosseriside')
             .replace(/\bterskel\b/gi,'kanal');
+          // v2.91: modellavhengig – samme kilde som de to andre navnematcherne bruker.
+          ekstraModellSynonymer((parserData&&parserData.bil&&parserData.bil.modell)||window.AP_MODELL)
+            .forEach(syn=>{ut=ut.replace(new RegExp(syn.fra.source,'gi'),syn.til);});
+          return ut;
         }
         function normaliserHoveddelPF(s){
           let n=(s||'').toLowerCase().replace(/\s+/g,' ').trim();
@@ -4694,7 +4829,12 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
             const harID=p.id&&window.REGEL_REGISTRY&&window.REGEL_REGISTRY[p.id];
             // v2.53: nøkkel per (id, del) – IKKE bare id – slik at samme ID på to ulike
             // fysiske deler (V/H) begge slipper gjennom som ekte, separate funn.
-            const idDelNøkkel=harID?p.id+'||'+delNavnRent:null;
+            // v2.91: énPerTakst – noen operasjoner utføres ÉN gang på bilen, ikke per del.
+            // Diagnose (slette feilkoder) er én jobb selv om både støtfanger foran og bak
+            // demonteres; på Mercedes-varebilen ga per-del-nøkkelen to like linjer i DBS-boksen.
+            // Prosa-instruksen om å slå sammen duplikater fantes allerede og holdt ikke –
+            // samme lærdom som ikkeVedModell (v2.88). Martin: "ja de kan slås sammen".
+            const idDelNøkkel=harID?(window.REGEL_REGISTRY[p.id].énPerTakst?p.id:p.id+'||'+delNavnRent):null;
             let erDuplikat,konsept=null;
             if(harID){
               erDuplikat=brukteIDPerDel.has(idDelNøkkel);
@@ -5084,7 +5224,7 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
       function normaliserDelnavn2(s){
         let n=s.toLowerCase().replace(/^[vh]\s+/,'').replace(/\(.*?\)/g,'').replace(/,.*$/,'').trim();
         n=n.replace(/\b(grunnet|m sportpakke|sport-?pakke|p-radar|p radar|eks)\b/g,'').replace(/\s+/g,' ').trim();
-        synonymer2.forEach(syn=>{n=n.replace(syn.fra,syn.til);});
+        synonymer2.concat(ekstraModellSynonymer(window.AP_MODELL)).forEach(syn=>{n=n.replace(syn.fra,syn.til);});
         // v2.69-FIX2: normaliserDelnavn2 strippet kun LEDENDE v/h ("H Forskjerm"→"forskjerm"),
         // ikke AVSLUTTENDE v/h – så "Skjerm foran H" beholdt "h" på slutten, og mønsteret over
         // traff aldri. Samme svake side-håndtering som funksjonen allerede har andre steder
@@ -5363,7 +5503,11 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
             const navn=(reg&&reg.navn)||p.punkt||p.id||'';
             const idTag=p.id?` <span style="color:#bbb;font-size:10px">[${p.id}]</span>`:'';
             const motTag=p.anbefaling==='mot'?' <span style="color:#888;font-size:10px">(peker mot – teller ikke i sum)</span>':'';
-            html+=`<li>${navn}${idTag} — <span style="color:${statusFarge}">${p.status||'?'}</span>${motTag}</li>`;
+            // v2.91: koden overstyrte Claude på dette punktet – vis det i stedet for å la
+            // punkt-for-punkt motsi DBS-boksen.
+            const overstyrt=p.id&&window.KODE_OVERSTYRT&&window.KODE_OVERSTYRT.has(p.id);
+            const overstyrtTag=overstyrt?` <span style="color:#8b1a1a;font-size:10px">[overstyrt av kode – forslaget står i DBS-boksen]</span>`:'';
+            html+=`<li>${navn}${idTag} — <span style="color:${statusFarge}">${p.status||'?'}</span>${overstyrtTag}${motTag}</li>`;
           });
           html+=`</ul></div>`;
         });
