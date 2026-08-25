@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.89 – Smart kontroll av takster</title>
+<title>AutoPell v2.90 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.89</div>
+    <div class="version-badge">v2.90</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -275,6 +275,49 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v2.90 – endringer fra v2.89 (6 punkter, alle registernære – ingen ny mekanikk):
+
+   1. TAK_TAKRAILS FYRTE PÅ EN TAKST DER RAILS ALLEREDE VAR DEMONTERT. Ford Ranger Wildtrak
+      NH16233: forslaget sa "ikke synlig avklart i taksten" mens Detaljspesifikasjon Pos. 19
+      Takplate hadde 6688 Rails V 20 og 6689 Rails H 20. Regelen hadde ikke noe skjulHvis-flagg
+      i det hele tatt. Nå skjulHvisDetaljFunnet:['rails','takrails','takskinne','skinne'] –
+      samme datasett som DOR_FELLES_DEMO bruker, motsatt retning av PANSER_EMBLEM.
+
+   2. TOM DUBLETT-BLOKK I detaljspes_pos. Inndata-spesifikasjonen har samme overskrift som
+      Detaljspesifikasjon ("Pos. 19 Takplate Tid dm ² Beløp"), så samme hoveddel parses to
+      ganger – én ekte blokk og én tom. På NH16233 reddet rekkefølgen oss, men treffer .find()
+      den tomme først, finner skjulHvisDetaljFunnet ingen søkeord og lar ID-en stå UTEN at noe
+      vises noe sted. finnBlokk leter nå i blokker MED innhold først.
+
+   3+4. TO TESLA-UNNTAK, BEGGE AVGJORT AV MODELLNAVNET (Martin, fagmann):
+      Tesla har ikke lyktespylere på NOEN modell → STOTFANGER_FORAN_SPYLEVAESKE får
+      ikkeVedModell:[/tesla/i]. Diagnose trengs ikke ved demontert støtfanger på Tesla →
+      samme flagg på STOTFANGER_DIAGNOSE. Begge fyrte på Model Y EP94160.
+
+   5. 50%-REGLENE BLE LEVERT UTEN AT 50% FANTES. Samme takst: støtfanger foran sto med
+      114,3 dm² og ingen prosentmarkør, men maskering, polere flikk OG smådeler ble alle tre
+      sendt til Claude. Nytt flagg krev50Prosent krever /\(50\s*%?\s*\)/ i radnavnet.
+      Prosenten står alltid i navnet når fordeling er brukt ("H Fordør (30%)"), så fravær er
+      her EKTE informasjon – derfor ingen "behold ved tvil"-fallback, i motsetning til
+      krev3sjikt/krevAarFra.
+
+   6. UB-BEGRUNNELSEN PASSET IKKE PÅ RUSTJOBB. NH16233 har ingen flaterette-post – taket er
+      slipt for rust ("TAKPLATE, slipe rust + etterarbeid, Reparasjon 150") – men teksten sa
+      "Retting av stål/alu utløser normalt UB". Funnet var riktig (Martin: rustbeskyttelse og
+      UB skal med ved rustsliping), begrunnelsen var det ikke. En takstmann som leter etter
+      rettearbeidet finner ingenting og forkaster et ekte funn. Ordlyden nevner nå alle tre
+      utløserne: retting, skift eller rustsliping.
+
+   IKKE MED (venter på ny mekanikk, v2.91): årsmodell parset fra modellkoden i sidehodet
+   (05-29300-2023 / 58-29549-2026) + kombinert modell+år-filter for PANSER_EMBLEM på Model Y
+   2026; dekningsoversikten; visning av detaljspes_pos i debugvisningen; og markering av
+   punkter der koden OVERSTYRER Claude (grunning på EP94160 sto som "ikke relevant" i
+   punkt-for-punkt mens forslaget lå i DBS-boksen).
+
+   IKKE MED (bevisst, Martin: "vi roter ikke med den nå"): poster ført for MYE, f.eks. 8p
+   emblem på et panser uten emblem. Programmet holder seg til manglende poster.
+*/
 
 /* AutoPell v2.89 – endringer fra v2.88 (4 punkter):
 
@@ -3015,7 +3058,7 @@ function takstSammendrag(t){
     TAK_DEMO:{kat:/\btak(?:plate)?\b/i,optype:['N','G'],skjulHvisDetaljFunnet:['trekk','løsne'],navn:'De/Mo innvendige detaljer',mal:'Vurder å legge til De/Mo innvendige detaljer (himling)',farge:'rød'},
     TAK_TILST_TAKRENNE:{kat:/\btak(?:plate)?\b/i,optype:['N','G'],navn:'Tilstøtende takrenne/A-stolpe',mal:'Vurder å ta med tilstøtende flate mot takrenne/A-stolpe begge sider (fargeavhengig)',intern:'SKADEMARKERING STYRER SIDEN: takstmannen markerer skaden i bildene med røde firkanter/piler. FINN BILENS RETNING FØRST. Ikke anta at venstre i bildet er fremover – det avhenger av hvilken side av bilen som er fotografert. Faste holdepunkter: sidespeilet sitter alltid i FREMRE ende av fordøra. Frontrute og vindusviskere står mot FRONTEN; bakrute og eventuell takspoiler mot HEKKEN. Hjulbuen foran en fordør er FORhjulet; hjulbuen bak en bakdør er BAKhjulet. Dørhåndtak sitter i BAKRE halvdel av sin egen dør. Tanklokk sitter alltid på bakskjermen. B-stolpen er den brede stolpen mellom fordør og bakdør. Klarer du ikke å fastslå retningen ut fra minst ETT slikt holdepunkt, skal posisjonsvurderingen under IKKE brukes – sett \"usikker\". ÉN LINJE VED UKJENT RETNING: klarer du ikke å fastslå retningen, skal du IKKE skrive et eget forslag per naboflate. Skriv ÉN linje som ber takstmannen vurdere tilstøtende mot den flaten skaden ligger nærmest, og la de øvrige tilstøtende-punktene stå som \"usikker\" UTEN egen forslagstekst. To nesten like linjer om samme vurdering er støy. Naboflaten for denne ID-en er takrenna (SIDEKANT av taket). Ligger skaden nærmest DENNE flaten, er den aktuell. Ligger den tydelig i motsatt ende av delen, er den lite aktuell. Sitter markeringen midt på delen, regn den mot den NÆRMESTE kanten framfor å utelukke begge. VIKTIG: bruk ALDRI "ikke relevant" på grunn av tvil om plassering – tvil gir "usikker" (v2.43-regelen). "ikke relevant" er kun for tilfeller der flaten åpenbart ikke er berørt, eller der en annen regel utelukker den (svart bil, tilstøtende-post, delen allerede i lakkspes). Unngå å foreslå BEGGE naboflatene på samme del med mindre skaden faktisk strekker seg over hele delen.',farge:'gul'},
     TAK_UB_INNVENDIG:{kat:/\btak(?:plate)?\b/i,optype:['N','G'],navn:'UB innvendig tak',mal:'Vurder å legge til UB understellsbehandling innvendig tak (150kr)',farge:'rød'},
-    TAK_TAKRAILS:{kat:/\btak(?:plate)?\b/i,optype:['N','G'],navn:'Takrails/skinner',mal:'Sjekk om takrails/skinner må demonteres',farge:'gul'},
+    TAK_TAKRAILS:{kat:/\btak(?:plate)?\b/i,optype:['N','G'],skjulHvisDetaljFunnet:['rails','takrails','takskinne','skinne'],navn:'Takrails/skinner',mal:'Sjekk om takrails/skinner må demonteres',farge:'gul'},
     TAK_ANTENNER:{kat:/\btak(?:plate)?\b/i,optype:['N','G'],skjulHvisDetaljFunnet:['antenne'],navn:'Antenner',mal:'Sjekk om antenner må demonteres',farge:'gul'},
 
     FORSKJERM_N_RUST:{deterministisk:true,navn:'Rustbeskyttelse',mal:'',farge:'rød'},
@@ -3063,27 +3106,27 @@ function takstSammendrag(t){
 
     // v2.32 – Fase 1: Støtfanger/plastrep/50%-regelen
     STOTFANGER_HTT_LOSE:{kat:/støtfanger/i,optype:['N','G'],sjekkHttAllerede:true,navn:'HTT løse deler',mal:'Vurder HTT 15p per løs del på støtfangeren – slepekrokdeksel, spyledeksel eller lister.',intern:'ER STØTFANGEREN I DET HELE TATT LAKKERT? Følg stigen i rekkefølge og STOPP på første trinn som gir svar. (1) Har støtfangeren egen lakk-post i lakkspesifikasjonen? Da er den lakkert – ferdig, ikke vurder bildet. (2) Står \"nedre del støtfanger\" eller \"spoiler\" i reservedelslista? Da skiftes nedre del som egen del, og øvre del er lakkert. (3) Er støtfangeren ført med 50% fordeling øvre/nedre? Da er øvre del lakkert og nedre del ulakkert. (4) FØRST NÅ: se på bildet. Ulakkert plast er MATT og ru uten gjenskinn, ofte med synlig kornet tekstur; lakkert flate er BLANK og speiler omgivelsene. Sammenlign støtfangeren direkte med karosseriet like over i samme bilde – er kontrasten tydelig, er den ulakkert. Dette gjelder også svarte biler: samme farge, ulik overflate. En ULAKKERT støtfanger skal ALDRI ha lakk-post, HTT, grunning eller maskering – heller ikke når den skiftes. Klarer du ikke å avgjøre overflaten, sett \"usikker\" (v2.43). POSITIVLISTE – KUN slepekrokdeksel, spyledeksel, lister. Bekreft med bilder før forslag. Gjelder KUN hvis støtfangeren er lakkert i bilens farge. ALDRI foreslå sensorer, sensorholdere, brakketter eller andre deler bak støtfangeren – disse lakkes aldri.',farge:'gul'},
-    STOTFANGER_DIAGNOSE:{kat:/støtfanger/i,optype:['N','G'],krevAarFra:2017,navn:'Diagnose (feilkoder)',mal:'Vurder å legge til diagnose (slette feilkoder, 100p) – støtfanger er demontert',farge:'gul'},
+    STOTFANGER_DIAGNOSE:{kat:/støtfanger/i,optype:['N','G'],krevAarFra:2017,ikkeVedModell:[/tesla/i],navn:'Diagnose (feilkoder)',mal:'Vurder å legge til diagnose (slette feilkoder, 100p) – støtfanger er demontert',farge:'gul'},
     STOTFANGER_KLIPS:{deterministisk:true,navn:'Klips',mal:'',farge:'gul'},
     STOTFANGER_SVEISEMATERIELL:{krevPlastrepOver:300,kat:/støtfanger/i,optype:['N','G'],navn:'Sveisemateriell plastrep',mal:'Vurder å legge til kostnad for plastsveisemateriell',intern:'TERSKEL: foreslås KUN når plastreparasjonen på DENNE delen er over 300p – grensen gjelder per del, ikke summen. Les Plastreparasjon-seksjonen i arbeidsspesifikasjonen, der hver del står med sin egen tid. Er delen under 300p: ikke relevant. Krever i tillegg at "ut og innvendig skade" er huket av i plastspesifikasjonen, og gjelder kun ved reparasjon, ikke skift. Over 300p betyr ikke i seg selv at delen ER sveist – skriv forslaget med delnavn og tall, og med sveising som forutsetning, slik: "Støtfangerdeksel bak er plastreparert med 340p – er den sveist, vurder å ta med kostnad for plastsveisemateriell."',farge:'gul'},
     STOTFANGER_GRUNNING_TOPPLAKK:{kat:/støtfanger/i,optype:['N','G'],navn:'Grunning for topplakk',mal:'Vurder å legge til grunning for topplakk i annetbilde',intern:'ER STØTFANGEREN I DET HELE TATT LAKKERT? Følg stigen i rekkefølge og STOPP på første trinn som gir svar. (1) Har støtfangeren egen lakk-post i lakkspesifikasjonen? Da er den lakkert – ferdig, ikke vurder bildet. (2) Står \"nedre del støtfanger\" eller \"spoiler\" i reservedelslista? Da skiftes nedre del som egen del, og øvre del er lakkert. (3) Er støtfangeren ført med 50% fordeling øvre/nedre? Da er øvre del lakkert og nedre del ulakkert. (4) FØRST NÅ: se på bildet. Ulakkert plast er MATT og ru uten gjenskinn, ofte med synlig kornet tekstur; lakkert flate er BLANK og speiler omgivelsene. Sammenlign støtfangeren direkte med karosseriet like over i samme bilde – er kontrasten tydelig, er den ulakkert. Dette gjelder også svarte biler: samme farge, ulik overflate. En ULAKKERT støtfanger skal ALDRI ha lakk-post, HTT, grunning eller maskering – heller ikke når den skiftes. Klarer du ikke å avgjøre overflaten, sett \"usikker\" (v2.43).',farge:'rød'},
     STOTFANGER_FORAN_KALIBRERING_RADAR:{deterministisk:true,navn:'Kalibrering radar',mal:'',farge:'lilla'},
-    STOTFANGER_FORAN_SPYLEVAESKE:{kat:/støtfanger foran/i,optype:['N','G'],navn:'Spylervæske',mal:'Vurder å legge til kostnad for spylervæske (100kr) – bilen har lyktespylere som demonteres',farge:'gul'},
+    STOTFANGER_FORAN_SPYLEVAESKE:{kat:/støtfanger foran/i,optype:['N','G'],ikkeVedModell:[/tesla/i],navn:'Spylervæske',mal:'Vurder å legge til kostnad for spylervæske (100kr) – bilen har lyktespylere som demonteres',farge:'gul'},
     STOTFANGER_BAK_FILSKIFTESENSOR:{deterministisk:true,navn:'Kalibrering filskiftesensor',mal:'',farge:'lilla'},
     // v2.47: krev3sjikt – disse to gjelder KUN ved 3-sjikts farge. Lakktype leses
     // deterministisk fra taksten (kun Lakktype 3 = 3-sjikt) i stedet for at Claude gjetter.
     STOTFANGER_FORAN_TILST_FORSKJERM:{kat:/støtfanger foran/i,optype:['N','G'],krev3sjikt:true,ikkeVedSvart:true,navn:'Tilstøtende forskjerm (3-sjikt)',mal:'Vurder å ta med tilstøtende flate mot forskjerm – 3-sjikts farge (Lakktype 3)',intern:'SKADEMARKERING STYRER SIDEN: takstmannen markerer skaden i bildene med røde firkanter/piler. FINN BILENS RETNING FØRST. Ikke anta at venstre i bildet er fremover – det avhenger av hvilken side av bilen som er fotografert. Faste holdepunkter: sidespeilet sitter alltid i FREMRE ende av fordøra. Frontrute og vindusviskere står mot FRONTEN; bakrute og eventuell takspoiler mot HEKKEN. Hjulbuen foran en fordør er FORhjulet; hjulbuen bak en bakdør er BAKhjulet. Dørhåndtak sitter i BAKRE halvdel av sin egen dør. Tanklokk sitter alltid på bakskjermen. B-stolpen er den brede stolpen mellom fordør og bakdør. Klarer du ikke å fastslå retningen ut fra minst ETT slikt holdepunkt, skal posisjonsvurderingen under IKKE brukes – sett \"usikker\". ÉN LINJE VED UKJENT RETNING: klarer du ikke å fastslå retningen, skal du IKKE skrive et eget forslag per naboflate. Skriv ÉN linje som ber takstmannen vurdere tilstøtende mot den flaten skaden ligger nærmest, og la de øvrige tilstøtende-punktene stå som \"usikker\" UTEN egen forslagstekst. To nesten like linjer om samme vurdering er støy. Naboflaten for denne ID-en er forskjermen (SIDEKANT av fremre støtfanger). Ligger skaden nærmest DENNE flaten, er den aktuell. Ligger den tydelig i motsatt ende av delen, er den lite aktuell. Sitter markeringen midt på delen, regn den mot den NÆRMESTE kanten framfor å utelukke begge. VIKTIG: bruk ALDRI "ikke relevant" på grunn av tvil om plassering – tvil gir "usikker" (v2.43-regelen). "ikke relevant" er kun for tilfeller der flaten åpenbart ikke er berørt, eller der en annen regel utelukker den (svart bil, tilstøtende-post, delen allerede i lakkspes). Unngå å foreslå BEGGE naboflatene på samme del med mindre skaden faktisk strekker seg over hele delen.',farge:'gul'},
     STOTFANGER_BAK_TILST_BAKSKJERM:{kat:/støtfanger bak/i,optype:['N','G'],krev3sjikt:true,ikkeVedSvart:true,navn:'Tilstøtende bakskjerm (3-sjikt)',mal:'Vurder å ta med tilstøtende flate mot bakskjerm – 3-sjikts farge (Lakktype 3)',intern:'SKADEMARKERING STYRER SIDEN: takstmannen markerer skaden i bildene med røde firkanter/piler. FINN BILENS RETNING FØRST. Ikke anta at venstre i bildet er fremover – det avhenger av hvilken side av bilen som er fotografert. Faste holdepunkter: sidespeilet sitter alltid i FREMRE ende av fordøra. Frontrute og vindusviskere står mot FRONTEN; bakrute og eventuell takspoiler mot HEKKEN. Hjulbuen foran en fordør er FORhjulet; hjulbuen bak en bakdør er BAKhjulet. Dørhåndtak sitter i BAKRE halvdel av sin egen dør. Tanklokk sitter alltid på bakskjermen. B-stolpen er den brede stolpen mellom fordør og bakdør. Klarer du ikke å fastslå retningen ut fra minst ETT slikt holdepunkt, skal posisjonsvurderingen under IKKE brukes – sett \"usikker\". ÉN LINJE VED UKJENT RETNING: klarer du ikke å fastslå retningen, skal du IKKE skrive et eget forslag per naboflate. Skriv ÉN linje som ber takstmannen vurdere tilstøtende mot den flaten skaden ligger nærmest, og la de øvrige tilstøtende-punktene stå som \"usikker\" UTEN egen forslagstekst. To nesten like linjer om samme vurdering er støy. Naboflaten for denne ID-en er bakskjermen (SIDEKANT av bakre støtfanger). Ligger skaden nærmest DENNE flaten, er den aktuell. Ligger den tydelig i motsatt ende av delen, er den lite aktuell. Sitter markeringen midt på delen, regn den mot den NÆRMESTE kanten framfor å utelukke begge. VIKTIG: bruk ALDRI "ikke relevant" på grunn av tvil om plassering – tvil gir "usikker" (v2.43-regelen). "ikke relevant" er kun for tilfeller der flaten åpenbart ikke er berørt, eller der en annen regel utelukker den (svart bil, tilstøtende-post, delen allerede i lakkspes). Unngå å foreslå BEGGE naboflatene på samme del med mindre skaden faktisk strekker seg over hele delen.',farge:'gul'},
-    STOTFANGER_50_MASKERING:{kat:/støtfanger/i,optype:['N','G'],navn:'Maskering ved 50%',mal:'Vurder å huke av maskering-boksen i utvendig lakk-tabellen – støtfangeren er satt til 50% lakk',intern:'ER STØTFANGEREN I DET HELE TATT LAKKERT? Følg stigen i rekkefølge og STOPP på første trinn som gir svar. (1) Har støtfangeren egen lakk-post i lakkspesifikasjonen? Da er den lakkert – ferdig, ikke vurder bildet. (2) Står \"nedre del støtfanger\" eller \"spoiler\" i reservedelslista? Da skiftes nedre del som egen del, og øvre del er lakkert. (3) Er støtfangeren ført med 50% fordeling øvre/nedre? Da er øvre del lakkert og nedre del ulakkert. (4) FØRST NÅ: se på bildet. Ulakkert plast er MATT og ru uten gjenskinn, ofte med synlig kornet tekstur; lakkert flate er BLANK og speiler omgivelsene. Sammenlign støtfangeren direkte med karosseriet like over i samme bilde – er kontrasten tydelig, er den ulakkert. Dette gjelder også svarte biler: samme farge, ulik overflate. En ULAKKERT støtfanger skal ALDRI ha lakk-post, HTT eller grunning – heller ikke når den skiftes. MERK OM MASKERING: maskering er UNNTAKET. Ved 50% fordeling skal nedre, ulakkerte del maskeres nettopp fordi øvre del lakkeres – da er maskering aktuell selv om nedre del er ulakkert. Maskering er kun uaktuelt når HELE støtfangeren er ulakkert. Klarer du ikke å avgjøre overflaten, sett \"usikker\" (v2.43).',farge:'rød'},
-    STOTFANGER_50_POLERE_FLIKK:{poeng:20,kat:/støtfanger/i,optype:['N','G'],navn:'Polere flikk ved 50%',mal:'Vurder polere flikk 20p i annetbildet – påkrevd ved 50%-lakkering av støtfanger',intern:'ER STØTFANGEREN I DET HELE TATT LAKKERT? Følg stigen i rekkefølge og STOPP på første trinn som gir svar. (1) Har støtfangeren egen lakk-post i lakkspesifikasjonen? Da er den lakkert – ferdig, ikke vurder bildet. (2) Står \"nedre del støtfanger\" eller \"spoiler\" i reservedelslista? Da skiftes nedre del som egen del, og øvre del er lakkert. (3) Er støtfangeren ført med 50% fordeling øvre/nedre? Da er øvre del lakkert og nedre del ulakkert. (4) FØRST NÅ: se på bildet. Ulakkert plast er MATT og ru uten gjenskinn, ofte med synlig kornet tekstur; lakkert flate er BLANK og speiler omgivelsene. Sammenlign støtfangeren direkte med karosseriet like over i samme bilde – er kontrasten tydelig, er den ulakkert. Dette gjelder også svarte biler: samme farge, ulik overflate. En ULAKKERT støtfanger skal ALDRI ha lakk-post, HTT, grunning eller maskering – heller ikke når den skiftes. Klarer du ikke å avgjøre overflaten, sett \"usikker\" (v2.43).',farge:'gul'},
-    STOTFANGER_50_SMADELER:{kat:/støtfanger/i,optype:['N','G'],navn:'Smådeler feilaktig 50%',mal:'Sjekk om slepekrokdeksel, spyledeksel eller lister står på 50% lakk – de skal være 100%, legg til differansen.',intern:'ER STØTFANGEREN I DET HELE TATT LAKKERT? Følg stigen i rekkefølge og STOPP på første trinn som gir svar. (1) Har støtfangeren egen lakk-post i lakkspesifikasjonen? Da er den lakkert – ferdig, ikke vurder bildet. (2) Står \"nedre del støtfanger\" eller \"spoiler\" i reservedelslista? Da skiftes nedre del som egen del, og øvre del er lakkert. (3) Er støtfangeren ført med 50% fordeling øvre/nedre? Da er øvre del lakkert og nedre del ulakkert. (4) FØRST NÅ: se på bildet. Ulakkert plast er MATT og ru uten gjenskinn, ofte med synlig kornet tekstur; lakkert flate er BLANK og speiler omgivelsene. Sammenlign støtfangeren direkte med karosseriet like over i samme bilde – er kontrasten tydelig, er den ulakkert. Dette gjelder også svarte biler: samme farge, ulik overflate. En ULAKKERT støtfanger skal ALDRI ha lakk-post, HTT, grunning eller maskering – heller ikke når den skiftes. Klarer du ikke å avgjøre overflaten, sett \"usikker\" (v2.43). POSITIVLISTE – KUN slepekrokdeksel, spyledeksel, lister. Bekreft med bilder før forslag. IKKE p-sensorer, sensorholdere eller andre deler bak støtfangeren – disse lakkes aldri og skal aldri stå på 50% i utgangspunktet.',farge:'rød'},
+    STOTFANGER_50_MASKERING:{krev50Prosent:true,kat:/støtfanger/i,optype:['N','G'],navn:'Maskering ved 50%',mal:'Vurder å huke av maskering-boksen i utvendig lakk-tabellen – støtfangeren er satt til 50% lakk',intern:'ER STØTFANGEREN I DET HELE TATT LAKKERT? Følg stigen i rekkefølge og STOPP på første trinn som gir svar. (1) Har støtfangeren egen lakk-post i lakkspesifikasjonen? Da er den lakkert – ferdig, ikke vurder bildet. (2) Står \"nedre del støtfanger\" eller \"spoiler\" i reservedelslista? Da skiftes nedre del som egen del, og øvre del er lakkert. (3) Er støtfangeren ført med 50% fordeling øvre/nedre? Da er øvre del lakkert og nedre del ulakkert. (4) FØRST NÅ: se på bildet. Ulakkert plast er MATT og ru uten gjenskinn, ofte med synlig kornet tekstur; lakkert flate er BLANK og speiler omgivelsene. Sammenlign støtfangeren direkte med karosseriet like over i samme bilde – er kontrasten tydelig, er den ulakkert. Dette gjelder også svarte biler: samme farge, ulik overflate. En ULAKKERT støtfanger skal ALDRI ha lakk-post, HTT eller grunning – heller ikke når den skiftes. MERK OM MASKERING: maskering er UNNTAKET. Ved 50% fordeling skal nedre, ulakkerte del maskeres nettopp fordi øvre del lakkeres – da er maskering aktuell selv om nedre del er ulakkert. Maskering er kun uaktuelt når HELE støtfangeren er ulakkert. Klarer du ikke å avgjøre overflaten, sett \"usikker\" (v2.43).',farge:'rød'},
+    STOTFANGER_50_POLERE_FLIKK:{poeng:20,krev50Prosent:true,kat:/støtfanger/i,optype:['N','G'],navn:'Polere flikk ved 50%',mal:'Vurder polere flikk 20p i annetbildet – påkrevd ved 50%-lakkering av støtfanger',intern:'ER STØTFANGEREN I DET HELE TATT LAKKERT? Følg stigen i rekkefølge og STOPP på første trinn som gir svar. (1) Har støtfangeren egen lakk-post i lakkspesifikasjonen? Da er den lakkert – ferdig, ikke vurder bildet. (2) Står \"nedre del støtfanger\" eller \"spoiler\" i reservedelslista? Da skiftes nedre del som egen del, og øvre del er lakkert. (3) Er støtfangeren ført med 50% fordeling øvre/nedre? Da er øvre del lakkert og nedre del ulakkert. (4) FØRST NÅ: se på bildet. Ulakkert plast er MATT og ru uten gjenskinn, ofte med synlig kornet tekstur; lakkert flate er BLANK og speiler omgivelsene. Sammenlign støtfangeren direkte med karosseriet like over i samme bilde – er kontrasten tydelig, er den ulakkert. Dette gjelder også svarte biler: samme farge, ulik overflate. En ULAKKERT støtfanger skal ALDRI ha lakk-post, HTT, grunning eller maskering – heller ikke når den skiftes. Klarer du ikke å avgjøre overflaten, sett \"usikker\" (v2.43).',farge:'gul'},
+    STOTFANGER_50_SMADELER:{krev50Prosent:true,kat:/støtfanger/i,optype:['N','G'],navn:'Smådeler feilaktig 50%',mal:'Sjekk om slepekrokdeksel, spyledeksel eller lister står på 50% lakk – de skal være 100%, legg til differansen.',intern:'ER STØTFANGEREN I DET HELE TATT LAKKERT? Følg stigen i rekkefølge og STOPP på første trinn som gir svar. (1) Har støtfangeren egen lakk-post i lakkspesifikasjonen? Da er den lakkert – ferdig, ikke vurder bildet. (2) Står \"nedre del støtfanger\" eller \"spoiler\" i reservedelslista? Da skiftes nedre del som egen del, og øvre del er lakkert. (3) Er støtfangeren ført med 50% fordeling øvre/nedre? Da er øvre del lakkert og nedre del ulakkert. (4) FØRST NÅ: se på bildet. Ulakkert plast er MATT og ru uten gjenskinn, ofte med synlig kornet tekstur; lakkert flate er BLANK og speiler omgivelsene. Sammenlign støtfangeren direkte med karosseriet like over i samme bilde – er kontrasten tydelig, er den ulakkert. Dette gjelder også svarte biler: samme farge, ulik overflate. En ULAKKERT støtfanger skal ALDRI ha lakk-post, HTT, grunning eller maskering – heller ikke når den skiftes. Klarer du ikke å avgjøre overflaten, sett \"usikker\" (v2.43). POSITIVLISTE – KUN slepekrokdeksel, spyledeksel, lister. Bekreft med bilder før forslag. IKKE p-sensorer, sensorholdere eller andre deler bak støtfangeren – disse lakkes aldri og skal aldri stå på 50% i utgangspunktet.',farge:'rød'},
 
     // v2.35 – Deterministiske parser-betingelser: injiseres DIREKTE av koden når parseren
     // oppdager betingelsen. Claude er ikke involvert (deterministisk:true → vises aldri i
     // DELSTATUS-ID-listene). Dette fjerner en hel klasse konkurrerende prompt-instrukser.
     DET_BRUKT_DEL_SOM_N:{deterministisk:true,navn:'Brukt del som N',mal:'',farge:'rød'},
     DET_TESLA_BAKDOR_FOLIE:{poeng:50,deterministisk:true,navn:'Tesla folie/tape-montering',mal:'Vurder å legge til folie/tape-montering 50p arbeid i annetbildet (Tesla-regel ved bakdør)',farge:'gul'},
-    DET_UB_VED_FLATERETTE:{deterministisk:true,navn:'UB ved flaterette',mal:'Vurder om UB (understellsbehandling) mangler – flaterette-kostnad finnes i taksten men UB er ikke ført. Retting av stål/alu utløser normalt UB.',farge:'gul'},
+    DET_UB_VED_FLATERETTE:{deterministisk:true,navn:'UB ved flaterette',mal:'Vurder om UB (understellsbehandling) mangler – flaterette-kostnad finnes i taksten men UB er ikke ført. Metallarbeid som blottlegger stål – retting, skift eller rustsliping – utløser normalt UB.',farge:'gul'},
     DET_KANAL_TILSTOTENDE:{deterministisk:true,navn:'Tilstøtende ved kanal',mal:'',farge:'gul'},
     DET_SMADEL_50:{deterministisk:true,navn:'Smådel på 50%',mal:'',farge:'rød'},
     DET_FRONTKAMERA_KALIBRERING:{deterministisk:true,navn:'Kalibrering frontkamera',mal:'',farge:'lilla'},
@@ -3138,6 +3181,20 @@ function takstSammendrag(t){
       if(r.krevPlastrepOver){
         const maks=Math.max(0,...((t.plastreparasjon||[]).map(x=>x.tid||0)));
         if(maks>0&&maks<=r.krevPlastrepOver)return false;
+      }
+      // v2.90: krev50Prosent – 50%-reglene skal KUN leveres når raden faktisk er ført med
+      // 50% fordeling. Tesla Model Y EP94160: støtfanger foran sto med 114,3 dm² uten noen
+      // prosentmarkør, men maskering/polere flikk/smådeler ble likevel alle tre sendt til
+      // Claude. Prosenten står i selve radnavnet når den finnes ("H Fordør (30%)",
+      // "Støtfanger foran (50%)"), så dette er kodbart og trenger ikke Claudes skjønn.
+      // MERK: her er fravær ekte informasjon, ikke manglende data – DBS skriver alltid
+      // prosenten i navnet når fordeling er brukt. Derfor ingen "behold ved tvil"-fallback.
+      // Sjekken går mot HELE lakkspes, ikke bare denne raden: STOTFANGER_50_SMADELER gjelder
+      // nettopp tilfellet der SMÅDELEN bærer prosenten ("List H støtfanger bak (50%)") mens
+      // hoveddel-raden ikke gjør det. En radbundet sjekk ville drept den regelen.
+      if(r.krev50Prosent){
+        const harHalv=(t.lakkspes||[]).some(x=>x.navn&&/\(\s*50\s*%?\s*\)/i.test(x.navn));
+        if(!harHalv)return false;
       }
       if(r.ikkeVedModell&&Array.isArray(r.ikkeVedModell)){
         const mod=(t.bil&&t.bil.modell)||'';
@@ -3207,7 +3264,13 @@ function takstSammendrag(t){
           // initialization") bekreftet i produksjon på VW ID.5 EE34706. Denne blokken trenger
           // ikke synonymordboken – dør/skjerm-synonymene håndteres allerede eksplisitt under.
           const dn=d.navn.toLowerCase().replace(/^[vh]\s+/,'').replace(/\(.*?\)/g,'').replace(/,.*$/,'').trim();
-          return t.detaljspes_pos.find(blokk=>{
+          // v2.90: TOM DUBLETT-BLOKK. Inndata-spesifikasjonen har SAMME overskrift som
+          // Detaljspesifikasjon ("Pos. 19 Takplate Tid dm ² Beløp"), så det parses to blokker
+          // for samme hoveddel – den ekte med alle komponentene, og en tom fra Inndata-siden.
+          // Ford Ranger NH16233: rekkefølgen reddet oss (den ekte kom først), men treffer
+          // .find() den tomme først, finnes ingen søkeord, og skjulHvisDetaljFunnet lar
+          // ID-en stå uten at noe vises noe sted. Vi leter derfor i blokker MED innhold først.
+          const treff=blokker=>blokker.find(blokk=>{
             let pn=blokk.pos.toLowerCase().replace(/\s+/g,' ').trim();
             pn=pn.replace(/^([hv])\s+/,'').replace(/\s+([hv])$/,'');
             // v2.57: bekreftet miss på Citroën E-C4 X EF78691 – Detaljspesifikasjon brukte
@@ -3219,6 +3282,8 @@ function takstSammendrag(t){
                  .replace(/^skjerm\s+(?:frem(?:re)?|foran|fr\.?|fre\.?)$/,'forskjerm').replace(/^skjerm\s+(?:bak(?:re|r)?|bk\.?)$/,'bakskjerm');
             return pn===dn||dn.includes(pn)||pn.includes(dn);
           });
+          const medInnhold=t.detaljspes_pos.filter(b=>b.items&&b.items.length);
+          return treff(medInnhold)||treff(t.detaljspes_pos);
         };
         const blokk=finnBlokk();
         if(blokk){
@@ -3538,7 +3603,7 @@ function takstSammendrag(t){
   const flateretteKr=t.sammenstilling['Karosseri - Flaterette'];
   if(flateretteKr&&flateretteKr>0&&!t.sammenstilling.ub_kr){
     s+=`  Flaterette-kostnad finnes (${flateretteKr} kr) men UB IKKE ført\n`;
-    s+=`     → Retting av stål/alu-deler utløser normalt underbygg (UB, 120kr pr. del). Vurder om UB mangler.\n`;
+    s+=`     → Metallarbeid som blottlegger stål utløser normalt underbygg (UB, 120kr pr. del) – retting, skift ELLER rustsliping. Vurder om UB mangler.\n`;
   }
   // v2.9: Tilstøtende ved kanal. Ved kanal N skal det minnes om tilstøtende A-stolpe, B-stolpe
   // og bakskjerm. Ved kanal G (retting) er kun bakskjerm relevant (B-stolpe er mye sjeldnere).
