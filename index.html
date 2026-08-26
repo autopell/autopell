@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.94 – Smart kontroll av takster</title>
+<title>AutoPell v2.95 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.94</div>
+    <div class="version-badge">v2.95</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -275,6 +275,28 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v2.95 – endringer fra v2.94 (1 punkt – retter v2.94):
+
+   "TAK" LÅ INNI "DØRHÅNDTAK". v2.94-sperren brukte t.includes(delnavn) mot en liste med kjente
+   delnavn. På Hyundai Ioniq EB49828 nevner forslaget dørhåndtak – bokstavene t-a-k står inni det
+   ordet – så koden konkluderte at TAKET var nevnt. Taket har ingen lakk-post i denne taksten, og
+   dermed reddet sikkerhetsventilen ("behold hvis én nevnt flate mangler post") linja på et helt
+   falskt grunnlag. Taket er ikke i taksten i det hele tatt.
+
+   Dette er tredje gang samme klasse feil dukker opp: /\bradar\b/ som var for SMAL, "bakskjerm
+   bak" som er en STEDSANGIVELSE og ikke en del, og nå delnavn som delstreng inni andre ord.
+   Delnavn må alltid matches med ordgrense.
+
+   NÅ: hver oppføring er [regex med \b, kanonisk navn], med bøyninger (fordøren/fordøra,
+   bakskjermen, taket/takplaten). Flere skrivemåter peker på SAMME kanoniske del, slik at
+   tak og takplate ikke teller som to ulike flater og lager et nytt smutthull.
+
+   Testet mot fem formuleringer: EB49828-linja fjernes nå (nevnt: fordør, bakdør, bakskjerm –
+   alle har post), en tak-variant der takrenne/A-stolpe mangler post beholdes, en navngitt
+   "mot fordør" går til v2.89-sperren, en hedge der bakskjermen mangler post beholdes, og
+   "taket" mot en takplate-post regnes som samme del.
+*/
 
 /* AutoPell v2.94 – endringer fra v2.93 (1 punkt):
 
@@ -5426,13 +5448,32 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
       // lakk-post. Nevner den en naboflate UTEN post, står forslaget. Da kan sperren ikke
       // drepe et ekte funn fordi vertsdelen tilfeldigvis er nevnt i begrunnelsen.
       if(parsed.sammendrag&&Array.isArray(parsed.sammendrag.dbs_handlinger)){
-        const kjenteDeler=['fordør','bakdør','panser','bakskjerm','forskjerm','tak','takplate','kanal','a-stolpe','astolpe','b-stolpe','takrenne','støtfanger'];
+        // v2.95: ORDGRENSER. v2.94 brukte t.includes(delnavn), og "tak" ligger inni "DØRHÅNDTAK".
+        // EB49828: forslaget nevner dørhåndtak, koden leste det som at TAKET var nevnt, taket har
+        // ingen lakk-post – og sikkerhetsventilen "behold hvis én nevnt flate mangler post" reddet
+        // linja på falskt grunnlag. Samme klasse feil som /\bradar\b/ og "bakskjerm bak": delnavn
+        // som delstreng treffer inni andre ord.
+        // Hver oppføring er nå [regex, kanonisk navn]. Flere skrivemåter peker på SAMME del, så
+        // tak/takplate ikke blir to ulike "flater" og lager et nytt smutthull.
+        const kjenteDeler=[
+          [/\bfordør(?:a|en|er)?\b/,'fordør'],
+          [/\bbakdør(?:a|en|er)?\b/,'bakdør'],
+          [/\bpanser(?:et)?\b/,'panser'],
+          [/\bbakskjerm(?:en|er)?\b/,'bakskjerm'],
+          [/\bforskjerm(?:en|er)?\b/,'forskjerm'],
+          [/\btak(?:et|plate|platen|plata)?\b/,'tak'],
+          [/\bkanal(?:en)?\b/,'kanal'],
+          [/\ba[-\s]?stolpe(?:n)?\b/,'a-stolpe'],
+          [/\bb[-\s]?stolpe(?:n)?\b/,'b-stolpe'],
+          [/\btakrenne(?:n|a)?\b/,'takrenne'],
+          [/\bstøtfanger(?:en)?\b/,'støtfanger']
+        ];
         parsed.sammendrag.dbs_handlinger=parsed.sammendrag.dbs_handlinger.filter(d=>{
           const t=d.toLowerCase();
           if(!/tilst[øo]tende/.test(t))return true;
           // Kun den vage formen: "mot den nærmeste naboflaten" o.l. – ingen navngitt del etter "mot".
           if(!/\bmot\s+(den|de|nærmeste|naboflaten|nabo)/.test(t))return true;
-          const nevnt=kjenteDeler.filter(n=>t.includes(n));
+          const nevnt=[...new Set(kjenteDeler.filter(([re])=>re.test(t)).map(([,navn])=>navn))];
           if(!nevnt.length)return true;
           const alleDekket=nevnt.every(n=>delerILakkspes.some(x=>x.startsWith(n)||n.startsWith(x)));
           if(alleDekket){
