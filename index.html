@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.93 – Smart kontroll av takster</title>
+<title>AutoPell v2.94 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.93</div>
+    <div class="version-badge">v2.94</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -275,6 +275,35 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v2.94 – endringer fra v2.93 (1 punkt):
+
+   TILSTØTENDE MOT EN FLATE SOM ALLEREDE HAR LAKK-POST – nå også når forslaget ikke NAVNGIR
+   naboflaten.
+
+   Hyundai Ioniq EB49828: "Vurder om skaden ligger nærmest bakskjermen (bakre kant) eller
+   fordøren, og ta i så fall med tilstøtende flate mot den nærmeste naboflaten." Begge flatene
+   sto allerede som T-poster i lakkspes (7524 H Fordør under begrensning, 6743 H Bakskjerm over
+   begrensning). Forslaget var en dublett av det taksten alt inneholdt. Martin: "fordør står jo
+   oppført som tilstøtende allerede".
+
+   HVORFOR v2.89-SPERREN IKKE TOK DEN: den krever at naboflaten står rett etter "mot" – nettopp
+   for ikke å gjenta v2.89-feilen der sperren leste hele setningen og drepte ekte funn fordi
+   VERTSDELEN var nevnt i begrunnelsen. Hedge-linja fra v2.87 ("mot den nærmeste naboflaten")
+   navngir ingen flate etter "mot", og gled derfor gjennom.
+
+   NY SPERRE, KUN FOR DEN VAGE FORMEN: treffer bare linjer som sier "mot den/de/nærmeste/
+   naboflaten", og fjerner dem KUN hvis ALLE deler linja nevner allerede har lakk-post. Nevner
+   den én flate uten post, står forslaget. Den sikkerhetsventilen er det som gjør at sperren
+   ikke kan gjenta v2.89: at vertsdelen er nevnt kan aldri alene utløse fjerning, siden en ekte
+   naboflate uten post da også ville vært nevnt.
+
+   Regelen fantes fra før – men bare som prosa, både i den generelle instruksen og i hver enkelt
+   intern-tekst. Fjerde gang samme dag at en prosa-instruks ikke holdt. Testet mot fire
+   formuleringer: EB49828-linja fjernes, en tak-variant der takrenne/A-stolpe mangler post
+   beholdes, en navngitt "mot fordør" går til v2.89-sperren som før, og et grunning-funn røres
+   ikke.
+*/
 
 /* AutoPell v2.93 – endringer fra v2.92 (1 punkt):
 
@@ -5382,6 +5411,35 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           if(delerILakkspes.some(d=>d.startsWith(delNavn))){
             fjernForslag(new RegExp('tilst[øo]tende[^.]{0,40}?\\bmot\\s+'+delNavn,'i'),`${delNavn} er allerede i lakkspes – ingen tilstøtende mot den`);
           }
+        });
+      }
+
+      // v2.94: HEDGE-LINJA NAVNGIR IKKE NABOFLATEN ETTER "mot", og slapp derfor gjennom v2.89-
+      // sperren over. Hyundai Ioniq EB49828: "Vurder om skaden ligger nærmest bakskjermen
+      // (bakre kant) eller fordøren, og ta i så fall med tilstøtende flate mot den nærmeste
+      // naboflaten." Her sto BEGGE naboflatene allerede som T-poster i lakkspes (7524 H Fordør
+      // under begrensning, 6743 H Bakskjerm over begrensning) – forslaget var altså en dublett
+      // av det som allerede lå i taksten. Martin: "fordør står jo oppført som tilstøtende
+      // allerede". Regelen fantes fra før, men KUN som prosa – fjerde gang samme dag at en
+      // prosa-instruks ikke holdt.
+      // SIKKERHETSVENTIL MOT v2.89-FELLA: vi krever at ALLE deler linja nevner allerede har
+      // lakk-post. Nevner den en naboflate UTEN post, står forslaget. Da kan sperren ikke
+      // drepe et ekte funn fordi vertsdelen tilfeldigvis er nevnt i begrunnelsen.
+      if(parsed.sammendrag&&Array.isArray(parsed.sammendrag.dbs_handlinger)){
+        const kjenteDeler=['fordør','bakdør','panser','bakskjerm','forskjerm','tak','takplate','kanal','a-stolpe','astolpe','b-stolpe','takrenne','støtfanger'];
+        parsed.sammendrag.dbs_handlinger=parsed.sammendrag.dbs_handlinger.filter(d=>{
+          const t=d.toLowerCase();
+          if(!/tilst[øo]tende/.test(t))return true;
+          // Kun den vage formen: "mot den nærmeste naboflaten" o.l. – ingen navngitt del etter "mot".
+          if(!/\bmot\s+(den|de|nærmeste|naboflaten|nabo)/.test(t))return true;
+          const nevnt=kjenteDeler.filter(n=>t.includes(n));
+          if(!nevnt.length)return true;
+          const alleDekket=nevnt.every(n=>delerILakkspes.some(x=>x.startsWith(n)||n.startsWith(x)));
+          if(alleDekket){
+            console.log(`[POST-FILTER] Fjernet: "${d}" – alle nevnte flater (${nevnt.join(', ')}) har allerede lakk-post`);
+            return false;
+          }
+          return true;
         });
       }
 
