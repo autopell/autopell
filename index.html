@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.91 – Smart kontroll av takster</title>
+<title>AutoPell v2.92 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.91</div>
+    <div class="version-badge">v2.92</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -275,6 +275,41 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v2.92 – endringer fra v2.91 (5 punkter):
+
+   1. RESERVEDELSSPESIFIKASJONEN PARSES – den var ikke lest i det hele tatt. Hyundai Ioniq
+      EB49828 avslørte hullet: bakdøra er en BRUKT del, merket "2) Brukt del" i reservedelslista.
+      Markøren lå i taksten hele tiden. Fotnotene matches på TEKST, ikke tall – nummereringen
+      varierer mellom takster. Fotnotemarkører skilles fra priser på at de er ENKELTsifre
+      (1 / 1,2 / 1,5) og aldri har to desimaler.
+
+   2. "FLATERETTE GLEMT" TIER FOR BRUKTE DELER. Brukt del føres ALLTID som G (Martin: "brukt er
+      alltid G"), fordi flaten er gammel og må lakkeres – G-en er da forklart.
+      DET_MULIG_GLEMT_FLATERETTE fyrte falskt på H Bakdør. Ny erBruktDelPF() gjør delstreng-match
+      på kjerne + side, siden reservedelsnavnet er lengre enn lakkspes-navnet
+      ("H Bakdør p-list" mot "H Bakdør").
+
+   3. G BETYR IKKE "RETTET". Martin: G betyr at flaten er GAMMEL – enten rettet, ELLER skiftet
+      med brukt del. DELSTATUS-overskriften sa "RETTET/LAKKERT" uansett årsak, og den teksten
+      går rett inn i det Claude leser – derfor skrev Claude "Bakdøren rettes og lakkeres" om en
+      dør som skiftes. Etiketten sier nå hvilken av de to det er når reservedelslista svarer,
+      og ellers at det kan være begge.
+
+   4. OVERSTYRINGS-TAGGEN VIRKER NÅ. I v2.91 la vi merkingen i injiserDeterministisk – men
+      manglendeGrunning-blokka (v2.54) dytter rett inn i dbs_handlinger og kaller den aldri.
+      Samme mønster som tre-kopi-fella: merkingen lå i én kodebane, funnet kom fra en annen.
+
+   5. JSON-PARSINGEN TÅLER PROSA RUNDT SVARET. En fersk takst døde på "Unexpected non-whitespace
+      character after JSON at position 868" og ga INGEN resultater – hele kjøringen tapt fordi
+      det lå tekst etter JSON-objektet. hentJsonObjekt() henter ut første BALANSERTE {...},
+      med hensyn til strenger og escaping. Gjelder BEGGE svarhåndtererne, også pakkseddelen.
+      Feilboksen viser nå rå-svaret, så neste feil kan faktisk feilsøkes.
+
+   IKKE MED: den tomme STOTFANGER_KLIPS; valget mellom DET_UB_VED_FLATERETTE og DET_UB_MANGLER;
+   "H Fordør H" (sidebokstav to ganger); kategori-kolonnen som viser rå regex; og HTT-linjas
+   innpakning (to saker i ett punkt) – selve HTT-forslaget ved dørskift er godkjent av Martin.
+*/
 
 /* AutoPell v2.91 – endringer fra v2.90 (6 punkter – dette er mekanikk-runden):
 
@@ -2499,6 +2534,7 @@ function parseTakst(text){
     tiltak:[],              // "1) Maskering av plast" etc.
     plastspes:null,         // Plastspesifikasjon med skadetype, flate, grunning
     annet_fanen:[],         // Posisjonens annet-rad
+    reservedeler:[],        // v2.92: Reservedelsspesifikasjonen – var ikke parset i det hele tatt
     raw:text                // Behold rå tekst som backup
   };
 
@@ -2937,6 +2973,53 @@ function parseTakst(text){
   // Overlever sideskift midt i en tabell (testet mot ekte råtekst med "--- Side N ---"-brudd
   // midt i en Pos.-blokk – alle linjer utenfor selve op.nr-mønsteret hoppes naturlig over).
   result.detaljspes_pos=[];
+  // v2.92: RESERVEDELSSPESIFIKASJONEN. Var ikke parset i det hele tatt – hverken delenummer,
+  // priser eller fotnoter. Hyundai Ioniq EB49828 avslørte det: bakdøra er en BRUKT del, merket
+  // med fotnote "2) Brukt del" i reservedelslista, og fordi brukt del ALLTID føres som G
+  // (Martin: "brukt er alltid G") fyrte DET_MULIG_GLEMT_FLATERETTE falskt. Markøren lå i
+  // taksten hele tiden – den ble bare aldri lest.
+  // FOTNOTENE MÅ MATCHES PÅ TEKST, IKKE TALL: nummereringen varierer mellom takster
+  // (her 1=Manuelt prissatt, 2=Brukt del, 5=Annetrad; på Tesla-taksten 1=Manuelt prissatt,
+  // 5=Annetrad). Vi bygger derfor legenden per takst og slår opp teksten.
+  {
+    const legende={};                       // "2" -> "Brukt del"
+    const linjer=[];
+    let iSeksjon=false;
+    for(const rawLine of lines){
+      const line=rawLine.trim();
+      if(!line)continue;
+      if(/^Reservedelsspesifikasjon/i.test(line)){iSeksjon=true;continue;}
+      if(/^(Lakkspesifikasjon|Plastspesifikasjon|Detaljspesifikasjon|Arbeidsspesifikasjon|Inndata|Sum pr\. kunde|Sammenstilling)/i.test(line))iSeksjon=false;
+      if(!iSeksjon)continue;
+      const legM=line.match(/^(\d+)\)\s*(.+?)\s*$/);
+      if(legM){legende[legM[1]]=legM[2];continue;}
+      linjer.push(line);
+    }
+    // Én reservedelsrad har minst ett beløp (1 323,30 / 18,80). Fotnotemarkører er ENKELTsifre
+    // skilt med komma (1  /  1,2  /  1,5) – aldri to desimaler, som er det som skiller dem fra
+    // priser. Uten det skillet ville "1,5" og "18,80" vært samme mønster.
+    const belopRe=/\d{1,3}(?:[ .]\d{3})*,\d{2}/;
+    const fotnoteRe=/(?:^|\s)(\d(?:,\d)*)(?=\s)/g;
+    for(const line of linjer){
+      if(/^(Delenummer|Sum materialer|Reservedelspriser|Faktor|Chassisnr|Arbeidsordre|Oppdragsid|Mottager|listepris|Fana Karosseri|Kokstadvegen|E-post|takst@)/i.test(line))continue;
+      if(!belopRe.test(line))continue;
+      const delenummerM=line.match(/^([A-Z0-9][A-Z0-9\-]{4,})\s+/i);
+      const delenummer=delenummerM?delenummerM[1]:null;
+      let rest=delenummer?line.slice(delenummerM[0].length):line;
+      const fotnoter=[];
+      let fm;
+      const utenBelop=rest.replace(new RegExp(belopRe.source,'g'),' ');
+      while((fm=fotnoteRe.exec(utenBelop))!==null)fm[1].split(',').forEach(n=>{if(!fotnoter.includes(n))fotnoter.push(n);});
+      const navn=rest.replace(new RegExp(belopRe.source,'g'),' ')
+        .replace(/(?:^|\s)\d(?:,\d)*(?=\s|$)/g,' ')
+        .replace(/\s{2,}/g,' ').trim();
+      if(!navn)continue;
+      result.reservedeler.push({delenummer,navn,fotnoter,
+        brukt:fotnoter.some(n=>/brukt/i.test(legende[n]||''))});
+    }
+    result.reservedel_legende=legende;
+  }
+
   {
     const posRegex=/^Pos\.\s*\d+\s+(.+)$/i;
     const itemRegex=/^\d{3,5}\s+(.+?)\s+\d+$/;
@@ -2977,6 +3060,29 @@ function ekstraModellSynonymer(modell){
   const ut=[];
   if(/proace\s*city/i.test(modell||''))ut.push({fra:/\bskyvedør\b/g,til:'bakdør'});
   return ut;
+}
+// v2.92: JSON-PARSING TÅLER PROSA RUNDT SVARET. En fersk takst døde 25.08 på
+// "Unexpected non-whitespace character after JSON at position 868" og ga INGEN resultater –
+// hele kjøringen tapt fordi det lå noe etter JSON-objektet. Å stripe ```-merker holder ikke.
+// Vi henter ut det første BALANSERTE {...}-objektet, med hensyn til strenger og escaping,
+// slik at klammer inne i tekst ikke forskyver tellingen.
+function hentJsonObjekt(txt){
+  const s0=(txt||'').indexOf('{');
+  if(s0<0)throw new Error('Fant ingen JSON i svaret');
+  let dybde=0,iStreng=false,escapet=false;
+  for(let i=s0;i<txt.length;i++){
+    const c=txt[i];
+    if(iStreng){
+      if(escapet)escapet=false;
+      else if(c==='\\')escapet=true;
+      else if(c==='"')iStreng=false;
+      continue;
+    }
+    if(c==='"')iStreng=true;
+    else if(c==='{')dybde++;
+    else if(c==='}'){dybde--;if(dybde===0)return txt.slice(s0,i+1);}
+  }
+  throw new Error('JSON-objektet i svaret er ikke komplett');
 }
 function erSmadelPaaHoveddel(navn){
   return /\b(skjermutbygger|utbygger|hjulbueliste|steinsprutbeskyttelse|beskyttelse|innstegslist|skrapelist|p-list|list|lokk|dekklokk|sensor|bjelke|hengsel|håndtak|spoiler|spyledyse|dyse|gitter|kabel|emblem|refleks|brakett|feste|festebrakett|hengerfeste|holder|tetning|klips|luftstyring)\b/i.test(navn||'');
@@ -3204,6 +3310,17 @@ function takstSammendrag(t){
   // Fallback for deler IKKE migrert til ID-systemet ennå (ingen igjen etter v2.32 fase 1 –
   // beholdes tom som struktur for fremtidige ikke-migrerte deltyper)
   const delReglerFallback=[];
+  // v2.92: G BETYR IKKE "RETTET". Martin: G betyr at flaten er GAMMEL – enten rettet, ELLER
+  // skiftet med en BRUKT del. Overskriften sa "RETTET/LAKKERT" uansett årsak, og den teksten
+  // går rett inn i det Claude leser – derfor skrev Claude "Bakdøren rettes og lakkeres" om en
+  // dør som faktisk skiftes (Hyundai Ioniq EB49828). Er delen ført som brukt i
+  // reservedelslista, sier vi det i stedet for å la Claude gjette.
+  function gEtikett(d){
+    if(d.optype==='N')return 'SKIFTET';
+    const a=(d.navn||'').toLowerCase().replace(/^[hv]\s+/,'').replace(/\s+[hv]$/,'').trim();
+    const brukt=a.length>2&&(t.reservedeler||[]).some(r=>r.brukt&&(r.navn||'').toLowerCase().includes(a));
+    return brukt?'SKIFTET MED BRUKT DEL – gammel flate, IKKE rettet':'RETTET ELLER SKIFTET MED BRUKT DEL – gammel flate';
+  }
   const delstatusLinjer=[];
   window.DELSTATUS_GYLDIGE_IDER=new Set(); // v2.40: sikkerhetsnett mot at Claude finner opp hele del-blokker
   window.DELSTATUS_GYLDIGE_DELNAVN=new Set(); // v2.45: samme prinsipp for HELE del-blokker uten ID
@@ -3377,7 +3494,7 @@ function takstSammendrag(t){
     if(idListe.length){
       idListe.forEach(id=>window.DELSTATUS_GYLDIGE_IDER.add(id));
       window.DELSTATUS_GYLDIGE_DELNAVN.add(d.navn.toLowerCase().trim());
-      delstatusLinjer.push(`  • ${d.navn} [${d.optype} = ${d.optype==='N'?'SKIFTET':'RETTET/LAKKERT'}] – bruk disse ID-ene: ${idListe.join(', ')}`);
+      delstatusLinjer.push(`  • ${d.navn} [${d.optype} = ${gEtikett(d)}] – bruk disse ID-ene: ${idListe.join(', ')}`);
       return;
     }
     // Fallback til gammel prose-peker for ikke-migrerte deltyper
@@ -3386,7 +3503,7 @@ function takstSammendrag(t){
       const seksjon=d.optype==='N'?match.N:match.G;
       if(seksjon){
         window.DELSTATUS_GYLDIGE_DELNAVN.add(d.navn.toLowerCase().trim());
-        delstatusLinjer.push(`  • ${d.navn} [${d.optype} = ${d.optype==='N'?'SKIFTET':'RETTET/LAKKERT'}] → sjekk avsnittet "${seksjon}" i reglene (IKKE ID-migrert ennå – bruk fritekst-punkt/avsnitt-format)`);
+        delstatusLinjer.push(`  • ${d.navn} [${d.optype} = ${gEtikett(d)}] → sjekk avsnittet "${seksjon}" i reglene (IKKE ID-migrert ennå – bruk fritekst-punkt/avsnitt-format)`);
       }
     }
   });
@@ -3888,7 +4005,8 @@ De første bildene er taksten, deretter følger pakkseddelen.
 Regler: ${getActiveRules()}`;
     const data=await callClaude([{role:'user',content:[...takstContent,...pakkContent,{type:'text',text:prompt}]}]);
     const txt=data.content.map(c=>c.text||'').join('').trim().replace(/```json|```/g,'');
-    const parsed=JSON.parse(txt);
+    window.SISTE_RAA_SVAR=txt;
+    const parsed=JSON.parse(hentJsonObjekt(txt));
     document.getElementById('pakk-results').innerHTML = renderPakkResults(parsed);
   }catch(e){
     document.getElementById('pakk-results').innerHTML=`<div class="result-item result-red"><div class="result-title">Feil</div><div class="result-sub">${e.message}</div></div>`;
@@ -4354,7 +4472,8 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
 
     const data=await callClaude([{role:'user',content:[...takstContent,...carImgContent,{type:'text',text:prompt}]}]);
     const txt=data.content.map(c=>c.text||'').join('').trim().replace(/```json|```/g,'');
-    const parsed=JSON.parse(txt);
+    window.SISTE_RAA_SVAR=txt;
+    const parsed=JSON.parse(hentJsonObjekt(txt));
 
     // ============================================================
     // v2.17: DELSJEKK ER ENESTE KILDE – bygg resultater/dbs_handlinger fra delsjekk
@@ -4649,6 +4768,20 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           let k=kjernePF(forsteSegment).replace(/^[hv]\s+/,'');
           return {kjerne:k, side:mS?mS[1]:''};
         }
+        // v2.92: Er DENNE delen ført som en BRUKT reservedel? Brukt del føres alltid som G
+        // (Martin: "brukt er alltid G"), så G-en er da forklart og "flaterette glemt" skal tie.
+        // Reservedelsnavnet er ofte lengre enn lakkspes-navnet ("H Bakdør p-list" mot
+        // "H Bakdør"), derfor delstreng-match på kjerne + side, ikke likhet.
+        function erBruktDelPF(delNavn){
+          const a=kjerneMedSidePF(delNavn);
+          if(a.kjerne.length<3)return false;
+          return (parserData.reservedeler||[]).filter(r=>r.brukt).some(r=>{
+            const b=kjerneMedSidePF(r.navn);
+            const kjerneTreff=b.kjerne===a.kjerne||b.kjerne.includes(a.kjerne)||a.kjerne.includes(b.kjerne);
+            if(!kjerneTreff)return false;
+            return !a.side||!b.side||a.side===b.side;
+          });
+        }
         function harRustbeskyttelsePostPF(delNavn){
           const a=kjerneMedSidePF(delNavn);
           if(a.kjerne.length<3)return false;
@@ -4668,6 +4801,7 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           else if(harRustslipingPF(d.navn))rustGDelerMedGrunn.push(`${d.navn} (G)`); // v2.77: retting, rustbeskyttelse relevant
           else if(harRustbeskyttelsePostPF(d.navn)){/* v2.77: retting allerede dokumentert via rustbeskyttelse-post – ingen advarsel */}
           else if(harSteinsprutStriperPF(d.navn)){/* ren lakkjobb, ingen varme – ingen rustbeskyttelse, ingen advarsel */}
+          else if(erBruktDelPF(d.navn)){/* v2.92: brukt del – G-en kommer av at delen er brukt, ikke av retting */}
           else muligGlemtFlaterette.push(d.navn);
         });
         const rustDelerEndelig=[...rustNDeler.map(d=>`${d.navn} (N)`),...rustGDelerMedGrunn];
@@ -5351,6 +5485,17 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
       });
       }
       if(manglendeGrunning.length){
+        // v2.92: manglendeGrunning dytter rett inn i dbs_handlinger og kaller ALDRI
+        // injiserDeterministisk – som var det eneste stedet som registrerte overstyringer.
+        // Derfor uteble taggen på Tesla EP94160 i v2.91, der Claude sa "ikke relevant" mens
+        // koden hadde rett (plastspesifikasjonen sa "IKKE UTFYLT"). Samme mønster som
+        // tre-kopi-fella: merkingen lå i én kodebane, funnet kom fra en annen.
+        if(Array.isArray(parsed.delsjekk)){
+          parsed.delsjekk.forEach(d2=>(d2.punkter||[]).forEach(p2=>{
+            if(p2.id==='STOTFANGER_GRUNNING_TOPPLAKK'&&(p2.status==='ikke relevant'||p2.status==='allerede ført'))
+              (window.KODE_OVERSTYRT=window.KODE_OVERSTYRT||new Set()).add('STOTFANGER_GRUNNING_TOPPLAKK');
+          }));
+        }
         if(!parsed.sammendrag)parsed.sammendrag={};
         if(!Array.isArray(parsed.sammendrag.dbs_handlinger))parsed.sammendrag.dbs_handlinger=[];
         if(!Array.isArray(parsed.resultater))parsed.resultater=[];
@@ -5573,7 +5718,10 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
       el.innerHTML=regNrHeader+html;
     }
   }catch(e){
-    document.getElementById('veil-results').innerHTML=`<div class="result-item result-red"><div class="result-title">Feil</div><div class="result-sub">${e.message}</div></div>`;
+    // v2.92: vis RÅ-SVARET sammen med feilen. Da vi mistet en hel kjøring på en JSON-feil,
+    // sto det bare "position 868" – uten å se hva som faktisk kom, var det ingenting å feilsøke.
+    const raa=window.SISTE_RAA_SVAR?`<details style="margin-top:6px"><summary style="cursor:pointer">Vis rå-svaret</summary><pre style="white-space:pre-wrap;font-size:11px;max-height:300px;overflow:auto">${String(window.SISTE_RAA_SVAR).slice(0,4000).replace(/</g,'&lt;')}</pre></details>`:'';
+    document.getElementById('veil-results').innerHTML=`<div class="result-item result-red"><div class="result-title">Feil</div><div class="result-sub">${e.message}${raa}</div></div>`;
   }
 }
 
