@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.92 – Smart kontroll av takster</title>
+<title>AutoPell v2.93 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.92</div>
+    <div class="version-badge">v2.93</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -275,6 +275,33 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v2.93 – endringer fra v2.92 (1 punkt):
+
+   TILBAKEMELDING PER FUNN – ✓/✗ bak hver linje i DBS-boksen, og en treffrate-rapport bak
+   "Vis hva parser leser".
+
+   HVORFOR AKKURAT DENNE: Martin spurte hva som skal til for å stole på verktøyet 100%. Første
+   forslag var en FASIT-test – lagre parsede takster med kjent riktig svar og spille dem av ved
+   hvert bygg. Martin avviste den med et poeng som traff: fasiten svarer på "ødela dette bygget
+   noe som virket før", mens spørsmålet hans er "kan jeg stole på det på en takst jeg ALDRI har
+   sett". Det siste kan ikke utledes – det må telles, på ferske takster, over tid.
+
+   Loggen lagrer BARE regel-ID, riktig/feil, regnr og dato i localStorage. Ingen forslagstekst,
+   ingen kundeopplysninger – samme personvernhensyn som resten av verktøyet.
+
+   ID-MATCHINGEN: forslagene i DBS-boksen er rene strenger uten ID. finnRegelIdForForslag()
+   matcher mot regelens egen mal-tekst på de fem første ordene med 5+ tegn, og krever 60% treff.
+   Nok til å skille reglene, løst nok til å tåle at Claude omformulerer resten. Ingen match gir
+   logging uten ID – funnet teller fortsatt i totalraten.
+
+   RAPPORTEN sorterer verstingene øverst og markerer regler som bommer oftere enn de treffer.
+   Den sier eksplisitt at tallene betyr lite under ti takster – en treffrate på tre takster er
+   ikke en treffrate.
+
+   MERK at dette IKKE fjerner kjøring-til-kjøring-variasjonen på bildeskjønn (MG ZS EV EB90341
+   ga tre ulike svar på identisk input). Den er ikke fjernet, men nå blir den målt.
+*/
 
 /* AutoPell v2.92 – endringer fra v2.91 (5 punkter):
 
@@ -4021,6 +4048,66 @@ Regler: ${getActiveRules()}`;
 // tillegg til tabellen. BEGGE ligger bak "Vis hva parser leser" og ALDRI i FORSLAG-boksen –
 // Martin: en takstmann som leser at verktøyet ikke har regler for en del, mister tilliten til
 // hele kontrollen og kan ikke gjøre noe med opplysningen uansett.
+// v2.93: TILBAKEMELDINGS-LOGG. Fasit-ideen ble forkastet: den svarer på "ødela dette bygget noe
+// som virket før", mens Martins faktiske spørsmål er "kan jeg stole på verktøyet på en takst jeg
+// aldri har sett". Det siste kan bare telles, på ferske takster, over tid.
+// Lagrer BARE: regel-ID, riktig/feil, regnr, dato. Ingen forslagstekst, ingen kundedata.
+function finnRegelIdForForslag(tekst){
+  // Forslagene i DBS-boksen er rene strenger uten ID. Vi matcher mot regelens egen mal-tekst,
+  // med de fem første distinktive ordene – nok til å skille reglene, kort nok til å tåle at
+  // Claude omformulerer resten av setningen. Finner vi ingen, logges funnet uten ID
+  // (fortsatt nyttig for totalraten).
+  const t=(tekst||'').toLowerCase();
+  const REG=window.REGEL_REGISTRY||{};
+  let beste=null,besteScore=0;
+  Object.keys(REG).forEach(id=>{
+    const mal=(REG[id].mal||'').toLowerCase();
+    if(!mal)return;
+    // De LENGSTE ordene, ikke de FØRSTE. Første forsøk brukte de fem første og bommet på
+    // grunning-funnet: den deterministiske teksten begynner "Grunning for topplakk mangler
+    // for ...", mens malen begynner "Vurder å legge til grunning ...". Fellesnevneren ligger i
+    // de tunge ordene (grunning, topplakk, annetbilde), ikke i innledningen.
+    const ord=[...new Set(mal.split(/\s+/).filter(o=>o.length>=5))].sort((a,b)=>b.length-a.length).slice(0,4);
+    if(!ord.length)return;
+    const treff=ord.filter(o=>t.includes(o)).length/ord.length;
+    if(treff>besteScore){besteScore=treff;beste=id;}
+  });
+  return besteScore>=0.5?beste:null;
+}
+function lagreTilbakemelding(regnr,regelId,dom,idx){
+  try{
+    const logg=JSON.parse(localStorage.getItem('autopell_tilbakemelding')||'[]');
+    logg.push({regnr,regelId:regelId||'(ukjent)',dom,dato:new Date().toISOString().slice(0,10)});
+    localStorage.setItem('autopell_tilbakemelding',JSON.stringify(logg));
+    const boks=document.querySelector(`[data-tb="${idx}"]`);
+    if(boks)boks.innerHTML=`<span style="font-size:11px;color:${dom==='riktig'?'#2e7d32':'#c0392b'}">${dom==='riktig'?'✓ riktig':'✗ feil'}</span>`;
+  }catch(e){console.warn('Kunne ikke lagre tilbakemelding:',e);}
+}
+function byggTilbakemeldingsrapport(){
+  let logg=[];
+  try{logg=JSON.parse(localStorage.getItem('autopell_tilbakemelding')||'[]');}catch(e){}
+  if(!logg.length)return '<div style="color:#666">Ingen tilbakemeldinger registrert ennå. Trykk ✓ eller ✗ ved hvert funn mens du går gjennom en takst.</div>';
+  const perRegel={};
+  logg.forEach(l=>{
+    perRegel[l.regelId]=perRegel[l.regelId]||{riktig:0,feil:0};
+    perRegel[l.regelId][l.dom]++;
+  });
+  const takster=new Set(logg.map(l=>l.regnr)).size;
+  const totR=logg.filter(l=>l.dom==='riktig').length,totF=logg.filter(l=>l.dom==='feil').length;
+  const rader=Object.entries(perRegel)
+    .sort((a,b)=>(b[1].feil-b[1].riktig)-(a[1].feil-a[1].riktig))
+    .map(([id,v])=>{
+      const verst=v.feil>v.riktig?' <span style="color:#c0392b">← bommer oftere enn den treffer</span>':'';
+      return `<tr><td style="padding:2px 10px 2px 0">${id}</td><td style="text-align:right;padding:2px 10px">${v.riktig}</td><td style="text-align:right;padding:2px 10px">${v.feil}</td><td>${verst}</td></tr>`;
+    }).join('');
+  return `<div style="margin-bottom:6px"><strong>${takster} takster, ${totR+totF} vurderte funn – ${totR} riktige, ${totF} feil (${Math.round(totR/(totR+totF)*100)}% treff).</strong></div>
+    <table style="font-size:12px;border-collapse:collapse">
+      <tr style="font-weight:bold"><td style="padding-right:10px">Regel</td><td style="text-align:right;padding:0 10px">Riktig</td><td style="text-align:right;padding:0 10px">Feil</td><td></td></tr>
+      ${rader}
+    </table>
+    <div style="margin-top:6px;color:#666;font-style:italic">Tallene er kun så gode som antallet takster bak dem. Under ti takster sier de lite.</div>
+    <button onclick="if(confirm('Slette hele tilbakemeldingsloggen?')){localStorage.removeItem('autopell_tilbakemelding');visParserDebug();}" style="margin-top:8px;font-size:11px;cursor:pointer">Nullstill logg</button>`;
+}
 function byggDekningsoversikt(t){
   const REG=window.REGEL_REGISTRY||{};
   const kats={};
@@ -4075,6 +4162,9 @@ async function visParserDebug(){
         <p style="margin:0 0 8px 0;color:#666;font-size:13px">Dette er det AutoPell faktisk leser fra PDF-en. Hvis noe mangler eller er feil, vet vi hvor problemet er.</p>
         <details style="margin-bottom:10px"><summary style="cursor:pointer;font-weight:bold">📋 Strukturert sammendrag (det Claude får)</summary>
           <pre style="background:#f5f5f5;padding:10px;overflow:auto;font-size:12px;white-space:pre-wrap">${sammendrag.replace(/</g,'&lt;')}</pre>
+        </details>
+        <details style="margin-bottom:10px"><summary style="cursor:pointer;font-weight:bold">📈 Treffrate på ferske takster (dine ✓/✗)</summary>
+          <div style="background:#f5f5f5;padding:10px">${byggTilbakemeldingsrapport()}</div>
         </details>
         <details style="margin-bottom:10px"><summary style="cursor:pointer;font-weight:bold">📊 Dekningsoversikt (hvilke deler har regler)</summary>
           <div style="background:#f5f5f5;padding:10px">${byggDekningsoversikt(t)}</div>
@@ -5630,7 +5720,21 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
 
       if(s.dbs_handlinger&&s.dbs_handlinger.length>0){
         html+=`<div class="dbs-list"><div class="dbs-list-title">🔧 Dette må gjøres i DBS</div>`;
-        s.dbs_handlinger.forEach(d=>{html+=`<div class="dbs-item">• ${d}</div>`;});
+        // v2.93: TILBAKEMELDING PER FUNN. Martin trenger å vite hvor ofte verktøyet treffer på
+        // takster han ALDRI har sett – ikke om et bygg ødela noe gammelt. Det svaret finnes bare
+        // ved å telle på ferske takster. Knappene lagrer regel-ID (når den er kjent), riktig/feil,
+        // regnr og dato. INGEN kundeopplysninger, ingen forslagstekst.
+        s.dbs_handlinger.forEach((d,i)=>{
+          const rid=finnRegelIdForForslag(d);
+          const regnr=(parserData&&parserData.bil&&parserData.bil.reg)||'?';
+          html+=`<div class="dbs-item" style="display:flex;gap:8px;align-items:flex-start">
+            <div style="flex:1">• ${d}</div>
+            <div style="white-space:nowrap" data-tb="${i}">
+              <button onclick="lagreTilbakemelding('${regnr}','${rid||''}','riktig',${i})" title="Funnet var riktig" style="cursor:pointer;border:1px solid #ccc;background:#fff;border-radius:4px;font-size:11px;padding:1px 6px">✓</button>
+              <button onclick="lagreTilbakemelding('${regnr}','${rid||''}','feil',${i})" title="Funnet var feil" style="cursor:pointer;border:1px solid #ccc;background:#fff;border-radius:4px;font-size:11px;padding:1px 6px">✗</button>
+            </div>
+          </div>`;
+        });
         html+=`</div>`;
       }
       if(Array.isArray(parsed.delsjekk)&&parsed.delsjekk.length>0){
