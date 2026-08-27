@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.96 – Smart kontroll av takster</title>
+<title>AutoPell v2.97 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.96</div>
+    <div class="version-badge">v2.97</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -275,6 +275,26 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v2.97 – endringer fra v2.96 (2 punkter – begge ren støyfjerning):
+
+   1. FUNN SOM SELV SIER AT INGENTING MÅ GJØRES. Tesla Model Y EJ96799 skulle vist "Ingenting å
+      bemerke", men ga en gul boks med tittelen "Skadetype i plastspesifikasjon ikke tydelig
+      bekreftet" – der teksten under konkluderte med at skadetype ER valgt, at det ikke er noen
+      mangel, og at ingen handling er nødvendig. Martin: "begge disse er bare støy".
+      v2.87-regelen forbyr allerede slike linjer, men den finnes KUN som prosa – og prosa har
+      ikke holdt en eneste gang i dette prosjektet (dette er femte eller sjette gang).
+      Nytt post-filter matcher på KONKLUSJONEN, ikke på tittelen: en overskrift kan godt lyde
+      som et avvik mens teksten under frikjenner taksten, og det er nettopp den kombinasjonen
+      som er støy. Testet mot fem funn – de to selvfrikjennende fjernes, KRITISK-funnet,
+      grunning-funnet og UB-funnet står.
+
+   2. G-ETIKETTEN SOM PÅSTAND. v2.92 erstattet "RETTET/LAKKERT" med en enten-eller-tekst, men
+      fallbacken "RETTET ELLER SKIFTET MED BRUKT DEL" ble vist også på takster uten en eneste
+      brukt del, og leses som at begge deler har skjedd. Sier nå det vi FAKTISK vet – "GAMMEL
+      FLATE" – og lar årsaken stå åpen. Er delen bekreftet brukt i reservedelslista, står det
+      fortsatt eksplisitt.
+*/
 
 /* AutoPell v2.96 – endringer fra v2.95 (3 punkter):
 
@@ -3443,7 +3463,10 @@ function takstSammendrag(t){
     if(d.optype==='N')return 'SKIFTET';
     const a=(d.navn||'').toLowerCase().replace(/^[hv]\s+/,'').replace(/\s+[hv]$/,'').trim();
     const brukt=a.length>2&&(t.reservedeler||[]).some(r=>r.brukt&&(r.navn||'').toLowerCase().includes(a));
-    return brukt?'SKIFTET MED BRUKT DEL – gammel flate, IKKE rettet':'RETTET ELLER SKIFTET MED BRUKT DEL – gammel flate';
+    // v2.97: fallbacken sto som en påstand ("RETTET/SKIFTET MED BRUKT DEL") også på takster
+    // uten en eneste brukt del. Riktig som enten-eller, men det leses som at begge deler har
+    // skjedd. Sier vi i stedet hva vi VET – flaten er gammel – og lar årsaken stå åpen.
+    return brukt?'SKIFTET MED BRUKT DEL – gammel flate, IKKE rettet':'GAMMEL FLATE – rettet, eller skiftet med brukt del';
   }
   const delstatusLinjer=[];
   window.DELSTATUS_GYLDIGE_IDER=new Set(); // v2.40: sikkerhetsnett mot at Claude finner opp hele del-blokker
@@ -5546,6 +5569,26 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           const alleDekket=nevnt.every(n=>delerILakkspes.some(x=>x.startsWith(n)||n.startsWith(x)));
           if(alleDekket){
             console.log(`[POST-FILTER] Fjernet: "${d}" – alle nevnte flater (${nevnt.join(', ')}) har allerede lakk-post`);
+            return false;
+          }
+          return true;
+        });
+      }
+
+      // v2.97: FUNN SOM SELV SIER AT INGENTING MÅ GJØRES. Tesla Model Y EJ96799 ga en gul boks
+      // med tittelen "Skadetype i plastspesifikasjon ikke tydelig bekreftet", der teksten selv
+      // konkluderte: "Dette er faktisk angitt i taksten – skadetype ER valgt, så ingen mangel
+      // her. Ingen handling nødvendig - allerede korrekt." Taksten skulle vist "Ingenting å
+      // bemerke". v2.87-regelen sier allerede at slike linjer ikke skal publiseres – men den
+      // finnes bare som prosa, og prosa har ikke holdt en eneste gang i dette prosjektet.
+      // Vi matcher på konklusjonen, ikke på tittelen: en overskrift kan godt lyde som et avvik
+      // mens teksten under frikjenner taksten – det er nettopp den kombinasjonen som er støy.
+      if(Array.isArray(parsed.resultater)){
+        const ingenHandling=/ingen handling n[øo]dvendig|allerede korrekt|ingen mangel her|ingen avvik her|er faktisk angitt i taksten|ingenting [åa] bemerke her|dette er i orden|ser korrekt ut/i;
+        parsed.resultater=parsed.resultater.filter(r=>{
+          const tekst=((r.tittel||'')+' '+(r.melding||''));
+          if(ingenHandling.test(tekst)){
+            console.log(`[POST-FILTER v2.97] Fjernet funn uten handling: "${r.tittel}"`);
             return false;
           }
           return true;
