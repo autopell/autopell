@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.98 – Smart kontroll av takster</title>
+<title>AutoPell v2.99 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.98</div>
+    <div class="version-badge">v2.99</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -275,6 +275,30 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v2.99 – endringer fra v2.98 (2 punkter – får v2.96s koding-fiks til å virke):
+
+   v2.96 la inn søk etter koding/kalibrering i reservedelslista, men forslaget sto uendret på
+   Mercedes GLE SX16287. Årsaken lå i MIN EGEN parser fra v2.92: delenummer-mønsteret krevde
+   bare 5+ tegn uten mellomrom, så ordet "koding" ble lest som et delenummer:
+     delenummer: "koding"   navn: "av ny hovedlykt"
+   Søket leter i navn – og der sto ikke ordet lenger. Fiksen virket aldri.
+
+   1. DELENUMMER MÅ INNEHOLDE MINST ETT SIFFER. Ekte delenumre har alltid siffer
+      (A 167 906 42 04, 87722-G7000T2S, 77004-G2010, 2038294-00-E, 1932550-ED-E); vanlige ord
+      har det ikke. Da blir navnet "koding av ny hovedlykt", som søket finner.
+
+   2. SØKET SER PÅ HELE RESERVEDELSRADEN, ikke bare navnefeltet. Samme lærdom som ellers i
+      dette prosjektet: å lete ett sted og konkludere med at noe ikke finnes. De to fiksene er
+      UAVHENGIGE – hver av dem alene løser denne taksten, og punkt 2 tåler at et ord havner i
+      feil felt igjen.
+
+   REGRESJONSTESTET mot alle fire kjente reservedelsseksjoner, siden endringen ligger i en
+   parser flere regler nå bygger på: Mercedes SX16287 (koding blir funnet), Hyundai EB49828
+   (den brukte bakdøra er FORTSATT brukt:true med fotnote 1,2 – Tesla-takstene skal ikke
+   ødelegges), Tesla EJ96799 og Tesla EP94160 (ingen koding, som før; delenumrene med siffer
+   parses uendret).
+*/
 
 /* AutoPell v2.98 – endringer fra v2.97 (1 punkt – snur v2.97s støysperre):
 
@@ -3172,8 +3196,15 @@ function parseTakst(text){
     for(const line of linjer){
       if(/^(Delenummer|Sum materialer|Reservedelspriser|Faktor|Chassisnr|Arbeidsordre|Oppdragsid|Mottager|listepris|Fana Karosseri|Kokstadvegen|E-post|takst@)/i.test(line))continue;
       if(!belopRe.test(line))continue;
+      // v2.99: DELENUMMER MÅ INNEHOLDE MINST ETT SIFFER. Mønsteret krevde bare 5+ tegn uten
+      // mellomrom, så ordet "koding" ble tolket som delenummer på Mercedes GLE SX16287:
+      //   delenummer: "koding", navn: "av ny hovedlykt"
+      // Koding-søket fra v2.96 leter i navn, og der sto ikke ordet lenger – fiksen virket aldri.
+      // Ekte delenumre har alltid siffer (A 167 906 42 04, 87722-G7000T2S, 77004-G2010,
+      // 2038294-00-E, 1932550-ED-E); vanlige ord har det ikke.
       const delenummerM=line.match(/^([A-Z0-9][A-Z0-9\-]{4,})\s+/i);
-      const delenummer=delenummerM?delenummerM[1]:null;
+      if(delenummerM&&!/\d/.test(delenummerM[1]))delenummerM.length=0;
+      const delenummer=(delenummerM&&delenummerM.length)?delenummerM[1]:null;
       let rest=delenummer?line.slice(delenummerM[0].length):line;
       const fotnoter=[];
       let fm;
@@ -4835,7 +4866,8 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
         function finnesIAnnetBildePF(re){
           const kilder=[]
             .concat((parserData.karosseri_skift||[]).map(d=>((d.navn||'')+' '+(d.tiltak||'')+' '+(d.kommentar||''))))
-            .concat((parserData.reservedeler||[]).map(r=>r.navn||''))
+            // v2.99: hele raden, ikke bare navn – et ord kan havne i delenummer-feltet.
+            .concat((parserData.reservedeler||[]).map(r=>((r.delenummer||'')+' '+(r.navn||''))))
             .concat((parserData.lakkmateriell_annet||[]).map(m=>m.navn||''))
             .concat((parserData.annet_fanen||[]).map(a=>typeof a==='string'?a:(a&&a.navn)||''));
           return kilder.some(t=>re.test(t||''));
