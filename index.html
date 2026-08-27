@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.95 – Smart kontroll av takster</title>
+<title>AutoPell v2.96 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.95</div>
+    <div class="version-badge">v2.96</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -275,6 +275,45 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v2.96 – endringer fra v2.95 (3 punkter):
+
+   FELLESNEVNER FOR ALLE TRE: koden overstyrte en RIKTIG Claude-lesning. Claude satte "allerede
+   ført" på begge takstene, og de deterministiske sjekkene publiserte funnet likevel. Sjekkene er
+   trygge når de FINNER det de leter etter – men de tolker "finner ikke" som "finnes ikke".
+   Tre slike tilfeller på to dager. At vi så det i det hele tatt skyldes overstyrings-taggen
+   fra v2.92; uten den ville motsetningen stått uforklart i grensesnittet.
+
+   1. LINJEBRUDD MIDT I NAVNET (Tesla Model Y EJ96799). Rå-teksten:
+        "STØTFANGER FORAN, grunning for   40,00"
+        "topplakk"
+      Sammenslåingslogikken krevde at forrige rad manglet pris – men prisen sto på FØRSTE linje,
+      så raden var "ferdig" og ordet topplakk ble kastet. Navnet ble "STØTFANGER FORAN, grunning
+      for", og grunning-sjekken fant seg ikke igjen. Kravet er fjernet; vi krever nå ett enkelt
+      ord uten mellomrom, slik at en ny rad aldri kan slukes av den forrige.
+
+   2. SAMME TOLERANSE I BEGGE IMPLEMENTASJONENE. HURTIGFAKTA-linja godtar "grunning" med satt
+      pris; per-del-sjekken krevde hele "grunning for topplakk". Sammendraget sa altså JA mens
+      funnet ble publisert. Punkt 1 løser det konkrete linjebruddet – punkt 2 gjør sjekken
+      uavhengig av HVOR linjeskiftet havner, som er det eneste vi kan garantere for takster vi
+      ikke har sett.
+
+   3. ANNETRAD KAN LIGGE I BEGGE SEKSJONER (Mercedes GLE SX16287). Kodingen sto som annetrad i
+      RESERVEDELSSPESIFIKASJONEN ("koding av ny hovedlykt, 5 000,00"), mens arbeidsspesifikasjonen
+      bare hadde "H Lyskaster multibeam LED, Skift". Parseren kjente kalibrering kun på
+      "Kalibr."/"kalibrer" i skift-seksjonen – både ORDET og STEDET var usynlig, og forslaget ble
+      publisert på en jobb som allerede var ført til 5 000 kr. Martin: "den må sjekke både
+      reservedelsspesifikasjon og arbeidsspesifikasjon etter tekst i annet bilde". Bekreftet begge
+      veier: EJ96799 har "hente skilt på biltilsynet" i arbeidsspes, SX16287 har kodingen i
+      reservedelslista. Ny finnesIAnnetBildePF() søker i karosseri_skift, reservedeler,
+      lakkmateriell_annet og annet_fanen samtidig – ment for ALLE "er dette allerede ført?"-sjekker,
+      ikke bare koding. Fiksen ble billig fordi v2.92 allerede parser reservedelslista.
+
+   Testet mot de faktiske rådataene: EJ96799-linjene settes sammen til "STØTFANGER FORAN,
+   grunning for topplakk"; den tolerante sjekken sier JA selv på det avkuttede navnet;
+   SX16287s koding finnes i reservedelslista; og en identisk takst UTEN koding-linje foreslår
+   fortsatt koding.
+*/
 
 /* AutoPell v2.95 – endringer fra v2.94 (1 punkt – retter v2.94):
 
@@ -2930,13 +2969,20 @@ function parseTakst(text){
         }
         continue;
       }
-      // Hvis linja er bare et ord (ikke pris, ikke komma) → fortsettelse av forrige rad-navn
-      if(!line.includes(',')&&!line.match(/[\d,]\d{2}/)&&line.length<25&&result.lakkmateriell_annet.length){
+      // Hvis linja er bare et ord (ikke pris, ikke komma) → fortsettelse av forrige rad-navn.
+      // v2.96: kravet last.kr===null er FJERNET. Tesla Model Y EJ96799 brøt linja slik:
+      //   "STØTFANGER FORAN, grunning for   40,00"
+      //   "topplakk"
+      // Prisen sto altså på FØRSTE linje, raden var "ferdig", og ordet topplakk ble kastet.
+      // Navnet ble "STØTFANGER FORAN, grunning for" og grunning-sjekken fant seg ikke igjen –
+      // et falskt funn på en takst der grunning FAKTISK var ført (Martin bekreftet).
+      // Kommentaren over lister tre linjebrudd-varianter; dette er en fjerde: navn MED pris
+      // først, fortsettelsesord etter. Vi krever ett enkelt ord uten mellomrom, så en ny rad
+      // aldri kan bli slukt av den forrige.
+      if(!line.includes(',')&&!line.match(/[\d,]\d{2}/)&&line.length<25&&!/\s/.test(line.trim())&&result.lakkmateriell_annet.length){
         const last=result.lakkmateriell_annet[result.lakkmateriell_annet.length-1];
-        if(last.kr===null){
-          last.navn=last.navn+' '+line.trim();
-          continue;
-        }
+        last.navn=last.navn+' '+line.trim();
+        continue;
       }
       // Vanlig rad: "NAVN, beskrivelse [pris]"
       if(line.includes(',')){
@@ -4725,7 +4771,29 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
         // v2.36 Fase 2: Kalibrering/koding – deterministisk ved SKIFT av sensor/kamera/lyskaster
         // i arbeidsspesifikasjonen, kun når ingen kalibrering allerede er ført. P-radar/
         // parkeringssensor kalibreres ALDRI og ekskluderes.
-        const kalibreringFørtPF=parserData.kalibreringer&&parserData.kalibreringer.length;
+        // v2.96: FELLES SØK I BEGGE SEKSJONER. Mercedes GLE SX16287: kodingen sto som annetrad
+        // i RESERVEDELSSPESIFIKASJONEN ("koding av ny hovedlykt, 5 000,00"), mens
+        // arbeidsspesifikasjonen bare hadde "H Lyskaster multibeam LED, Skift". Parseren
+        // kjenner igjen kalibrering kun på "Kalibr."/"kalibrer" i skift-seksjonen, så både
+        // ORDET (koding) og STEDET (reservedelslista) var usynlig – og forslaget ble publisert
+        // på en takst der jobben allerede var ført til 5 000 kr. Claude leste den riktig og ble
+        // overstyrt av koden; tredje slike tilfelle på to dager.
+        // Martin: "den må sjekke både reservedelsspesifikasjon og arbeidsspesifikasjon etter
+        // tekst i annet bilde" – en manuelt ført annetrad kan havne i begge seksjoner. Bekreftet
+        // begge veier: EJ96799 hadde "hente skilt på biltilsynet" i arbeidsspes, SX16287 har
+        // kodingen i reservedelslista.
+        // Generell hjelper, ment for ALLE "er dette allerede ført?"-sjekker – de leter i dag i
+        // én seksjon og konkluderer med at posten ikke finnes.
+        function finnesIAnnetBildePF(re){
+          const kilder=[]
+            .concat((parserData.karosseri_skift||[]).map(d=>((d.navn||'')+' '+(d.tiltak||'')+' '+(d.kommentar||''))))
+            .concat((parserData.reservedeler||[]).map(r=>r.navn||''))
+            .concat((parserData.lakkmateriell_annet||[]).map(m=>m.navn||''))
+            .concat((parserData.annet_fanen||[]).map(a=>typeof a==='string'?a:(a&&a.navn)||''));
+          return kilder.some(t=>re.test(t||''));
+        }
+        const kalibreringFørtPF=(parserData.kalibreringer&&parserData.kalibreringer.length)
+          ||finnesIAnnetBildePF(/kalibr|koding|kode\s+lykt|programmer/i);
         if(!kalibreringFørtPF){
           const erPRadar=n=>/p-?radar|p-?sensor|parkeringssensor|parkerings-?radar/i.test(n);
           const kalibKategorier=[
@@ -5656,7 +5724,14 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
         if(!delNavn)return;
         const harGrunningForDenne=parserData.lakkmateriell_annet.some(m=>{
           const navn=(m.navn||'').toLowerCase();
-          if(!navn.includes('grunning for topplakk')&&!navn.includes('grunning topplakk'))return false;
+          // v2.96: SAMME TOLERANSE SOM SAMMENDRAGSLINJA. HURTIGFAKTA godtar "grunning for"
+          // med satt pris, mens denne sjekken krevde hele "grunning for topplakk" – to
+          // implementasjoner av samme spørsmål, bare den ene myknet opp. Sammendraget sa
+          // derfor JA mens funnet ble publisert på EJ96799. Linjesammenslåingen over fikser
+          // det konkrete tilfellet; dette gjør sjekken uavhengig av HVOR linjeskiftet havner,
+          // som er det eneste vi kan garantere for takster vi ikke har sett.
+          const erGrunning=navn.includes('grunning for topplakk')||navn.includes('grunning topplakk')||(navn.includes('grunning')&&m.kr!==null&&m.kr!==undefined);
+          if(!erGrunning)return false;
           const delMatch=m.navn.match(/^(.+?),\s*grunning/i);
           if(!delMatch)return false;
           // v2.60: ORDOVERLAPP i stedet for eksakt likhet. Bekreftet miss (BMW X2 RL52010):
