@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.97 – Smart kontroll av takster</title>
+<title>AutoPell v2.98 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.97</div>
+    <div class="version-badge">v2.98</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -275,6 +275,31 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v2.98 – endringer fra v2.97 (1 punkt – snur v2.97s støysperre):
+
+   FRA BLOKKLISTE TIL POSITIV TEST. v2.97 blokkerte bestemte formuleringer og fjernet riktig nok
+   plastspesifikasjon-boksen på EJ96799 – men NESTE kjøring ga en ny selvfrikjennende boks i
+   samme sporet: "Fargekode vs. bildefarge", som konkluderte at fargen ER riktig registrert, og
+   at dette "kun er en lav-terskel påminnelse, ikke en bekreftet feil". Ordlyden var en annen,
+   så sperren traff ikke.
+
+   Å jage formuleringer konvergerer ikke. Claude finner en tredje måte å si "alt er i orden" på,
+   og støyen varierer mellom kjøringer på samme takst. Vi tester derfor på det et funn SKAL ha –
+   en handling – i stedet for på alle måter det kan være tomt. Mangler teksten et handlingsverb
+   (vurder, sjekk, legg til, huk av, mangler, må, bør, krever, skal, ta med, fjern, endre,
+   rette), publiseres den ikke.
+
+   Martin: "dette er informasjon jeg overhodet ikke har bruk for. hold deg til koden og ikke
+   foreslå noe bare for å gjøre det. da er det mye bedre at det ikke står noe som helst."
+   Tom skjerm slår svak informasjon.
+
+   SIKKERHETSVENTIL: deterministiske funn slipper gjennom uten språksjekk. De kommer fra kode
+   som allerede HAR fastslått at noe mangler, og skal ikke kunne strykes av en formulering.
+
+   Testet mot åtte funn: begge de kjente støyboksene fjernes, mens grunning, KRITISK lakk-post,
+   UB, HTT, takrails og brukt-dør-funnet står.
+*/
 
 /* AutoPell v2.97 – endringer fra v2.96 (2 punkter – begge ren støyfjerning):
 
@@ -5583,12 +5608,25 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
       // finnes bare som prosa, og prosa har ikke holdt en eneste gang i dette prosjektet.
       // Vi matcher på konklusjonen, ikke på tittelen: en overskrift kan godt lyde som et avvik
       // mens teksten under frikjenner taksten – det er nettopp den kombinasjonen som er støy.
+      // v2.98: SNUDD TIL EN POSITIV TEST. v2.97 blokkerte bestemte formuleringer ("ingen
+      // handling nødvendig", "allerede korrekt"). Den fjernet riktignok plastspesifikasjon-
+      // boksen på EJ96799, men NESTE kjøring ga en ny selvfrikjennende boks i samme sporet –
+      // "Fargekode vs. bildefarge", som konkluderte at fargen ER riktig registrert og at dette
+      // "kun er en lav-terskel påminnelse, ikke en bekreftet feil". Å jage formuleringer
+      // konvergerer aldri; Claude finner en tredje måte å si "alt er i orden" på.
+      // Martin: "dette er informasjon jeg overhodet ikke har bruk for ... da er det mye bedre
+      // at det ikke står noe som helst." Tom skjerm slår svak informasjon.
+      // Vi tester derfor på det et funn SKAL ha – en handling – i stedet for på alle måter det
+      // kan være tomt. Deterministiske funn slipper gjennom uansett: de kommer fra kode som
+      // allerede har bestemt at noe mangler, og skal ikke kunne strykes av en språksjekk.
       if(Array.isArray(parsed.resultater)){
-        const ingenHandling=/ingen handling n[øo]dvendig|allerede korrekt|ingen mangel her|ingen avvik her|er faktisk angitt i taksten|ingenting [åa] bemerke her|dette er i orden|ser korrekt ut/i;
+        const harHandling=/\bvurder|\bsjekk|\blegg til|\bhuk av|\bmangler\b|\bm[åa]\b|\bb[øo]r\b|\bkrever\b|\bskal\b|\bta med\b|\bfjern|\bendre|\brett(?:es|e)?\b/i;
+        const detIDer=new Set(Object.keys(window.REGEL_REGISTRY||{}).filter(id=>(window.REGEL_REGISTRY[id]||{}).deterministisk));
         parsed.resultater=parsed.resultater.filter(r=>{
+          if(r.id&&detIDer.has(r.id))return true;
           const tekst=((r.tittel||'')+' '+(r.melding||''));
-          if(ingenHandling.test(tekst)){
-            console.log(`[POST-FILTER v2.97] Fjernet funn uten handling: "${r.tittel}"`);
+          if(!harHandling.test(tekst)){
+            console.log(`[POST-FILTER v2.98] Fjernet funn uten handling: "${r.tittel}"`);
             return false;
           }
           return true;
