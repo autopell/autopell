@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v2.99 – Smart kontroll av takster</title>
+<title>AutoPell v3.00 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v2.99</div>
+    <div class="version-badge">v3.00</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -275,6 +275,65 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v3.00 – endringer fra v2.99 (9 punkter):
+
+   RØD TRÅD: fem av ni funn kom fra Claudes FRITEKST, ikke fra en regel-ID. Det skjer når en
+   hoveddel mangler ID-liste – da står Claude fritt, og svaret varierer mellom kjøringer.
+   Maxus ED75493 ga TO helt ulike fritekst-funn på to kjøringer av SAMME versjon, mens bare det
+   deterministiske UB-funnet gjentok seg. Derfor både nett under (post-filtre) og årsaksfiks
+   (bakluke får egne ID-er).
+
+   1. KONSISTENS-SJEKKEN: KRITISK om manglende lakk-post publiseres ikke lenger for deler som
+      ikke er lakkerte flater. Mercedes GLE SX16287: "Lyskaster H (multibeam LED) ... har INGEN
+      lakk-post". En lyskaster lakkeres aldri. Den KODEDE sjekken hadde alltid en positivliste
+      over karosseriflater; Claudes fritekst hadde ingen. Martin om å liste alt som ikke
+      lakkeres: "den listen er lang.." – derfor positiv test.
+
+   2. BLOKK-MATCHING PÅ INNHOLD. Opel Vivaro SX11997 har dørens komponenter under "Pos. 11
+      Døråpningsramme/Karosseriside V". Ingen navnetreff ga ingen blokk, og skjulHvisDetaljFunnet
+      beholdt ID-en – falskt De/Mo-funn selv om "Trekk fordør V" sto rett i lista. Finner vi ikke
+      delen i overskriften, leter vi nå i innholdet.
+
+   3. HÅNDTAK PÅ SVART BIL. Nytt flagg kunNVedSvart. Martin: "vi tar vanligvis ikke med
+      tilstøtende håndtak hvis bilen er svart. du kan foreslå det på en ny del men ikke G eller
+      T." SX11997 er svart med V Fordør som G.
+
+   4. ANTALL FORAN DELNAVNET ER IKKE EN FOTNOTE. "8 stk. nye klips til list" ga navn "stk. nye
+      klips til list" med fotnoter 8,1,5. Antallet skilles nå ut, holdes utenfor fotnote- og
+      navnerensingen, og settes tilbake foran navnet.
+
+   5. SØPPELBLOKKER FRA INNDATA-SIDEN hoppes over ved parsing (overskrifter som ender på
+      "Tid dm ² Beløp"). SX11997 fikk en blokk der eneste innhold var adressen "NESTTUN
+      Åsmarkvegen".
+
+   6. DIAGNOSE SOM ALLEREDE ER FØRT. Range Rover SX23957 har "STØTFANGER FORAN, slette feilkoder
+      – Reparasjon 50" som manuelt ført linje. Martin: "slette feilkoder står jo allerede i dbs".
+      Tredje gang samme mønster: posten føres med verkstedets egne ord, koden kjenner bare sin
+      egen. Vi søker derfor i RÅTEKSTEN, som har linja uansett hvilken seksjon den havnet i.
+
+   7. SPYLEDEKSEL-HTT NÅR SPYLERNE ER USIKRE. Samme takst foreslo lakk på dekselet til spylere
+      den i samme svar var usikker på om fantes. Martin avviste en modell-liste – "jo noen har jo
+      lyktespylere men denne hadde ikke" – så dette løses på intern konsistens.
+
+   8. SKADE PÅ EN DEL SOM SKIFTES IGNORERES. Martin: "se vekk ifra skader på bildet når jeg har
+      satt opp ny del på den med skader på." ED75493 vurderte en rustflekk på en bakluke som
+      skiftes NETTOPP på grunn av rust. v2.98-sperren slapp den gjennom fordi linja begynner med
+      "Vurder om" – handlingsverb, men konklusjonen var at ingenting skal gjøres. Denne regelen
+      bryr seg ikke om ordlyd, bare om delen skiftes.
+
+   9. BAKLUKE FÅR EGNE ID-ER: BAKLUKE_RUTELIM (ikke ved sedan), BAKLUKE_EMBLEM og
+      BAKLUKE_TILST_HANDTAKSLIST, begge betingede på at delen faktisk nevnes i detaljspesifika-
+      sjonen. UB er allerede deterministisk. Punktene er Martins egne. Rutelim hviler på en
+      forenkling han godtar bevisst: "vi kan gå utifra at det kun er sedan som ikke har rute i
+      bakluken. selv om det finnes unntak" – feilen går riktig vei, siden forslaget er en
+      påminnelse og ikke en påstand.
+
+   TESTET: alle fire post-filtrene mot de faktiske funnteksten fra SX16287, ED75493 og SX23957,
+   med KRITISK-lakkfunnet på sideplate, UB-funnet på bakluke, grunning, brukt dør og takrails som
+   kontroll (alle beholdt). Parser-fiksene mot alle fem kjente reservedelsrader – antallet er nå
+   med i navnet og fotnotene er riktige, inkludert den brukte bakdøra (1,2) og kodingen.
+*/
 
 /* AutoPell v2.99 – endringer fra v2.98 (2 punkter – får v2.96s koding-fiks til å virke):
 
@@ -3208,11 +3267,20 @@ function parseTakst(text){
       let rest=delenummer?line.slice(delenummerM[0].length):line;
       const fotnoter=[];
       let fm;
+      // v3.00: ANTALL FORAN DELNAVNET ER IKKE EN FOTNOTE. Opel Vivaro SX11997:
+      // "8 stk. nye klips til list 1,5 18,80 150,40" ga navn "stk. nye klips til list" med
+      // fotnoter 8,1,5 – antallet ble spist som fotnotemarkør. Fotnoter står ALLTID etter
+      // navnet, aldri foran det, så et innledende tall strippes før fotnote-søket.
+      // Antallet skilles ut, holdes utenfor fotnote- og navnerensingen, og settes tilbake foran
+      // navnet til slutt – ellers mister vi "8 stk." fra delnavnet.
+      const antallM=rest.match(/^\s*(\d+)\s+(?=stk\.?|par\b|meter\b|[a-zæøå])/i);
+      const antallPrefiks=antallM?antallM[1]+' ':'';
+      if(antallM)rest=rest.slice(antallM[0].length);
       const utenBelop=rest.replace(new RegExp(belopRe.source,'g'),' ');
       while((fm=fotnoteRe.exec(utenBelop))!==null)fm[1].split(',').forEach(n=>{if(!fotnoter.includes(n))fotnoter.push(n);});
-      const navn=rest.replace(new RegExp(belopRe.source,'g'),' ')
+      const navn=(antallPrefiks+rest.replace(new RegExp(belopRe.source,'g'),' ')
         .replace(/(?:^|\s)\d(?:,\d)*(?=\s|$)/g,' ')
-        .replace(/\s{2,}/g,' ').trim();
+        .replace(/\s{2,}/g,' ').trim()).trim();
       if(!navn)continue;
       result.reservedeler.push({delenummer,navn,fotnoter,
         brukt:fotnoter.some(n=>/brukt/i.test(legende[n]||''))});
@@ -3229,7 +3297,13 @@ function parseTakst(text){
       if(!line)continue;
       const posM=line.match(posRegex);
       if(posM){
-        gjeldendeBlokk={pos:posM[1].trim(),items:[]};
+        const posNavn=posM[1].trim();
+        // v3.00: Inndata-spesifikasjonen gjentar samme Pos-overskrift med kolonnetitler på
+        // slutten ("Pos. 11 Døråpningsramme/Karosseriside V Tid dm ² Beløp"). Blokka er enten
+        // tom eller full av søppel – SX11997 fikk en blokk der eneste innhold var adressen
+        // "NESTTUN Åsmarkvegen". Vi hopper over dem helt i stedet for å rydde etterpå.
+        if(/\bTid\s+dm\s*²?\s*Bel[øo]p\s*$/i.test(posNavn)){gjeldendeBlokk=null;continue;}
+        gjeldendeBlokk={pos:posNavn,items:[]};
         result.detaljspes_pos.push(gjeldendeBlokk);
         continue;
       }
@@ -3437,12 +3511,25 @@ function takstSammendrag(t){
     PANSER_DEMO:{kat:/\bpanser\b/i,optype:['N','G'],navn:'De/Mo innvendige detaljer',mal:'Vurder å legge til De/Mo innvendige detaljer (pansermatte)',farge:'rød'},
     PANSER_TILST_ASTOLPE:{kat:/\bpanser\b/i,optype:['N','G'],navn:'Tilstøtende A-stolpe',mal:'Vurder å ta med tilstøtende flate mot A-stolpe begge sider (fargeavhengig)',intern:'SKADEMARKERING STYRER SIDEN: takstmannen markerer skaden i bildene med røde firkanter/piler. FINN BILENS RETNING FØRST. Ikke anta at venstre i bildet er fremover – det avhenger av hvilken side av bilen som er fotografert. Faste holdepunkter: sidespeilet sitter alltid i FREMRE ende av fordøra. Frontrute og vindusviskere står mot FRONTEN; bakrute og eventuell takspoiler mot HEKKEN. Hjulbuen foran en fordør er FORhjulet; hjulbuen bak en bakdør er BAKhjulet. Dørhåndtak sitter i BAKRE halvdel av sin egen dør. Tanklokk sitter alltid på bakskjermen. B-stolpen er den brede stolpen mellom fordør og bakdør. Klarer du ikke å fastslå retningen ut fra minst ETT slikt holdepunkt, skal posisjonsvurderingen under IKKE brukes – sett \"usikker\". ÉN LINJE VED UKJENT RETNING: klarer du ikke å fastslå retningen, skal du IKKE skrive et eget forslag per naboflate. Skriv ÉN linje som ber takstmannen vurdere tilstøtende mot den flaten skaden ligger nærmest, og la de øvrige tilstøtende-punktene stå som \"usikker\" UTEN egen forslagstekst. To nesten like linjer om samme vurdering er støy. Naboflaten for denne ID-en er A-stolpen (BAKRE kant av panseret). Ligger skaden nærmest DENNE flaten, er den aktuell. Ligger den tydelig i motsatt ende av delen, er den lite aktuell. Sitter markeringen midt på delen, regn den mot den NÆRMESTE kanten framfor å utelukke begge. VIKTIG: bruk ALDRI "ikke relevant" på grunn av tvil om plassering – tvil gir "usikker" (v2.43-regelen). "ikke relevant" er kun for tilfeller der flaten åpenbart ikke er berørt, eller der en annen regel utelukker den (svart bil, tilstøtende-post, delen allerede i lakkspes). Unngå å foreslå BEGGE naboflatene på samme del med mindre skaden faktisk strekker seg over hele delen.',farge:'gul'},
     PANSER_TILST_FORSKJERM:{kat:/\bpanser\b/i,optype:['N','G'],ikkeVedSvart:true,navn:'Tilstøtende forskjerm',mal:'Vurder å ta med tilstøtende flate mot forskjerm begge sider (fargeavhengig)',intern:'SKADEMARKERING STYRER SIDEN: takstmannen markerer skaden i bildene med røde firkanter/piler. FINN BILENS RETNING FØRST. Ikke anta at venstre i bildet er fremover – det avhenger av hvilken side av bilen som er fotografert. Faste holdepunkter: sidespeilet sitter alltid i FREMRE ende av fordøra. Frontrute og vindusviskere står mot FRONTEN; bakrute og eventuell takspoiler mot HEKKEN. Hjulbuen foran en fordør er FORhjulet; hjulbuen bak en bakdør er BAKhjulet. Dørhåndtak sitter i BAKRE halvdel av sin egen dør. Tanklokk sitter alltid på bakskjermen. B-stolpen er den brede stolpen mellom fordør og bakdør. Klarer du ikke å fastslå retningen ut fra minst ETT slikt holdepunkt, skal posisjonsvurderingen under IKKE brukes – sett \"usikker\". ÉN LINJE VED UKJENT RETNING: klarer du ikke å fastslå retningen, skal du IKKE skrive et eget forslag per naboflate. Skriv ÉN linje som ber takstmannen vurdere tilstøtende mot den flaten skaden ligger nærmest, og la de øvrige tilstøtende-punktene stå som \"usikker\" UTEN egen forslagstekst. To nesten like linjer om samme vurdering er støy. Naboflaten for denne ID-en er forskjermen (SIDEKANT av panseret). Ligger skaden nærmest DENNE flaten, er den aktuell. Ligger den tydelig i motsatt ende av delen, er den lite aktuell. Sitter markeringen midt på delen, regn den mot den NÆRMESTE kanten framfor å utelukke begge. VIKTIG: bruk ALDRI "ikke relevant" på grunn av tvil om plassering – tvil gir "usikker" (v2.43-regelen). "ikke relevant" er kun for tilfeller der flaten åpenbart ikke er berørt, eller der en annen regel utelukker den (svart bil, tilstøtende-post, delen allerede i lakkspes). Unngå å foreslå BEGGE naboflatene på samme del med mindre skaden faktisk strekker seg over hele delen.',farge:'gul'},
+    // v3.00: BAKLUKE FÅR EGNE ID-ER. Bakluke var ingen hoveddel i registeret, så Claude fikk
+    // ingen ID-liste og skrev FRITEKST – utenfor kat, flagg og deduplisering. Maxus ED75493 ga
+    // to helt ulike fritekst-funn på to kjøringer av samme versjon (innvendig lakk, så
+    // rustflekk), mens bare det deterministiske UB-funnet gjentok seg. Martin: "ok da må vi
+    // lage id på bakluken". Punktene er hans egne: rutelim, UB (allerede deterministisk),
+    // eventuelle emblemer, eventuell tilstøtende håndtakslist.
+    BAKLUKE_RUTELIM:{kat:/\bbakluke\b/i,optype:['N'],ikkeVedModell:[/\bsedan\b/i],navn:'Rutelim ved bakluke-skift',mal:'Vurder å legge til rutelim – bakluken skiftes, og ruten må limes i den nye luken',farge:'gul',intern:'Martin: "hvis det ikke er en sedan har alle en bakrute". Karosseriformen leses fra modellnavnet, og alt som ikke sier sedan regnes som å ha bakrute. Martin godtar forenklingen bevisst ("selv om det finnes unntak") – forslaget er en påminnelse, ikke en påstand.'},
+    BAKLUKE_EMBLEM:{kat:/\bbakluke\b/i,optype:['N'],skjulHvisDetaljIkkeFunnet:['emblem','merke'],navn:'Emblem på bakluke',mal:'Sjekk om emblem på bakluke må bestilles nytt',farge:'gul'},
+    BAKLUKE_TILST_HANDTAKSLIST:{kat:/\bbakluke\b/i,optype:['N'],ikkeVedSvart:true,skjulHvisDetaljIkkeFunnet:['håndtakslist','håndtak','list'],navn:'Tilstøtende håndtakslist',mal:'Vurder tilstøtende lakk av håndtakslisten på bakluken hvis bilen har en',farge:'gul'},
     PANSER_EMBLEM:{kat:/\bpanser\b/i,optype:['N','G'],skjulHvisDetaljIkkeFunnet:'emblem',ikkeVedModellAar:[{modell:/tesla.*model\s*y/i,aar:2026}],navn:'Emblem',mal:'Sjekk om emblem på panser må bestilles nytt',farge:'gul'},
 
     DOR_FELLES_RUST:{deterministisk:true,navn:'Rustbeskyttelse',mal:'',farge:'rød'},
     DOR_FELLES_DEMO:{kat:/\bfordør\b|\bbakdør\b/i,optype:['N','G'],skjulHvisDetaljFunnet:['trekk','deksel','ruteheis','vindusheis'],navn:'De/Mo innvendige detaljer',mal:'Vurder å legge til De/Mo innvendige detaljer (vindusheis, dørtrekk)',farge:'rød'},
     DOR_FELLES_UB:{deterministisk:true,navn:'UB',mal:'',farge:'rød'},
-    DOR_FELLES_HTT_HANDTAK:{poeng:15,kat:/\bfordør\b|\bbakdør\b/i,optype:['N','G'],navn:'HTT dørhåndtak',mal:'Sjekk om dørhåndtaket er lakkert i bilens farge – i så fall HTT 15p i annetbildet.',intern:'RETTET (G): reaktivt spørsmål. SKIFTET (N, ny ELLER brukt dør): spør PROAKTIVT om håndtaket fra erstatningsdøra bør lakkeres som tilstøtende, siden det normalt ikke matcher bilens farge – nevn HTT 15p i SAMME forslag hvis det lakkeres.',farge:'gul'},
+    // v3.00: kunNVedSvart – på svart bil tas håndtaket normalt IKKE som tilstøtende/HTT.
+    // Martin: "vi tar vanligvis ikke med tilstøtende håndtak hvis bilen er svart. du kan
+    // foreslå det på en ny del men ikke G eller T." Opel Vivaro SX11997 er svart med V Fordør
+    // som G, og spørsmålet skulle ikke kommet.
+    DOR_FELLES_HTT_HANDTAK:{kunNVedSvart:true,poeng:15,kat:/\bfordør\b|\bbakdør\b/i,optype:['N','G'],navn:'HTT dørhåndtak',mal:'Sjekk om dørhåndtaket er lakkert i bilens farge – i så fall HTT 15p i annetbildet.',intern:'RETTET (G): reaktivt spørsmål. SKIFTET (N, ny ELLER brukt dør): spør PROAKTIVT om håndtaket fra erstatningsdøra bør lakkeres som tilstøtende, siden det normalt ikke matcher bilens farge – nevn HTT 15p i SAMME forslag hvis det lakkeres.',farge:'gul'},
     FORDOR_DIAGNOSE_AIRBAG:{kat:/\bfordør\b/i,optype:['N','G'],navn:'Diagnose airbag',mal:'Vurder å legge til diagnose (slette airbag-feilkoder, 50p)',farge:'gul'},
     FORDOR_TILST_BAKDOR:{kat:/\bfordør\b/i,optype:['N','G'],ikkeVedSvart:true,navn:'Tilstøtende bakdør',mal:'Vurder å ta med tilstøtende flate mot bakdør',intern:'SKADEMARKERING STYRER SIDEN: takstmannen markerer skaden i bildene med røde firkanter/piler. FINN BILENS RETNING FØRST. Ikke anta at venstre i bildet er fremover – det avhenger av hvilken side av bilen som er fotografert. Faste holdepunkter: sidespeilet sitter alltid i FREMRE ende av fordøra. Frontrute og vindusviskere står mot FRONTEN; bakrute og eventuell takspoiler mot HEKKEN. Hjulbuen foran en fordør er FORhjulet; hjulbuen bak en bakdør er BAKhjulet. Dørhåndtak sitter i BAKRE halvdel av sin egen dør. Tanklokk sitter alltid på bakskjermen. B-stolpen er den brede stolpen mellom fordør og bakdør. Klarer du ikke å fastslå retningen ut fra minst ETT slikt holdepunkt, skal posisjonsvurderingen under IKKE brukes – sett \"usikker\". ÉN LINJE VED UKJENT RETNING: klarer du ikke å fastslå retningen, skal du IKKE skrive et eget forslag per naboflate. Skriv ÉN linje som ber takstmannen vurdere tilstøtende mot den flaten skaden ligger nærmest, og la de øvrige tilstøtende-punktene stå som \"usikker\" UTEN egen forslagstekst. To nesten like linjer om samme vurdering er støy. Naboflaten for denne ID-en er bakdøra (BAKRE kant av fordøra). Ligger skaden nærmest DENNE flaten, er den aktuell. Ligger den tydelig i motsatt ende av delen, er den lite aktuell. Sitter markeringen midt på delen, regn den mot den NÆRMESTE kanten framfor å utelukke begge. VIKTIG: bruk ALDRI "ikke relevant" på grunn av tvil om plassering – tvil gir "usikker" (v2.43-regelen). "ikke relevant" er kun for tilfeller der flaten åpenbart ikke er berørt, eller der en annen regel utelukker den (svart bil, tilstøtende-post, delen allerede i lakkspes). Unngå å foreslå BEGGE naboflatene på samme del med mindre skaden faktisk strekker seg over hele delen.',farge:'gul'},
     FORDOR_TILST_FORSKJERM:{kat:/\bfordør\b/i,optype:['N','G'],ikkeVedSvart:true,navn:'Tilstøtende forskjerm',mal:'Vurder å ta med tilstøtende flate mot forskjerm',intern:'SKADEMARKERING STYRER SIDEN: takstmannen markerer skaden i bildene med røde firkanter/piler. FINN BILENS RETNING FØRST. Ikke anta at venstre i bildet er fremover – det avhenger av hvilken side av bilen som er fotografert. Faste holdepunkter: sidespeilet sitter alltid i FREMRE ende av fordøra. Frontrute og vindusviskere står mot FRONTEN; bakrute og eventuell takspoiler mot HEKKEN. Hjulbuen foran en fordør er FORhjulet; hjulbuen bak en bakdør er BAKhjulet. Dørhåndtak sitter i BAKRE halvdel av sin egen dør. Tanklokk sitter alltid på bakskjermen. B-stolpen er den brede stolpen mellom fordør og bakdør. Klarer du ikke å fastslå retningen ut fra minst ETT slikt holdepunkt, skal posisjonsvurderingen under IKKE brukes – sett \"usikker\". ÉN LINJE VED UKJENT RETNING: klarer du ikke å fastslå retningen, skal du IKKE skrive et eget forslag per naboflate. Skriv ÉN linje som ber takstmannen vurdere tilstøtende mot den flaten skaden ligger nærmest, og la de øvrige tilstøtende-punktene stå som \"usikker\" UTEN egen forslagstekst. To nesten like linjer om samme vurdering er støy. Naboflaten for denne ID-en er forskjermen (FREMRE kant av fordøra). Ligger skaden nærmest DENNE flaten, er den aktuell. Ligger den tydelig i motsatt ende av delen, er den lite aktuell. Sitter markeringen midt på delen, regn den mot den NÆRMESTE kanten framfor å utelukke begge. VIKTIG: bruk ALDRI "ikke relevant" på grunn av tvil om plassering – tvil gir "usikker" (v2.43-regelen). "ikke relevant" er kun for tilfeller der flaten åpenbart ikke er berørt, eller der en annen regel utelukker den (svart bil, tilstøtende-post, delen allerede i lakkspes). Unngå å foreslå BEGGE naboflatene på samme del med mindre skaden faktisk strekker seg over hele delen.',farge:'gul'},
@@ -3585,6 +3672,11 @@ function takstSammendrag(t){
       // Martin: Model Y har ikke emblem på panser på 2026-årsmodellen – ikke hele FL-serien.
       // Årsmodell foretrekkes, registreringsår er fallback. Mangler BEGGE, beholdes ID-en
       // (samme prinsipp som krev3sjikt/krevAarFra – vi undertrykker aldri på manglende data).
+      // v3.00: kunNVedSvart – bare N-deler på svart bil.
+      if(r.kunNVedSvart){
+        const farge=((t.bil&&t.bil.farge)||'').toLowerCase();
+        if(/svart|sort/.test(farge)&&d.optype!=='N')return false;
+      }
       if(r.ikkeVedModellAar&&Array.isArray(r.ikkeVedModellAar)){
         const mod=(t.bil&&t.bil.modell)||'';
         const aar=(t.bil&&(t.bil.aarsmodell||t.bil.registreringsaar))||null;
@@ -3673,7 +3765,17 @@ function takstSammendrag(t){
             return pn===dn||dn.includes(pn)||pn.includes(dn);
           });
           const medInnhold=t.detaljspes_pos.filter(b=>b.items&&b.items.length);
-          return treff(medInnhold)||treff(t.detaljspes_pos);
+          const navnTreff=treff(medInnhold)||treff(t.detaljspes_pos);
+          if(navnTreff)return navnTreff;
+          // v3.00: NAVNET PÅ POS-BLOKKA NEVNER IKKE ALLTID DELEN. Opel Vivaro SX11997 har
+          // dørens komponenter under "Pos. 11 Døråpningsramme/Karosseriside V", og forskjermens
+          // under "Pos. 1 Skjerm fr/hjørnpl V". Ingen navnetreff ga ingen blokk, og
+          // skjulHvisDetaljFunnet beholdt ID-en – et falskt De/Mo-funn selv om "Trekk fordør V"
+          // sto rett i lista. Finner vi ikke delen i OVERSKRIFTEN, leter vi i INNHOLDET.
+          return medInnhold.find(blokk=>(blokk.items||[]).some(it=>{
+            const n=(it||'').toLowerCase();
+            return dn.length>2&&n.includes(dn);
+          }))||null;
         };
         const blokk=finnBlokk();
         if(blokk){
@@ -5663,6 +5765,75 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           }
           return true;
         });
+      }
+
+      // ===== v3.00: FIRE POST-FILTRE =====
+      // Felles for alle fire: funnet kommer fra Claudes FRITEKST, ikke fra en regel-ID. Det
+      // skjer når en hoveddel mangler ID-liste (bakluke, lyskaster) – da står Claude fritt, og
+      // svaret varierer mellom kjøringer. Filtrene under er nettet under det.
+      {
+        const lakkerteFlater=/panser|dør|skjerm|\btak\b|takplate|bakluke|støtfanger|kanal|stolpe|karosseriside|sideplate/i;
+        const nDeler=[]
+          .concat((parserData.lakkspes||[]).filter(d=>d.optype==='N'&&d.navn).map(d=>d.navn))
+          .concat((parserData.karosseri_skift||[]).filter(d=>d.tiltak==='Skift'&&d.navn).map(d=>d.navn))
+          .map(n=>n.toLowerCase().replace(/^[vh]\s+/,'').replace(/\s+[vh]$/,'').trim())
+          .filter(n=>n.length>3);
+        const spørOmSpylere=(parsed.sammendrag&&Array.isArray(parsed.sammendrag.dbs_handlinger)?parsed.sammendrag.dbs_handlinger:[])
+          .some(d=>/lyktespyler/i.test(d)&&/(sjekk om|synes ikke|vanskelig|usikker|har bilen)/i.test(d));
+
+        const skalFjernes=(tekst)=>{
+          const t=(tekst||'').toLowerCase();
+
+          // (1) KRITISK om manglende lakk-post på noe som ikke er en lakkert flate.
+          // Mercedes GLE SX16287: "Lyskaster H (multibeam LED) er satt opp med Skift men har
+          // INGEN lakk-post". En lyskaster lakkeres aldri. Den kodede sjekken har allerede en
+          // positivliste over karosseriflater – Claudes fritekst hadde ingen. Martin om å liste
+          // alt som ikke lakkeres: "den listen er lang.." Derfor positiv test: nevner funnet
+          // ingen kjent lakkert flate, publiseres det ikke.
+          if(/ingen lakk-post|mangler lakk|uten lakk-post|har ingen post/.test(t)&&!lakkerteFlater.test(t))
+            return 'KRITISK om lakk-post på en del som ikke er en lakkert flate';
+
+          // (2) Skade på en del som SKIFTES. Martin: "se vekk ifra skader på bildet når jeg har
+          // satt opp ny del på den med skader på." Maxus ED75493 vurderte en rustflekk på en
+          // bakluke som skiftes NETTOPP på grunn av rust. v2.98-sperren slapp den gjennom fordi
+          // linja begynner med "Vurder om" – den har handlingsverb, men konkluderer med at
+          // ingenting skal gjøres. Denne regelen bryr seg ikke om ordlyd, bare om delen skiftes.
+          if(/rust|ripe|riper|skrape|bulk|flekk|skade/.test(t)&&nDeler.some(n=>t.includes(n)))
+            return 'gjelder skade på en del som uansett skiftes';
+
+          // (3) HTT for spyledeksel når vi samtidig spør om bilen har lyktespylere.
+          // Range Rover SX23957 foreslo lakk på dekselet til spylere den i samme svar var
+          // usikker på om fantes. Martin avviste en modell-liste – "jo noen har jo lyktespylere
+          // men denne hadde ikke" – så dette løses på intern konsistens i stedet.
+          if(spørOmSpylere&&/spyledeksel/.test(t)&&/htt/.test(t))
+            return 'foreslår HTT for spyledeksel mens spylerne er usikre';
+
+          // (4) Diagnose som ALLEREDE er ført med verkstedets egne ord. Range Rover SX23957 har
+          // "STØTFANGER FORAN, slette feilkoder – Reparasjon 50" som manuelt ført linje under
+          // Karosseriarbeide, ikke som en post koden kjenner igjen. Martin: "slette feilkoder
+          // står jo allerede i dbs". Tredje gang samme mønster: posten er ført med fritekst, og
+          // koden kjenner bare sin egen formulering. Vi søker derfor i RÅTEKSTEN, som alltid
+          // inneholder linja uansett hvilken seksjon den havnet i.
+          if(/diagnose|slette feilkoder/.test(t)&&/slette\s+feilkoder|feilkoder\s+slettes|\bdiagnose\b/i.test(parserData.raw||''))
+            return 'diagnose/slette feilkoder står allerede i taksten';
+
+          return null;
+        };
+
+        if(parsed.sammendrag&&Array.isArray(parsed.sammendrag.dbs_handlinger)){
+          parsed.sammendrag.dbs_handlinger=parsed.sammendrag.dbs_handlinger.filter(d=>{
+            const grunn=skalFjernes(d);
+            if(grunn){console.log(`[POST-FILTER v3.00] Fjernet: "${d}" – ${grunn}`);return false;}
+            return true;
+          });
+        }
+        if(Array.isArray(parsed.resultater)){
+          parsed.resultater=parsed.resultater.filter(r=>{
+            const grunn=skalFjernes((r.tittel||'')+' '+(r.melding||''));
+            if(grunn){console.log(`[POST-FILTER v3.00] Fjernet resultat: "${r.tittel}" – ${grunn}`);return false;}
+            return true;
+          });
+        }
       }
 
       // 4. Polere flikk – fjern hvis allerede ført
