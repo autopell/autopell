@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v3.00 – Smart kontroll av takster</title>
+<title>AutoPell v3.01 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v3.00</div>
+    <div class="version-badge">v3.01</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -275,6 +275,41 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v3.01 – endringer fra v3.00 (1 sak, 2 deler – terskel for bildevurdering):
+
+   Martin: "Jeg er ute etter konkrete funn hvis bildevurdering skal brukes. Ikke noe falske funn
+   eller oppspinn fra claude." Ikke MINDRE bildevurdering – høyere terskel for hva den får
+   publisere.
+
+   BAKGRUNNEN: v2.43-biasen sier at tvil på et bildepunkt skal lande på "usikker" framfor "ikke
+   relevant". Riktig i seg selv – men usikre punkter ble likevel publisert i DBS-boksen som
+   spørsmål. Det er de som gir linjer av typen "klarer ikke fastslå retningen, men vurder om
+   ...". Det er ikke funn, det er Claude som tenker høyt. Det er også nøyaktig den klassen som
+   varierer mellom kjøringer på samme takst (MG ZS EV EB90341: tre kjøringer, tre svar).
+
+   1. ID-BÆRENDE BILDEPUNKTER: er punktet bildeavhengig OG usikkert, står det fortsatt i
+      punkt-for-punkt med sin status, men kommer ikke i boksen. Bildeavhengig = alle
+      tilstøtende-regler (de krever at Claude leser bilens retning) pluss håndtak-farge,
+      hjulbueliste, tankluke, løftetape, løse HTT-deler og 50%-smådeler.
+
+   2. FRITEKST UTEN ID kan ikke fanges av et registerflagg, så samme prinsipp håndheves på
+      teksten: sier linja SELV at den ikke kan fastslå retningen eller detaljen, publiseres den
+      ikke. Bevisst SMAL – krever BÅDE en usikkerhetsfrase OG et bildeord, slik at kodeavgjorte
+      funn aldri kan rammes.
+
+   RØRER IKKE: UB, grunning, klips, rustbeskyttelse, brukt del, koding, diagnose, rutelim,
+   KRITISK lakk-post – alt som avgjøres i kode. Bildefunn der Claude FAKTISK ser noe ("bildene
+   viser et hvitt håndtak") publiseres som før.
+
+   PRISEN, sagt til Martin på forhånd: tilstøtende er den regeltypen som oftest ender som
+   "usikker", så en del tilstøtende-forslag vil slutte å vises i boksen. Noen av dem er ekte
+   penger. De står fortsatt i punkt-for-punkt, ett klikk unna.
+
+   Testet mot åtte formuleringer: de tre hedge-linjene fra Tesla EN55673, Ford NH16233 og
+   Range Rover SX23957 fjernes, mens UB, grunning, håndtak-med-observasjon, klippsett og
+   KRITISK lakk-post står.
+*/
 
 /* AutoPell v3.00 – endringer fra v2.99 (9 punkter):
 
@@ -3593,6 +3628,16 @@ function takstSammendrag(t){
     DET_MERCEDES_RIPEFAST:{krevAarFra:2007,deterministisk:true,navn:'Mercedes ripefast klarlakk',mal:'',farge:'gul'},
   };
   const REGEL_REGISTRY=window.REGEL_REGISTRY;
+  // v3.01: hvilke ID-er hviler på en BILDEVURDERING. Alle tilstøtende-regler krever at Claude
+  // leser bilens retning ut av bildet; resten avgjøres av farge, overflate eller om en detalj
+  // er synlig. Disse er også de som varierer mest mellom kjøringer på samme takst.
+  window.BILDEAVHENGIGE_IDER=new Set(Object.keys(REGEL_REGISTRY).filter(id=>
+    /_TILST_/.test(id)||[
+      'DOR_FELLES_HTT_HANDTAK','BAKDOR_HJULBUELISTE','BAKSKJERM_G_HJULBUELISTE',
+      'BAKSKJERM_N_HJULBUELISTE','BAKSKJERM_G_TANKLUKE','BAKSKJERM_N_TANKLUKE',
+      'BAKSKJERM_G_LOFTETAPE','STOTFANGER_HTT_LOSE','FORSKJERM_N_HTT_LOSE',
+      'STOTFANGER_50_SMADELER'
+    ].includes(id)));
 
   // Fallback for deler IKKE migrert til ID-systemet ennå (ingen igjen etter v2.32 fase 1 –
   // beholdes tom som struktur for fremtidige ikke-migrerte deltyper)
@@ -5350,6 +5395,19 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
               return;
             }
           }
+          // v3.01: USIKRE BILDEPUNKTER SKAL IKKE I DBS-BOKSEN. Martin: "Jeg er ute etter konkrete
+          // funn hvis bildevurdering skal brukes. Ikke noe falske funn eller oppspinn."
+          // v2.43-biasen sier at tvil på et bildepunkt gir "usikker" – men usikre punkter ble
+          // likevel publisert som spørsmål, og det er de som gir linjer av typen "klarer ikke
+          // fastslå retningen, men vurder om ...". Det er ikke funn, det er Claude som tenker
+          // høyt. Nå: er punktet bildeavhengig OG usikkert, blir det stående i punkt-for-punkt
+          // med sin status, men kommer ikke i boksen. Er Claude sikker, publiseres det som før.
+          // Rører IKKE kodeavgjorte funn (UB, grunning, klips, rustbeskyttelse, brukt del,
+          // koding, diagnose, rutelim) – de er uavhengige av bilder.
+          if(p.status==='usikker'&&p.id&&window.BILDEAVHENGIGE_IDER&&window.BILDEAVHENGIGE_IDER.has(p.id)){
+            console.log('[v3.01] Usikkert bildepunkt holdt utenfor DBS-boksen: '+p.id);
+            return;
+          }
           if((p.status==='foreslått'||p.status==='usikker')&&p.forslag){
             const harID=p.id&&window.REGEL_REGISTRY&&window.REGEL_REGISTRY[p.id];
             // v2.53: nøkkel per (id, del) – IKKE bare id – slik at samme ID på to ulike
@@ -5816,6 +5874,15 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           // inneholder linja uansett hvilken seksjon den havnet i.
           if(/diagnose|slette feilkoder/.test(t)&&/slette\s+feilkoder|feilkoder\s+slettes|\bdiagnose\b/i.test(parserData.raw||''))
             return 'diagnose/slette feilkoder står allerede i taksten';
+
+          // (5) FRITEKST SOM SIER AT DEN IKKE KAN AVGJØRE. Samme prinsipp som for de ID-bærende
+          // bildepunktene, men for linjer Claude skriver uten ID – de kan ikke fanges av et
+          // registerflagg. Sier teksten selv at retningen/detaljen ikke lar seg fastslå, er det
+          // ikke et funn. Bevisst SMAL: krever både en usikkerhetsfrase OG et bildeord, så
+          // kodeavgjorte funn aldri kan rammes.
+          if(/(klarer ikke|vanskelig å (fastslå|bekrefte|avgjøre)|ikke mulig å (av|be)gjøre|kan ikke avgjøres|ikke tydelig|ingen tydelig|uten tydelig|synes ikke|usikkert om)/.test(t)
+             &&/(bilde|bildene|bildeutsnitt|retning|fotografer)/.test(t))
+            return 'fritekst som selv sier at bildet ikke lar seg avgjøre';
 
           return null;
         };
