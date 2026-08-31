@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v3.01 – Smart kontroll av takster</title>
+<title>AutoPell v3.02 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v3.01</div>
+    <div class="version-badge">v3.02</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -275,6 +275,35 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v3.02 – endringer fra v3.01 (2 punkter):
+
+   1. NAVNEPAR LÆRES AV TAKSTEN SELV – ikke av en ordbok.
+      DBS bruker ulike navn på samme fysiske del i arbeids-/plastspesifikasjonen og i lakkspes:
+      sideplate/karosseriside, "Skjerm fr/hjørnpl V" mot "V Forskjerm", "Støtfangerdeksel foran"
+      mot "Støtfanger foran", og nå "Beskyttelseslist forskjermkant" mot "V Forskjerm nedre list"
+      (Honda CR-V SU97983). Martin: "det er forvirrende. jeg vet ikke hvordan dette kan løses?"
+
+      LØSNINGEN LÅ I TAKSTEN HELE TIDEN: Inndata-spesifikasjonen grupperer alt etter POSISJON, og
+      innenfor én Pos-blokk beskriver arbeidslinja og lakk-linja SAMME del. Vi leser parene ut av
+      hver enkelt takst i stedet for å vedlikeholde en ordbok som aldri blir komplett – nye
+      modeller og nye navn løser seg selv. harLakkPost2 spør navneparene når direkte match
+      feiler; synonymlista beholdes som reserve for takster uten Inndata-side.
+
+      Verifisert mot Opel SX11997s faktiske Inndata-side: parene "skjerm fr/hjørnpl v" ↔
+      "v forskjerm" og "dør fremre v" ↔ "v fordør" leses ut korrekt.
+
+   2. SPYLEDEKSEL: EKSISTENS ER DATA, IKKE BILDEVURDERING.
+      Audi A4 SV62076 har plastreparasjon på "støtfangerdeksel foran lyktespyler", og spyledeksel
+      står på den bekreftede positivlista over smådeler som faktisk lakkeres. HTT-punktet sto
+      likevel som "usikker" og ble holdt utenfor boksen av v3.01-terskelen – første ekte funn den
+      terskelen kostet oss. Martin: "bilen har jo lyktespylere så den burde flagget den. både
+      lakk av lyktespyledeksel og HTT."
+      Navngir taksten en lyktespyler eller et spyledeksel, regnes eksistensen som fastslått, og
+      punktet publiseres selv om Claude er usikker på overflaten.
+      SAMME REGEL SOM RANGE ROVER SX23957, SETT FRA MOTSATT SIDE: der var spylerne usikre og
+      HTT-en falt; her står de i taksten, og da skal den stå. Begge retninger verifisert.
+*/
 
 /* AutoPell v3.01 – endringer fra v3.00 (1 sak, 2 deler – terskel for bildevurdering):
 
@@ -3260,6 +3289,55 @@ function parseTakst(text){
   // Overlever sideskift midt i en tabell (testet mot ekte råtekst med "--- Side N ---"-brudd
   // midt i en Pos.-blokk – alle linjer utenfor selve op.nr-mønsteret hoppes naturlig over).
   result.detaljspes_pos=[];
+  // v3.02: NAVNEPAR LÆRES AV TAKSTEN SELV. DBS bruker ulike navn på samme fysiske del i
+  // arbeidsspes/plastspes og i lakkspes – sideplate/karosseriside, "Skjerm fr/hjørnpl V" mot
+  // "V Forskjerm", "Beskyttelseslist forskjermkant" mot "V Forskjerm nedre list",
+  // "Støtfangerdeksel foran" mot "Støtfanger foran". Martin: "det er forvirrende. jeg vet ikke
+  // hvordan dette kan løses?"
+  // LØSNINGEN LIGGER I TAKSTEN: Inndata-spesifikasjonen grupperer ALT etter posisjon, og innenfor
+  // én Pos-blokk beskriver arbeidslinja og lakk-linja SAMME del. Vi leser derfor parene ut av
+  // hver enkelt takst i stedet for å vedlikeholde en ordbok som aldri blir komplett – nye
+  // modeller og nye navn løser seg selv. Synonymlista beholdes som reserve for takster der
+  // Inndata-siden mangler.
+  result.navnepar=[];
+  {
+    const iLinjer=lines.map(l=>l.trim());
+    let iInndata=false,posNavn=null,arbeidsNavn=[],lakkNavn=[],seksjon='';
+    const lagrePar=()=>{
+      if(!lakkNavn.length)return;
+      arbeidsNavn.forEach(a=>lakkNavn.forEach(l=>{
+        const A=a.toLowerCase().trim(),L=l.toLowerCase().trim();
+        if(!A||!L||A===L)return;
+        if(!result.navnepar.some(p2=>p2.arbeid===A&&p2.lakk===L))result.navnepar.push({arbeid:A,lakk:L,pos:posNavn});
+      }));
+    };
+    for(const line of iLinjer){
+      if(!line)continue;
+      if(/^Inndata/i.test(line)){iInndata=true;continue;}
+      if(/^(Sum pr\. kunde|Sammenstilling|Detaljspesifikasjon)/i.test(line)){lagrePar();iInndata=false;continue;}
+      if(!iInndata)continue;
+      const pm=line.match(/^Pos\.\s*\d+\s+(.+?)(?:\s+Tid\s+dm.*)?$/i);
+      if(pm){lagrePar();posNavn=pm[1].trim();arbeidsNavn=[];lakkNavn=[];seksjon='';continue;}
+      if(/^(Karosseriarbeide|Karosseri - Justering|Plastreparasjon|Rustbeskyttelse|Utvendig lakk|Innvendig lakk|Reservedel\/materiell)/i.test(line)){
+        seksjon=line.toLowerCase();continue;
+      }
+      if(!posNavn)continue;
+      if(/lakk/.test(seksjon)){
+        // "7401 V Forskjerm G LT=2 163 54.1" → delnavnet mellom kode og optype
+        const lm=line.match(/^\d{3,4}\s+(.+?)\s+[NGT]\s+LT=/i);
+        if(lm)lakkNavn.push(lm[1]);
+      }else if(/karosseri|plastreparasjon/.test(seksjon)){
+        const am=line.replace(/^\d{3,7}\s+/,'')
+          .replace(/\s+(Skift|De\/Mo|Manuell tid|Reparasjon|Justert pris).*$/i,'')
+          .replace(/^Flatrette,\s*/i,'')
+          .replace(/,\s*Rustbeskyttelse.*$/i,'')
+          .replace(/\s+\d[\d\s,\.]*$/,'').trim();
+        if(am&&am.length>3&&!/^sum\b/i.test(am))arbeidsNavn.push(am);
+      }
+    }
+    lagrePar();
+  }
+
   // v2.92: RESERVEDELSSPESIFIKASJONEN. Var ikke parset i det hele tatt – hverken delenummer,
   // priser eller fotnoter. Hyundai Ioniq EB49828 avslørte det: bakdøra er en BRUKT del, merket
   // med fotnote "2) Brukt del" i reservedelslista, og fordi brukt del ALLTID føres som G
@@ -5404,6 +5482,19 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           // med sin status, men kommer ikke i boksen. Er Claude sikker, publiseres det som før.
           // Rører IKKE kodeavgjorte funn (UB, grunning, klips, rustbeskyttelse, brukt del,
           // koding, diagnose, rutelim) – de er uavhengige av bilder.
+          // v3.02: EKSISTENSEN AV ET SPYLEDEKSEL ER DATA, IKKE BILDEVURDERING, når taksten selv
+          // navngir en lyktespyler. Audi A4 SV62076: plastspesifikasjonen gjelder
+          // "støtfangerdeksel foran lyktespyler", og spyledeksel står på den bekreftede
+          // positivlista over smådeler som faktisk lakkeres. HTT-punktet sto likevel som
+          // "usikker" og ble holdt utenfor boksen av v3.01-terskelen – et ekte funn Martin
+          // ville hatt: "bilen har jo lyktespylere så den burde flagget den. både lakk av
+          // lyktespyledeksel og HTT."
+          // Dette er SAMME regel som Range Rover SX23957, sett fra motsatt side: der var
+          // spylerne usikre og HTT-en falt; her står de i taksten, og da skal den stå.
+          const spylerIRaw=/lyktespyler|spyledeksel|spylerdyse|spyledyse/i.test(parserData.raw||'');
+          if(p.status==='usikker'&&spylerIRaw&&/HTT_LOSE$/.test(p.id||'')){
+            console.log('[v3.02] HTT løse deler publiseres – taksten navngir lyktespyler/spyledeksel');
+          }else
           if(p.status==='usikker'&&p.id&&window.BILDEAVHENGIGE_IDER&&window.BILDEAVHENGIGE_IDER.has(p.id)){
             console.log('[v3.01] Usikkert bildepunkt holdt utenfor DBS-boksen: '+p.id);
             return;
@@ -5989,7 +6080,22 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
         const dn=normaliserDelnavn2(delNavn);
         if(dn.length<4&&!dnSegmenter.length)return false;
         if(dn.length>=4&&harLakkPostForNavn2(dn))return true;
-        return dnSegmenter.some(seg=>seg!==dn&&seg.length>=4&&harLakkPostForNavn2(seg));
+        if(dnSegmenter.some(seg=>seg!==dn&&seg.length>=4&&harLakkPostForNavn2(seg)))return true;
+        // v3.02: NAVNEPAR FRA TAKSTEN SELV. Finner vi ingen lakk-post på navnet slik det står i
+        // arbeids-/plastspesifikasjonen, spør vi Inndata-siden hva DENNE taksten kaller samme del
+        // i lakkspes. Honda CR-V SU97983: plastreparasjonen sier "Beskyttelseslist forskjermkant",
+        // lakkspes sier "V Forskjerm nedre list" – samme del, og posten fantes hele tiden.
+        // Martin bekreftet funnet som falskt: "ja punkt 1 har allerede lakkpost".
+        const par=(parserData.navnepar||[]);
+        if(par.length){
+          const raa=(delNavn||'').toLowerCase().trim();
+          return par.some(p2=>{
+            const treffArbeid=p2.arbeid===raa||p2.arbeid.includes(raa)||raa.includes(p2.arbeid)
+              ||normaliserDelnavn2(p2.arbeid)===dn;
+            return treffArbeid&&harLakkPostForNavn2(normaliserDelnavn2(p2.lakk));
+          });
+        }
+        return false;
       }
       function harLakkPostForNavn2(dn){
         return lakkedeNavn2.some(l=>{
