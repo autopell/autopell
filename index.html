@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v3.02 – Smart kontroll av takster</title>
+<title>AutoPell v3.03 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v3.02</div>
+    <div class="version-badge">v3.03</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -275,6 +275,24 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v3.03 – endringer fra v3.02 (1 punkt – retter v3.02):
+
+   NAVNEPARENE VIRKET, MEN BLE SPURT PÅ FEIL STED. På Honda CR-V SU97983 leste v3.02 ut paret
+   "v beskyttelseslist forskjermkant" ↔ "v forskjerm nedre list" HELT KORREKT – JSON-fanen viser
+   det – og funnet ble likevel publisert.
+
+   Årsaken: koblingen ble lagt i harLakkPost2, som hører til POST-FILTERET. KRITISK-linja bygges
+   av HURTIGFAKTA, som bruker harLakkPost – v1 av samme sjekk. Nøyaktig samme felle som
+   v2.62–69, v2.85, v2.87, v2.91 og v2.96: samme logiske sjekk finnes i to uavhengige
+   implementasjoner, og fiksen havnet i bare den ene. Denne gangen gikk jeg i den selv, i samme
+   versjon der jeg beskrev fella i kommentarene.
+
+   harLakkPost er nå splittet i harLakkPostDirekte (den gamle navnematchingen) og harLakkPost,
+   som prøver direkte match først og deretter spør navneparene. Verifisert mot SU97983s faktiske
+   par: beskyttelseslisten finner sin lakk-post, mens "Bakluke" og "Sideplate hel H" fortsatt
+   IKKE finner noen – de ekte KRITISK-funnene står.
+*/
 
 /* AutoPell v3.02 – endringer fra v3.01 (2 punkter):
 
@@ -4048,6 +4066,26 @@ function takstSammendrag(t){
   function harLakkPost(delNavn){
     const dn=normaliserDelnavn(delNavn);
     if(dn.length<4)return false; // for kort til å være pålitelig
+    // v3.02b: NAVNEPARENE MÅ SPØRRES HER OGSÅ. v3.02 la koblingen KUN i harLakkPost2 (post-
+    // filteret), men KRITISK-linja bygges av HURTIGFAKTA, som bruker DENNE funksjonen. Honda
+    // CR-V SU97983 hadde paret "v beskyttelseslist forskjermkant" ↔ "v forskjerm nedre list"
+    // korrekt utlest, og funnet ble likevel publisert. Nøyaktig samme felle som v2.62–69,
+    // v2.85, v2.87, v2.91 og v2.96: samme logiske sjekk finnes to steder, og fiksen havnet i
+    // bare den ene. Denne gangen var det jeg som gikk i den.
+    if(harLakkPostDirekte(dn)) return true;
+    const par=(t.navnepar||[]);
+    if(par.length){
+      const raa=(delNavn||'').toLowerCase().trim();
+      return par.some(p2=>{
+        const treffArbeid=p2.arbeid===raa||p2.arbeid.includes(raa)||raa.includes(p2.arbeid)
+          ||normaliserDelnavn(p2.arbeid)===dn;
+        return treffArbeid&&harLakkPostDirekte(normaliserDelnavn(p2.lakk));
+      });
+    }
+    return false;
+  }
+  function harLakkPostDirekte(dn){
+    if(!dn||dn.length<4)return false;
     return lakkedeNavn.some(l=>{
       const lStripped=normaliserDelnavn(l);
       // Subdel-eksklusjon: hvis lakk-raden er en subdel (lokk, sensor, bjelke osv.)
