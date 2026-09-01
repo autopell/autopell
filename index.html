@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v3.06 – Smart kontroll av takster</title>
+<title>AutoPell v3.07 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v3.06</div>
+    <div class="version-badge">v3.07</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -275,6 +275,26 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v3.07 – endringer fra v3.06 (1 punkt):
+
+   HTT PA EN SMADEL MED EGEN LAKK-POST ER DATA, IKKE BILDEVURDERING.
+   Opel Corsa EJ16883 har "Lokk stotfanger foran V (50%)" som EGEN post i lakkspesifikasjonen,
+   fort T med 8p. At delen finnes, at den er en smadel pa stotfangeren, og at den lakkeres, star
+   svart pa hvitt i taksten – og Martins regel sier at TILSTOTENDE SMADELER SKAL HA HTT.
+   Bare overflaten ville krevd bildet, og den er ikke i tvil nar delen har egen lakk-post.
+
+   STOTFANGER_HTT_LOSE sto likevel som "usikker", og v3.01-terskelen holdt den utenfor boksen.
+   Tredje gang den terskelen har stoppet et EKTE funn – Audi SV62076 (spyledeksel), Hyundai
+   EB49828 (handtak ved brukt del), og na denne. Monsteret er det samme hver gang: terskelen er
+   riktig for ekte bildevurderinger, men flere av punktene den rammer er faktisk avgjort av data
+   i taksten. Losningen har vaert den samme tre ganger: finn signalet i taksten og la koden
+   bestemme.
+
+   Etter dette publiseres HTT-punktet nar en smadel PA STOTFANGEREN har egen lakk-post – lokk,
+   slepekrokdeksel, spyledeksel eller lister. Selve stotfanger-posten teller ikke, i trad med at
+   hoveddelen aldri skal ha HTT.
+*/
 
 /* AutoPell v3.06 – endringer fra v3.05 (1 punkt):
 
@@ -5678,12 +5698,21 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           // kostet oss et ekte funn, etter Audi-en.
           // v3.06: brukt del kan sta som fotnote i reservedelslista ELLER som tekst i
           // arbeidsspesifikasjonen ("Skift Brukt reservedel"). Handtak-punktet ma se begge.
+          // v3.07: HTT PA EN SMADEL MED EGEN LAKK-POST ER DATA, IKKE BILDEVURDERING.
+          // Opel Corsa EJ16883 har "Lokk stotfanger foran V (50%)" som EGEN post i lakkspes,
+          // fort T med 8p. At delen finnes, at den er en smadel pa stotfangeren, og at den
+          // lakkeres, star svart pa hvitt – og Martins regel sier at tilstotende smadeler SKAL
+          // ha HTT. Bare overflaten ville krevd bildet, og den er ikke i tvil her.
+          // Tredje gang v3.01-terskelen stoppet et ekte funn (Audi, Hyundai, na denne).
+          const smadelMedLakkPost=(parserData.lakkspes||[]).some(d=>!d.tillegg&&d.navn
+            &&/\blokk\b|slepekrokdeksel|spyledeksel|spylelokk|\blist(?:e|er)?\b/i.test(d.navn)
+            &&/støtfanger/i.test(d.navn));
           const bruktDelITakst=(parserData.reservedeler||[]).some(r=>r.brukt)
             ||/brukt\s*(?:reservedel|del)|bruktdel/i.test(parserData.raw||'');
           if(p.status==='usikker'&&bruktDelITakst&&/HTT_HANDTAK$/.test(p.id||'')){
             console.log('[v3.04] Håndtak-punkt publiseres – taksten har en brukt del');
           }else
-          if(p.status==='usikker'&&spylerIRaw&&/HTT_LOSE$/.test(p.id||'')){
+          if(p.status==='usikker'&&(spylerIRaw||smadelMedLakkPost)&&/HTT_LOSE$/.test(p.id||'')){
             console.log('[v3.02] HTT løse deler publiseres – taksten navngir lyktespyler/spyledeksel');
           }else
           if(p.status==='usikker'&&p.id&&window.BILDEAVHENGIGE_IDER&&window.BILDEAVHENGIGE_IDER.has(p.id)){
