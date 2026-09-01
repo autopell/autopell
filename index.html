@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v3.05 – Smart kontroll av takster</title>
+<title>AutoPell v3.06 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v3.05</div>
+    <div class="version-badge">v3.06</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -275,6 +275,24 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v3.06 – endringer fra v3.05 (1 punkt):
+
+   BRUKT DEL STAR TO STEDER, OG KODEN LESTE BARE ETT OM GANGEN.
+   Kia Soul EV EV22806 forer FEM deler som "Skift Brukt reservedel" i tiltak-kolonnen i
+   arbeidsspesifikasjonen – stotfangerdeksel, deformasjonselement, stotfangerbjelke og lyskaster.
+   Hyundai EB49828 hadde samme faktum som FOTNOTE ("2) Brukt del") i reservedelslista.
+   To kilder til samme opplysning, og ulike deler av koden sa bare den ene:
+     - DET_BRUKT_DEL_SOM_N leste arbeidslinja, men bare ordlyden "brukt reservedel"
+     - handtak-punktet (v3.04) leste kun fotnote-flagget i reservedeler-lista
+
+   Na bruker begge samme monster, og det godtar alle tre skrivematene DBS bruker:
+   "brukt reservedel", "brukt del" og "bruktdel" – det siste ble bekreftet i regel-revisjonen
+   men aldri lagt inn.
+
+   Praktisk folge: pa en takst som EV22806 vil handtak-punktet na publiseres selv om
+   reservedelslista ikke har fotnoten, og DET_BRUKT_DEL_SOM_N fyrer pa flere reelle tilfeller.
+*/
 
 /* AutoPell v3.05 – endringer fra v3.04 (1 punkt – retter v3.04):
 
@@ -4400,7 +4418,13 @@ function takstSammendrag(t){
   }
   // v2.8: Brukt reservedel skal lakkes som gammel flate (G), aldri ny (N).
   // Markør: "Brukt reservedel" i karosseri_skift (navn/tiltak/kommentar).
-  const bruktDeler=t.karosseri_skift.filter(d=>/brukt reservedel/i.test(((d.tiltak||'')+' '+(d.kommentar||'')+' '+(d.navn||''))));
+  // v3.06: TO KILDER TIL SAMME FAKTUM. En brukt del kan vaere merket to steder: som fotnote
+  // "Brukt del" i reservedelslista (Hyundai EB49828) ELLER som ren tekst i tiltak-kolonnen
+  // i arbeidsspesifikasjonen – Kia Soul EV EV22806 forer fem deler som "Skift Brukt reservedel".
+  // Monsteret ma ogsa godta "brukt del"/"bruktdel", ikke bare "brukt reservedel" (bekreftet
+  // i regel-revisjonen: DBS skriver alle tre).
+  const bruktMonster=/brukt\s*(?:reservedel|del)|bruktdel/i;
+  const bruktDeler=t.karosseri_skift.filter(d=>bruktMonster.test(((d.tiltak||'')+' '+(d.kommentar||'')+' '+(d.navn||''))));
   if(bruktDeler.length){
     s+=`  BRUKTE DELER (skal lakkes som gammel flate G): ${bruktDeler.map(d=>d.navn).join(', ')}\n`;
     bruktDeler.forEach(bd=>{
@@ -5165,7 +5189,9 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           injiserDeterministisk('DET_SMADEL_50',`Vurder å endre ${d.navn} fra 50% til 100% lakk – smådeler (<3 dm²) skal lakkes 100%, differansen (≈${d.tid}p) legges til`,'Lakkspesifikasjon');
         });
         // Brukt reservedel ført som N – skal være G
-        (parserData.karosseri_skift||[]).filter(bd=>/brukt reservedel/i.test(((bd.tiltak||'')+' '+(bd.kommentar||'')+' '+(bd.navn||'')))).forEach(bd=>{
+        // v3.06: samme monster som i HURTIGFAKTA – begge kilder, alle tre skrivematene.
+        const bruktMonsterPF=/brukt\s*(?:reservedel|del)|bruktdel/i;
+        (parserData.karosseri_skift||[]).filter(bd=>bruktMonsterPF.test(((bd.tiltak||'')+' '+(bd.kommentar||'')+' '+(bd.navn||'')))).forEach(bd=>{
           const norm=s2=>s2.toLowerCase().replace(/[^a-zæøå0-9\s]/g,' ').split(/\s+/).filter(w=>w&&w.length>1&&!/^(v|h)$/.test(w));
           const bdOrd=norm(bd.navn);
           const treff=(parserData.lakkspes||[]).find(d=>{
@@ -5650,7 +5676,10 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           // bildevurdering. v3.01-terskelen holdt likevel tilbake håndtak-linja på Hyundai
           // EB49828, et funn Martin hadde bekreftet som riktig 25.08. Andre gang terskelen
           // kostet oss et ekte funn, etter Audi-en.
-          const bruktDelITakst=(parserData.reservedeler||[]).some(r=>r.brukt);
+          // v3.06: brukt del kan sta som fotnote i reservedelslista ELLER som tekst i
+          // arbeidsspesifikasjonen ("Skift Brukt reservedel"). Handtak-punktet ma se begge.
+          const bruktDelITakst=(parserData.reservedeler||[]).some(r=>r.brukt)
+            ||/brukt\s*(?:reservedel|del)|bruktdel/i.test(parserData.raw||'');
           if(p.status==='usikker'&&bruktDelITakst&&/HTT_HANDTAK$/.test(p.id||'')){
             console.log('[v3.04] Håndtak-punkt publiseres – taksten har en brukt del');
           }else
