@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v3.03 – Smart kontroll av takster</title>
+<title>AutoPell v3.04 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v3.03</div>
+    <div class="version-badge">v3.04</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -275,6 +275,52 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v3.04 – endringer fra v3.03 (7 punkter):
+
+   1. HTT-REGELEN VAR FEIL – Martin markerte den som viktig (1.09):
+      "Nei stotfanger er hoveddel sa den skal ikke ha HTT. Kun smadelene som far HTT. f.eks
+      spylelokk, og lokk." Og: "hver hoveddel kan ha 4x HTT . maks 60 perioder pr hoveddel".
+      Dessuten: "jo tilstotende smadeler skal ha HTT" – den gamle regelen "aldri tilstotende"
+      gjelder tilstotende FLATER, ikke lose smadeler fort som T.
+      Fram til na undertrykte en generisk "STOTFANGER FORAN, HTT" hele smadel-sporsmalet. Men
+      den linja er selv feil etter regelen over, og sier ingenting om smadelene. Na telles
+      HTT-linjer for posisjonen, og sporsmalet stopper forst nar taket pa FIRE er natt.
+      Regelteksten til Claude er rettet tilsvarende, og "lokk" er lagt til positivlista.
+
+   2. "POLERE UTFLIKKING" TELLER SOM FORT. Opel Corsa EJ16883 hadde
+      "STOTFANGER FORAN, polere utflikking 20", mens koden bare lette etter "polere flikk".
+      Fjerde gang samme monster (koding, slette feilkoder, grunning over linjeskift, dette):
+      posten ER fort, bare med verkstedets egne ord.
+
+   3+4. MATERIAL: PLAST UTEN PLAST-MERKE. Kia Soul EV EV22806 foreslo bade UB og "flaterette
+      glemt" for "Luke" og "Ramme grill" – begge plast. Martin: "aldri ub pa plast" og "skal
+      ikke ha flaterette pa disse da de er plast". Grillen ble hoppet over fordi den var merket
+      "Plast,Los"; de to andre manglet merket og ble regnet som metall. Signalet er upalitelig,
+      og unntakslista traff ikke ("luke" er ikke "lokk", "ramme grill" er ikke "gitter").
+      Snudd til POSITIV liste: begge reglene gjelder na kun kjente karosseriflater i stal/alu.
+      Kostnaden er en mulig MISSET UB pa en uvanlig del – riktig vei a bomme.
+
+   5. SPYLERVAESKE SKAL IKKE PASTA. Samme takst fikk "bilen har lyktespylere som demonteres" –
+      Martin: "bilen har ikke lyktespylere". Dette var ingen usikker vurdering v3.01-terskelen
+      kunne fange; Claude var skrasikker og tok feil. Nytt flagg krevSpylerITakst: nevnes ingen
+      spyler/spyledyse i taksten, tilbys ikke regelen. Samme test som Audi-fiksen i v3.02,
+      brukt i motsatt retning.
+
+   6. RUTELIM OG EMBLEM AVGJORES I KODE. Pa Maxus ED75493 sto begge fort i reservedelslista
+      (rutelim 800 kr, tre bakluke-emblemer), og Claude satte punktene til "allerede fort" –
+      riktig, men det var hans egen vurdering uten kode bak, og neste kjoring kan svare annet.
+      Nytt flagg skjulHvisIRaw gjor det deterministisk, som for koding og diagnose.
+
+   7. TO FUNN SOM FORSVANT I STILLHET:
+      (a) HANDTAK VED BRUKT DEL. At en brukt dor har annen nyanse folger av at delen ER brukt –
+          det star i reservedelslista og krever ingen bildevurdering. v3.01-terskelen holdt
+          likevel tilbake handtak-linja pa Hyundai EB49828, et funn Martin bekreftet som riktig
+          25.08. Andre gang terskelen kostet oss et ekte funn, etter Audi-en.
+      (b) DIAGNOSE-SPERREN VAR FOR VID. v3.00 godtok det BARE ordet "diagnose" i rateksten som
+          bevis for at posten var fort. Na kreves en formulering som faktisk beskriver jobben.
+          Mistenkt arsak til at diagnose sto som "foreslatt" pa EV22806 uten a na boksen.
+*/
 
 /* AutoPell v3.03 – endringer fra v3.02 (1 punkt – retter v3.02):
 
@@ -3648,8 +3694,8 @@ function takstSammendrag(t){
     // rustflekk), mens bare det deterministiske UB-funnet gjentok seg. Martin: "ok da må vi
     // lage id på bakluken". Punktene er hans egne: rutelim, UB (allerede deterministisk),
     // eventuelle emblemer, eventuell tilstøtende håndtakslist.
-    BAKLUKE_RUTELIM:{kat:/\bbakluke\b/i,optype:['N'],ikkeVedModell:[/\bsedan\b/i],navn:'Rutelim ved bakluke-skift',mal:'Vurder å legge til rutelim – bakluken skiftes, og ruten må limes i den nye luken',farge:'gul',intern:'Martin: "hvis det ikke er en sedan har alle en bakrute". Karosseriformen leses fra modellnavnet, og alt som ikke sier sedan regnes som å ha bakrute. Martin godtar forenklingen bevisst ("selv om det finnes unntak") – forslaget er en påminnelse, ikke en påstand.'},
-    BAKLUKE_EMBLEM:{kat:/\bbakluke\b/i,optype:['N'],skjulHvisDetaljIkkeFunnet:['emblem','merke'],navn:'Emblem på bakluke',mal:'Sjekk om emblem på bakluke må bestilles nytt',farge:'gul'},
+    BAKLUKE_RUTELIM:{kat:/\bbakluke\b/i,optype:['N'],ikkeVedModell:[/\bsedan\b/i],skjulHvisIRaw:'rutelim|ruteklebe|limsett rute',navn:'Rutelim ved bakluke-skift',mal:'Vurder å legge til rutelim – bakluken skiftes, og ruten må limes i den nye luken',farge:'gul',intern:'Martin: "hvis det ikke er en sedan har alle en bakrute". Karosseriformen leses fra modellnavnet, og alt som ikke sier sedan regnes som å ha bakrute. Martin godtar forenklingen bevisst ("selv om det finnes unntak") – forslaget er en påminnelse, ikke en påstand.'},
+    BAKLUKE_EMBLEM:{kat:/\bbakluke\b/i,optype:['N'],skjulHvisDetaljIkkeFunnet:['emblem','merke'],skjulHvisIRaw:'emblem\\s+bakluke|bakluke[^\\n]{0,20}emblem',navn:'Emblem på bakluke',mal:'Sjekk om emblem på bakluke må bestilles nytt',farge:'gul'},
     BAKLUKE_TILST_HANDTAKSLIST:{kat:/\bbakluke\b/i,optype:['N'],ikkeVedSvart:true,skjulHvisDetaljIkkeFunnet:['håndtakslist','håndtak','list'],navn:'Tilstøtende håndtakslist',mal:'Vurder tilstøtende lakk av håndtakslisten på bakluken hvis bilen har en',farge:'gul'},
     PANSER_EMBLEM:{kat:/\bpanser\b/i,optype:['N','G'],skjulHvisDetaljIkkeFunnet:'emblem',ikkeVedModellAar:[{modell:/tesla.*model\s*y/i,aar:2026}],navn:'Emblem',mal:'Sjekk om emblem på panser må bestilles nytt',farge:'gul'},
 
@@ -3689,13 +3735,13 @@ function takstSammendrag(t){
     BAKSKJERM_N_DOKUMENTASJON:{kat:/bakskjerm/i,optype:['N'],navn:'Dokumentasjon',mal:'Vurder å ta med kostnad for innhenting av dokumentasjon for skift av bakskjerm',farge:'gul'},
 
     // v2.32 – Fase 1: Støtfanger/plastrep/50%-regelen
-    STOTFANGER_HTT_LOSE:{kat:/støtfanger/i,optype:['N','G'],sjekkHttAllerede:true,navn:'HTT løse deler',mal:'Vurder HTT 15p per løs del på støtfangeren – slepekrokdeksel, spyledeksel eller lister.',intern:'ER STØTFANGEREN I DET HELE TATT LAKKERT? Følg stigen i rekkefølge og STOPP på første trinn som gir svar. (1) Har støtfangeren egen lakk-post i lakkspesifikasjonen? Da er den lakkert – ferdig, ikke vurder bildet. (2) Står \"nedre del støtfanger\" eller \"spoiler\" i reservedelslista? Da skiftes nedre del som egen del, og øvre del er lakkert. (3) Er støtfangeren ført med 50% fordeling øvre/nedre? Da er øvre del lakkert og nedre del ulakkert. (4) FØRST NÅ: se på bildet. Ulakkert plast er MATT og ru uten gjenskinn, ofte med synlig kornet tekstur; lakkert flate er BLANK og speiler omgivelsene. Sammenlign støtfangeren direkte med karosseriet like over i samme bilde – er kontrasten tydelig, er den ulakkert. Dette gjelder også svarte biler: samme farge, ulik overflate. En ULAKKERT støtfanger skal ALDRI ha lakk-post, HTT, grunning eller maskering – heller ikke når den skiftes. Klarer du ikke å avgjøre overflaten, sett \"usikker\" (v2.43). POSITIVLISTE – KUN slepekrokdeksel, spyledeksel, lister. Bekreft med bilder før forslag. Gjelder KUN hvis støtfangeren er lakkert i bilens farge. ALDRI foreslå sensorer, sensorholdere, brakketter eller andre deler bak støtfangeren – disse lakkes aldri.',farge:'gul'},
+    STOTFANGER_HTT_LOSE:{kat:/støtfanger/i,optype:['N','G'],sjekkHttAllerede:true,navn:'HTT løse deler',mal:'Vurder HTT 15p per løs SMÅDEL på støtfangeren – slepekrokdeksel, spyledeksel, lokk eller lister. HTT gjelder ALDRI hoveddelen selv.',intern:'ER STØTFANGEREN I DET HELE TATT LAKKERT? Følg stigen i rekkefølge og STOPP på første trinn som gir svar. (1) Har støtfangeren egen lakk-post i lakkspesifikasjonen? Da er den lakkert – ferdig, ikke vurder bildet. (2) Står \"nedre del støtfanger\" eller \"spoiler\" i reservedelslista? Da skiftes nedre del som egen del, og øvre del er lakkert. (3) Er støtfangeren ført med 50% fordeling øvre/nedre? Da er øvre del lakkert og nedre del ulakkert. (4) FØRST NÅ: se på bildet. Ulakkert plast er MATT og ru uten gjenskinn, ofte med synlig kornet tekstur; lakkert flate er BLANK og speiler omgivelsene. Sammenlign støtfangeren direkte med karosseriet like over i samme bilde – er kontrasten tydelig, er den ulakkert. Dette gjelder også svarte biler: samme farge, ulik overflate. En ULAKKERT støtfanger skal ALDRI ha lakk-post, HTT, grunning eller maskering – heller ikke når den skiftes. Klarer du ikke å avgjøre overflaten, sett \"usikker\" (v2.43). POSITIVLISTE – KUN slepekrokdeksel, spyledeksel, lokk, lister. Bekreft med bilder før forslag. Gjelder KUN hvis støtfangeren er lakkert i bilens farge. HTT ER KUN FOR SMÅDELER: hoveddelen selv (støtfangeren) skal ALDRI ha HTT – står det en HTT-linje på selve støtfangeren, er DEN feil, og den dekker uansett ikke smådelene. TILSTØTENDE SMÅDELER SKAL HA HTT: er en smådel ført med op.type T (f.eks. \"Lokk støtfanger foran V\"), gjelder HTT for den – regelen om at tilstøtende aldri får HTT gjelder tilstøtende FLATER, ikke løse smådeler. TAK: maks 4 HTT per hoveddel, altså 60 perioder. ALDRI foreslå sensorer, sensorholdere, brakketter eller andre deler bak støtfangeren – disse lakkes aldri.',farge:'gul'},
     STOTFANGER_DIAGNOSE:{kat:/støtfanger/i,optype:['N','G'],krevAarFra:2017,ikkeVedModell:[/tesla/i],énPerTakst:true,navn:'Diagnose (feilkoder)',mal:'Vurder å legge til diagnose (slette feilkoder, 100p) – støtfanger er demontert',farge:'gul'},
     STOTFANGER_KLIPS:{deterministisk:true,navn:'Klips',mal:'',farge:'gul'},
     STOTFANGER_SVEISEMATERIELL:{krevPlastrepOver:300,kat:/støtfanger/i,optype:['N','G'],navn:'Sveisemateriell plastrep',mal:'Vurder å legge til kostnad for plastsveisemateriell',intern:'TERSKEL: foreslås KUN når plastreparasjonen på DENNE delen er over 300p – grensen gjelder per del, ikke summen. Les Plastreparasjon-seksjonen i arbeidsspesifikasjonen, der hver del står med sin egen tid. Er delen under 300p: ikke relevant. Krever i tillegg at "ut og innvendig skade" er huket av i plastspesifikasjonen, og gjelder kun ved reparasjon, ikke skift. Over 300p betyr ikke i seg selv at delen ER sveist – skriv forslaget med delnavn og tall, og med sveising som forutsetning, slik: "Støtfangerdeksel bak er plastreparert med 340p – er den sveist, vurder å ta med kostnad for plastsveisemateriell."',farge:'gul'},
     STOTFANGER_GRUNNING_TOPPLAKK:{kat:/støtfanger/i,optype:['N','G'],navn:'Grunning for topplakk',mal:'Vurder å legge til grunning for topplakk i annetbilde',intern:'ER STØTFANGEREN I DET HELE TATT LAKKERT? Følg stigen i rekkefølge og STOPP på første trinn som gir svar. (1) Har støtfangeren egen lakk-post i lakkspesifikasjonen? Da er den lakkert – ferdig, ikke vurder bildet. (2) Står \"nedre del støtfanger\" eller \"spoiler\" i reservedelslista? Da skiftes nedre del som egen del, og øvre del er lakkert. (3) Er støtfangeren ført med 50% fordeling øvre/nedre? Da er øvre del lakkert og nedre del ulakkert. (4) FØRST NÅ: se på bildet. Ulakkert plast er MATT og ru uten gjenskinn, ofte med synlig kornet tekstur; lakkert flate er BLANK og speiler omgivelsene. Sammenlign støtfangeren direkte med karosseriet like over i samme bilde – er kontrasten tydelig, er den ulakkert. Dette gjelder også svarte biler: samme farge, ulik overflate. En ULAKKERT støtfanger skal ALDRI ha lakk-post, HTT, grunning eller maskering – heller ikke når den skiftes. Klarer du ikke å avgjøre overflaten, sett \"usikker\" (v2.43).',farge:'rød'},
     STOTFANGER_FORAN_KALIBRERING_RADAR:{deterministisk:true,navn:'Kalibrering radar',mal:'',farge:'lilla'},
-    STOTFANGER_FORAN_SPYLEVAESKE:{kat:/støtfanger foran/i,optype:['N','G'],ikkeVedModell:[/tesla/i],navn:'Spylervæske',mal:'Vurder å legge til kostnad for spylervæske (100kr) – bilen har lyktespylere som demonteres',farge:'gul'},
+    STOTFANGER_FORAN_SPYLEVAESKE:{kat:/støtfanger foran/i,optype:['N','G'],ikkeVedModell:[/tesla/i],krevSpylerITakst:true,navn:'Spylervæske',mal:'Vurder å legge til kostnad for spylervæske (100kr) – bilen har lyktespylere som demonteres',farge:'gul'},
     STOTFANGER_BAK_FILSKIFTESENSOR:{deterministisk:true,navn:'Kalibrering filskiftesensor',mal:'',farge:'lilla'},
     // v2.47: krev3sjikt – disse to gjelder KUN ved 3-sjikts farge. Lakktype leses
     // deterministisk fra taksten (kun Lakktype 3 = 3-sjikt) i stedet for at Claude gjetter.
@@ -3814,6 +3860,21 @@ function takstSammendrag(t){
       // Årsmodell foretrekkes, registreringsår er fallback. Mangler BEGGE, beholdes ID-en
       // (samme prinsipp som krev3sjikt/krevAarFra – vi undertrykker aldri på manglende data).
       // v3.00: kunNVedSvart – bare N-deler på svart bil.
+      // v3.04: SPYLERVÆSKE SKAL IKKE PÅSTÅ. Kia Soul EV EV22806 fikk "bilen har lyktespylere
+      // som demonteres" – Martin: "bilen har ikke lyktespylere". Dette er ikke et usikkert
+      // punkt v3.01-terskelen kan fange; Claude var skråsikker og tok feil. Signalet finnes
+      // i taksten: nevnes ingen spyler/spyledyse noe sted, skal regelen ikke tilbys.
+      // Samme test som Audi-fiksen i v3.02, brukt i motsatt retning.
+      // v3.04: skjulHvisIRaw – posten er allerede ført et sted i taksten, uansett seksjon.
+      // Maxus ED75493 hadde rutelim 800 kr og tre bakluke-emblemer i reservedelslista, og
+      // Claude satte begge punktene til "allerede ført" – riktig, men det var Claudes egen
+      // vurdering uten kode bak. Na avgjor koden det, slik som for koding og diagnose.
+      if(r.skjulHvisIRaw){
+        if(new RegExp(r.skjulHvisIRaw,'i').test(t.raw||''))return false;
+      }
+      if(r.krevSpylerITakst){
+        if(!/lyktespyler|spylerdyse|spyledyse|spyledeksel|hodelyktspyler/i.test(t.raw||''))return false;
+      }
       if(r.kunNVedSvart){
         const farge=((t.bil&&t.bil.farge)||'').toLowerCase();
         if(/svart|sort/.test(farge)&&d.optype!=='N')return false;
@@ -3838,16 +3899,21 @@ function takstSammendrag(t){
       // linje der "Støtfanger foran/bak" er direkte etterfulgt av HTT (ingen delnavn
       // i mellom) teller – en HTT-linje MED delnavn (f.eks. "Spyledeksel støtfanger
       // foran, HTT") er en spesifikk post og skal IKKE undertrykke dette forslaget.
+      // v3.04: HTT-REGELEN VAR FEIL. Martin (1.09, markert som viktig): "Nei stotfanger er
+      // hoveddel sa den skal ikke ha HTT. Kun smadelene som far HTT. f.eks spylelokk, og lokk."
+      // Og: "hver hoveddel kan ha 4x HTT . maks 60 perioder pr hoveddel". I tillegg skal
+      // TILSTOTENDE smadeler ha HTT - den gamle regelen "aldri tilstotende" gjelder tilstotende
+      // FLATER, ikke lose smadeler fort som T.
+      // Fram til na undertrykte en generisk "STOTFANGER FORAN, HTT" hele smadel-sporsmalet.
+      // Men den linja er selv feil etter regelen over, og den sier ingenting om smadelene.
+      // Na teller vi HTT-linjer for posisjonen og stopper forst nar taket pa FIRE er natt.
       if(r.sjekkHttAllerede){
         const posMatch=d.navn.match(/støtfanger\s+(foran|bak)/i);
         if(posMatch){
           const pos=posMatch[1];
-          // v2.50-fix: forankret til linjestart (^, m-flagg) slik at en spesifikk post
-          // MED delnavn foran ("Spyledeksel støtfanger foran, HTT") IKKE feiltolkes som
-          // generisk – kun en linje som faktisk STARTER med "Støtfanger foran/bak" teller.
-          // v2.84: HTT skrives også "H/T X1" (X-tallet er ANTALL) og muligens "HT".
-          const re=new RegExp('^\\s*st[øo]tfanger\\s+'+pos+'\\s*,?\\s*(?:HTT|H\\s*\\/\\s*T|HT)\\b','im');
-          if(re.test(t.raw||''))return false;
+          const httRe=new RegExp('st[øo]tfanger\\s+'+pos+'[^\\n]{0,40}?(?:HTT|H\\s*\\/\\s*T|HT)\\b','gim');
+          const antall=((t.raw||'').match(httRe)||[]).length;
+          if(antall>=4)return false;
         }
       }
       // v2.51: sjekkNevntIRaw – ID-en foreslås KUN hvis ordet faktisk finnes i takstens
@@ -4182,9 +4248,22 @@ function takstSammendrag(t){
     // Hopp over plast-deler
     const mat=(d.materialhint||'').toLowerCase();
     if(mat.includes('plast'))return false;
-    // Hopp over deler som åpenbart ikke er UB-relevante (hengsel, lokk osv.)
+    // v3.04: POSITIV LISTE I STEDET FOR UNNTAKSLISTE. Kia Soul EV EV22806 foreslo UB for
+    // "Luke (G)" og "Ramme grill (G)" – begge PLAST. Martin: "nei disse 2 delene er plast.
+    // aldri ub pa plast." Grillen ble hoppet over fordi den var merket "Plast,Los", mens Luke
+    // og Ramme grill IKKE hadde plast-merke og derfor ble regnet som metall. Signalet er altsa
+    // upalitelig: DBS merker ikke alltid plastdeler som plast.
+    // Unntakslista traff heller ikke ("luke" er ikke "lokk", "ramme grill" er ikke "gitter"),
+    // og en slik liste blir aldri komplett – hvert hull gir et falskt funn. Vi snur den:
+    // UB foreslas KUN for kjente karosseriflater i stal/alu. Samme grep som konsistens-sjekken
+    // i v3.00 og smadel-positivlista. Kostnaden er en mulig MISSET UB pa en uvanlig del, som er
+    // riktig vei a bomme.
     const navn=d.navn.toLowerCase();
-    if(/hengsel|lokk|håndtak|spoiler|spyledyse|p-list|gitter|liste/.test(navn))return false;
+    const karosseriflate=/\bpanser\b|\bfordør\b|\bbakdør\b|\bdør\b|\bforskjerm\b|\bbakskjerm\b|\bskjerm\b|\btak\b|\btakplate\b|\bbakluke\b|\bkanal\b|\bterskel\b|\bstolpe\b|\bkarosseriside\b|\bsideplate\b|\bskyvedør\b|\blastdør\b/;
+    if(!karosseriflate.test(navn))return false;
+    // "V Forskjerm nedre list" traff karosseriflate-mønsteret pa "forskjerm", men er en LIST –
+    // derfor \blist\b i tillegg til "liste".
+    if(/hengsel|lokk|håndtak|spoiler|spyledyse|p-list|gitter|\blist(?:e|er)?\b|grill|ramme|deksel|utbygger|skjørt/.test(navn))return false;
     return true;
   }).map(d=>`${d.navn} (${d.optype})`);
   s+=`  UB-relevante deler (stål/alu, ikke tilstøtende, ikke plast): ${ubKandidater.length?ubKandidater.join(', '):'INGEN'}\n`;
@@ -4200,7 +4279,12 @@ function takstSammendrag(t){
     s+=`  Airbag-diagnose relevant: NEI – ingen fordør skiftes (N) eller har D/M-hake. IKKE foreslå airbag-diagnose.\n`;
   }
 
-  const harPolereFlikk=t.lakkspes.some(d=>d.navn&&d.navn.toLowerCase().includes('polere flikk'))||t.lakkmateriell_annet.some(d=>d.navn.toLowerCase().includes('polere flikk'));
+  // v3.04: DBS skriver ogsaa "polere UTFLIKKING". Opel Corsa EJ16883 hadde
+  // "STOTFANGER FORAN, polere utflikking 20" foert, mens koden bare lette etter "polere flikk"
+  // - fjerde gang samme moenster (koding, slette feilkoder, grunning over linjeskift, og naa
+  // dette): posten ER foert, bare med verkstedets egne ord.
+  const polereRe=/polere\s*(?:ut)?flikk/i;
+  const harPolereFlikk=t.lakkspes.some(d=>d.navn&&polereRe.test(d.navn))||t.lakkmateriell_annet.some(d=>polereRe.test(d.navn||''))||polereRe.test(t.raw||'');
   s+=`  Polere flikk ført: ${harPolereFlikk?'JA':'NEI'}\n`;
   const harGrunningTopplakk=t.lakkmateriell_annet.some(d=>{
     const n=(d.navn||'').toLowerCase();
@@ -5344,10 +5428,18 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           });
         }
         const rustNDeler=(parserData.lakkspes||[]).filter(d=>!d.tillegg&&!d.tilstøtende&&d.optype==='N'
-          &&!/plast/i.test((d.materialhint||''))&&!/støtfanger|hengsel|lokk|håndtak|spoiler|spyledyse|p-list|gitter|liste|speil/i.test((d.navn||'')));
+          &&!/plast/i.test((d.materialhint||''))&&!/støtfanger|hengsel|lokk|håndtak|spoiler|spyledyse|p-list|gitter|liste|speil/i.test((d.navn||''))
+        ).map(d=>d);
         const rustGDelerMedGrunn=[],muligGlemtFlaterette=[];
         (parserData.lakkspes||[]).filter(d=>!d.tillegg&&!d.tilstøtende&&d.optype==='G'
-          &&!/plast/i.test((d.materialhint||''))&&!/støtfanger|hengsel|lokk|håndtak|spoiler|spyledyse|p-list|gitter|liste|speil/i.test((d.navn||''))
+          // v3.04: SAMME MATERIALFIKS SOM UB. Flaterette er metallarbeid, sa plastdeler skal
+          // aldri fa "flaterette glemt". Kia Soul EV EV22806 ga funnet for "Luke" og
+          // "Ramme grill" - Martin: "skal ikke ha flaterette pa disse da de er plast."
+          // Plast-merket i lakkspes er upalitelig (begge manglet det), sa vi krever en KJENT
+          // karosseriflate i stedet for a liste unntak.
+          &&!/plast/i.test((d.materialhint||''))
+          &&/\bpanser\b|\bfordør\b|\bbakdør\b|\bdør\b|\bforskjerm\b|\bbakskjerm\b|\bskjerm\b|\btak\b|\btakplate\b|\bbakluke\b|\bkanal\b|\bterskel\b|\bstolpe\b|\bkarosseriside\b|\bsideplate\b|\bskyvedør\b|\blastdør\b/i.test((d.navn||''))
+          &&!/støtfanger|hengsel|lokk|håndtak|spoiler|spyledyse|p-list|gitter|\blist(?:e|er)?\b|speil|grill|ramme|deksel|utbygger|skjørt/i.test((d.navn||''))
         ).forEach(d=>{
           if(harFlateretteLinjePF(d.navn))rustGDelerMedGrunn.push(`${d.navn} (G)`);
           else if(harRustslipingPF(d.navn))rustGDelerMedGrunn.push(`${d.navn} (G)`); // v2.77: retting, rustbeskyttelse relevant
@@ -5530,6 +5622,15 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           // Dette er SAMME regel som Range Rover SX23957, sett fra motsatt side: der var
           // spylerne usikre og HTT-en falt; her står de i taksten, og da skal den stå.
           const spylerIRaw=/lyktespyler|spyledeksel|spylerdyse|spyledyse/i.test(parserData.raw||'');
+          // v3.04: HÅNDTAK VED BRUKT DEL ER OGSÅ DATA. At en brukt dør har en annen nyanse enn
+          // bilen følger av at delen ER brukt – det står i reservedelslista og krever ingen
+          // bildevurdering. v3.01-terskelen holdt likevel tilbake håndtak-linja på Hyundai
+          // EB49828, et funn Martin hadde bekreftet som riktig 25.08. Andre gang terskelen
+          // kostet oss et ekte funn, etter Audi-en.
+          const bruktDelITakst=(parserData.reservedeler||[]).some(r=>r.brukt);
+          if(p.status==='usikker'&&bruktDelITakst&&/HTT_HANDTAK$/.test(p.id||'')){
+            console.log('[v3.04] Håndtak-punkt publiseres – taksten har en brukt del');
+          }else
           if(p.status==='usikker'&&spylerIRaw&&/HTT_LOSE$/.test(p.id||'')){
             console.log('[v3.02] HTT løse deler publiseres – taksten navngir lyktespyler/spyledeksel');
           }else
@@ -6001,7 +6102,12 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           // står jo allerede i dbs". Tredje gang samme mønster: posten er ført med fritekst, og
           // koden kjenner bare sin egen formulering. Vi søker derfor i RÅTEKSTEN, som alltid
           // inneholder linja uansett hvilken seksjon den havnet i.
-          if(/diagnose|slette feilkoder/.test(t)&&/slette\s+feilkoder|feilkoder\s+slettes|\bdiagnose\b/i.test(parserData.raw||''))
+          // v3.04: STRAMMET INN. v3.00 godtok det BARE ordet "diagnose" i råteksten som bevis
+          // for at posten var ført. Ordet kan stå av helt andre grunner, og da forsvant et ekte
+          // diagnose-forslag i stillhet – mistenkt på Kia Soul EV EV22806, der punktet sto som
+          // "foreslått" i sjekklista uten å nå boksen. Nå kreves en formulering som faktisk
+          // beskriver jobben.
+          if(/diagnose|slette feilkoder/.test(t)&&/slette\s+feilkoder|feilkoder\s+slettes|diagnose[^\n]{0,30}(?:feilkode|slett)|feilkode[^\n]{0,30}diagnose/i.test(parserData.raw||''))
             return 'diagnose/slette feilkoder står allerede i taksten';
 
           // (5) FRITEKST SOM SIER AT DEN IKKE KAN AVGJØRE. Samme prinsipp som for de ID-bærende
@@ -6033,10 +6139,11 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
       }
 
       // 4. Polere flikk – fjern hvis allerede ført
-      const harPolereFlikk=parserData.lakkspes.some(d=>d.navn&&d.navn.toLowerCase().includes('polere flikk'))
-        ||parserData.lakkmateriell_annet.some(d=>d.navn.toLowerCase().includes('polere flikk'));
+      // v3.04: samme utvidelse som i HURTIGFAKTA - "polere utflikking" teller som foert.
+      const polereRe2=/polere\s*(?:ut)?flikk/i;
+      const harPolereFlikk=parserData.lakkspes.some(d=>d.navn&&polereRe2.test(d.navn))||parserData.lakkmateriell_annet.some(d=>polereRe2.test(d.navn||''))||polereRe2.test(parserData.raw||'');
       if(harPolereFlikk){
-        fjernForslag(/polere flikk/i,'polere flikk allerede ført');
+        fjernForslag(/polere\s*(?:ut)?flikk/i,'polere flikk/utflikking allerede ført');
       }
 
       // v2.4 NY – 6. Kalibrering – fjern forslag hvis kalibrering allerede er ført i arbeidsspes
