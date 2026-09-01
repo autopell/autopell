@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v3.07 – Smart kontroll av takster</title>
+<title>AutoPell v3.09 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v3.07</div>
+    <div class="version-badge">v3.09</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -275,6 +275,40 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v3.09 – endringer fra v3.08 (1 punkt – verktoy, ingen regelendring):
+
+   SPORING AV HVERT PUNKT, i debugvisningen ved siden av dekningsoversikten.
+   Tre ganger pa en kveld endret jeg feil sted fordi jeg sa RESULTATET og ikke veien dit:
+   UB-lista som fantes to steder, HTT-punktet som ble sluppet gjennom og deretter kastet, og
+   diagnose-sperren som var for vid. Martin: "kanskje vi ma spore mer da?"
+
+   Na noteres hver hendelse per punkt – sluppet gjennom terskelen, publisert, hoppet over som
+   duplikat, eller fjernet av en sperre, med hvilken sperre. Panelet viser rodt for punkter som
+   ikke nadde boksen, og advarer eksplisitt hvis samme punkt bade er sluppet gjennom OG fjernet:
+   da jobber to sperrer mot hverandre, som var feilen v3.08 rettet.
+
+   Ingen regler er endret i denne versjonen. Formalet er at neste feil skal kunne stedfestes pa
+   ett forsok i stedet for tre.
+*/
+
+/* AutoPell v3.08 – endringer fra v3.07 (1 punkt):
+
+   TO AV VARE EGNE FILTRE JOBBET MOT HVERANDRE.
+   Opel Corsa EJ16883: HTT-punktet for lokket ble sluppet gjennom bildeterskelen fordi taksten
+   HAR dataene – lokket har egen lakk-post, fort T med 8p. Konsollen bekreftet at betingelsen
+   fyrte. Men hedge-sperren fra v3.00 fjernet linja like etterpa, fordi Claude skrev forslaget
+   med forbehold om hva bildet viser.
+
+   Det ene filteret slapp punktet gjennom PA DATAGRUNNLAG, det andre kastet det PA ORDLYD.
+   Uten konsoll-loggen ville dette sett ut som om v3.07-fiksen ikke virket – og jeg ville
+   sannsynligvis endret feil sted igjen. Vaerdt a merke seg: to riktige regler kan gi feil
+   resultat sammen.
+
+   Na markeres punkter som slippes gjennom pa datagrunnlag (HTT ved smadel med egen lakk-post,
+   HTT ved navngitt spyledeksel, handtak ved brukt del), og hedge-sperren hopper over dem.
+   Ordlyden skal ikke overstyre et faktum som star i taksten.
+*/
 
 /* AutoPell v3.07 – endringer fra v3.06 (1 punkt):
 
@@ -3571,6 +3605,15 @@ function ekstraModellSynonymer(modell){
 // hele kjøringen tapt fordi det lå noe etter JSON-objektet. Å stripe ```-merker holder ikke.
 // Vi henter ut det første BALANSERTE {...}-objektet, med hensyn til strenger og escaping,
 // slik at klammer inne i tekst ikke forskyver tellingen.
+// v3.09: SPORING AV HVERT PUNKT. Tre ganger pa en kveld endret jeg feil sted fordi jeg sa
+// RESULTATET, ikke veien dit. Verst var EJ16883, der ett filter slapp HTT-punktet gjennom pa
+// datagrunnlag og et annet kastet det pa ordlyd – to riktige regler som ga feil resultat sammen.
+// Uten konsoll-loggen hadde det sett ut som om fiksen ikke virket.
+// Na noteres hver hendelse per punkt, og debugvisningen viser om et manglende funn skyldes en
+// regel som ikke fyrte, eller en sperre som tok det etterpa.
+function spor(id,hendelse,kilde){
+  (window.SPOR=window.SPOR||[]).push({id:id||'(uten ID)',hendelse,kilde:kilde||'',tid:Date.now()});
+}
 function hentJsonObjekt(txt){
   const s0=(txt||'').indexOf('{');
   if(s0<0)throw new Error('Fant ingen JSON i svaret');
@@ -4691,6 +4734,23 @@ function byggTilbakemeldingsrapport(){
     <div style="margin-top:6px;color:#666;font-style:italic">Tallene er kun så gode som antallet takster bak dem. Under ti takster sier de lite.</div>
     <button onclick="if(confirm('Slette hele tilbakemeldingsloggen?')){localStorage.removeItem('autopell_tilbakemelding');visParserDebug();}" style="margin-top:8px;font-size:11px;cursor:pointer">Nullstill logg</button>`;
 }
+// v3.09: SPORINGSPANELET. Viser hva som skjedde med hvert punkt, i rekkefolge.
+function byggSporing(){
+  const spor=window.SPOR||[];
+  if(!spor.length)return '<div style="color:#666">Ingen sporing registrert. Kjor en kontroll forst.</div>';
+  const perId={};
+  spor.forEach(h=>{(perId[h.id]=perId[h.id]||[]).push(h);});
+  const rader=Object.keys(perId).sort().map(id=>{
+    const hendelser=perId[id].map(h=>{
+      const rod=/FJERNET|HOLDT UTENFOR|HOPPET OVER/.test(h.hendelse);
+      return `<div style="margin-left:14px;color:${rod?'#c0392b':'#2e7d32'}">→ ${h.hendelse}${h.kilde?' <span style="color:#666">('+h.kilde+')</span>':''}</div>`;
+    }).join('');
+    const endteIBoksen=perId[id].some(h=>h.hendelse.startsWith('PUBLISERT'));
+    return `<div style="margin-bottom:8px"><strong style="color:${endteIBoksen?'#2e7d32':'#c0392b'}">${id}</strong>${hendelser}</div>`;
+  }).join('');
+  return `<div style="font-size:12px">${rader}</div>
+    <div style="margin-top:8px;color:#666;font-style:italic">Rodt = punktet nadde ikke DBS-boksen. Star det bade "sluppet gjennom" og "FJERNET" pa samme punkt, jobber to sperrer mot hverandre – det var nettopp den feilen v3.08 rettet.</div>`;
+}
 function byggDekningsoversikt(t){
   const REG=window.REGEL_REGISTRY||{};
   const kats={};
@@ -4745,6 +4805,9 @@ async function visParserDebug(){
         <p style="margin:0 0 8px 0;color:#666;font-size:13px">Dette er det AutoPell faktisk leser fra PDF-en. Hvis noe mangler eller er feil, vet vi hvor problemet er.</p>
         <details style="margin-bottom:10px"><summary style="cursor:pointer;font-weight:bold">📋 Strukturert sammendrag (det Claude får)</summary>
           <pre style="background:#f5f5f5;padding:10px;overflow:auto;font-size:12px;white-space:pre-wrap">${sammendrag.replace(/</g,'&lt;')}</pre>
+        </details>
+        <details style="margin-bottom:10px" open><summary style="cursor:pointer;font-weight:bold">🔎 Sporing – hva skjedde med hvert punkt</summary>
+          <div style="background:#f5f5f5;padding:10px">${byggSporing()}</div>
         </details>
         <details style="margin-bottom:10px"><summary style="cursor:pointer;font-weight:bold">📈 Treffrate på ferske takster (dine ✓/✗)</summary>
           <div style="background:#f5f5f5;padding:10px">${byggTilbakemeldingsrapport()}</div>
@@ -5181,7 +5244,7 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
       // Fix: eget sett, nøklet på (id, del) i stedet for bare id, brukt KUN til duplikat-
       // sjekken – brukteIDer selv er urørt og fortsetter å tjene de andre to formålene.
       const brukteIDPerDel=new Set();
-      window.POENG_FUNN=[];window.KODE_OVERSTYRT=new Set(); // v2.71: nullstilles per kjøring
+      window.POENG_FUNN=[];window.KODE_OVERSTYRT=new Set();window.DATAGODKJENT=new Set();window.SPOR=[]; // v2.71: nullstilles per kjøring
       // v2.35: DETERMINISTISKE PARSER-FUNN – injiseres direkte av koden, Claude ikke involvert.
       // ID-en seedes i brukteIDer slik at eventuelle Claude-varianter av samme funn dedupes.
       function injiserDeterministisk(id,melding,plassering){
@@ -5711,12 +5774,17 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
             ||/brukt\s*(?:reservedel|del)|bruktdel/i.test(parserData.raw||'');
           if(p.status==='usikker'&&bruktDelITakst&&/HTT_HANDTAK$/.test(p.id||'')){
             console.log('[v3.04] Håndtak-punkt publiseres – taksten har en brukt del');
+            spor(p.id,'sluppet gjennom bildeterskelen','taksten har en brukt del (v3.04)');
+            (window.DATAGODKJENT=window.DATAGODKJENT||new Set()).add((p.forslag||'').toLowerCase());
           }else
           if(p.status==='usikker'&&(spylerIRaw||smadelMedLakkPost)&&/HTT_LOSE$/.test(p.id||'')){
-            console.log('[v3.02] HTT løse deler publiseres – taksten navngir lyktespyler/spyledeksel');
+            console.log('[v3.02/3.07] HTT løse deler publiseres – taksten navngir lyktespyler/spyledeksel eller en smådel med egen lakk-post');
+            spor(p.id,'sluppet gjennom bildeterskelen','smådel med egen lakk-post / navngitt spyledeksel (v3.02+v3.07)');
+            (window.DATAGODKJENT=window.DATAGODKJENT||new Set()).add((p.forslag||'').toLowerCase());
           }else
           if(p.status==='usikker'&&p.id&&window.BILDEAVHENGIGE_IDER&&window.BILDEAVHENGIGE_IDER.has(p.id)){
             console.log('[v3.01] Usikkert bildepunkt holdt utenfor DBS-boksen: '+p.id);
+            spor(p.id,'HOLDT UTENFOR BOKSEN','usikkert bildepunkt (v3.01-terskelen)');
             return;
           }
           if((p.status==='foreslått'||p.status==='usikker')&&p.forslag){
@@ -5745,6 +5813,7 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
               if(harID){brukteIDer.add(p.id);brukteIDPerDel.add(idDelNøkkel);}
               if(konsept)brukteKonsepter.add(konsept);
               injisertTekst.add(forslagLower);
+              spor(p.id,'PUBLISERT i DBS-boksen','');
               parsed.sammendrag.dbs_handlinger.push(p.forslag);
               parsed.resultater.push({
                 tittel:(harID&&window.REGEL_REGISTRY[p.id].navn)||p.punkt||d.del,
@@ -5754,6 +5823,7 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
               });
             }else if(erDuplikat){
               console.log('[POST-FILTER] Hoppet over duplikat i delsjekk ('+(harID?'ID: '+p.id:'konsept: '+konsept)+')');
+              spor(p.id,'HOPPET OVER','duplikat i delsjekk');
             }
           }
         });
@@ -5894,6 +5964,7 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           parsed.sammendrag.dbs_handlinger=parsed.sammendrag.dbs_handlinger.filter(d=>{
             if(tekst.test(d.toLowerCase())){
               console.log(`[POST-FILTER] Fjernet: "${d}" – ${grunn}`);
+              spor(finnRegelIdForForslag(d),'FJERNET fra boksen',grunn);
               return false;
             }
             return true;
@@ -6196,6 +6267,12 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           // registerflagg. Sier teksten selv at retningen/detaljen ikke lar seg fastslå, er det
           // ikke et funn. Bevisst SMAL: krever både en usikkerhetsfrase OG et bildeord, så
           // kodeavgjorte funn aldri kan rammes.
+          // v3.08: TO AV VÅRE EGNE FILTRE JOBBET MOT HVERANDRE. Opel Corsa EJ16883: HTT-punktet
+          // ble sluppet gjennom bildeterskelen fordi taksten HAR dataene (lokket har egen
+          // lakk-post) – konsollen viste at v3.02/3.07-betingelsen fyrte – men hedge-sperren
+          // fjernet linja like etterpå, fordi Claude skrev den med forbehold om hva bildet viser.
+          // Er punktet allerede godkjent PÅ DATAGRUNNLAG, skal ordlyden ikke overstyre det.
+          if(window.DATAGODKJENT&&window.DATAGODKJENT.has(t.trim()))return null;
           if(/(klarer ikke|vanskelig å (fastslå|bekrefte|avgjøre)|ikke mulig å (av|be)gjøre|kan ikke avgjøres|ikke tydelig|ingen tydelig|uten tydelig|synes ikke|usikkert om)/.test(t)
              &&/(bilde|bildene|bildeutsnitt|retning|fotografer)/.test(t))
             return 'fritekst som selv sier at bildet ikke lar seg avgjøre';
@@ -6206,14 +6283,14 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
         if(parsed.sammendrag&&Array.isArray(parsed.sammendrag.dbs_handlinger)){
           parsed.sammendrag.dbs_handlinger=parsed.sammendrag.dbs_handlinger.filter(d=>{
             const grunn=skalFjernes(d);
-            if(grunn){console.log(`[POST-FILTER v3.00] Fjernet: "${d}" – ${grunn}`);return false;}
+            if(grunn){console.log(`[POST-FILTER v3.00] Fjernet: "${d}" – ${grunn}`);spor(finnRegelIdForForslag(d),'FJERNET fra boksen',grunn);return false;}
             return true;
           });
         }
         if(Array.isArray(parsed.resultater)){
           parsed.resultater=parsed.resultater.filter(r=>{
             const grunn=skalFjernes((r.tittel||'')+' '+(r.melding||''));
-            if(grunn){console.log(`[POST-FILTER v3.00] Fjernet resultat: "${r.tittel}" – ${grunn}`);return false;}
+            if(grunn){console.log(`[POST-FILTER v3.00] Fjernet resultat: "${r.tittel}" – ${grunn}`);spor(finnRegelIdForForslag(r.melding||r.tittel),'FJERNET som resultat',grunn);return false;}
             return true;
           });
         }
