@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v3.09 – Smart kontroll av takster</title>
+<title>AutoPell v3.10 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v3.09</div>
+    <div class="version-badge">v3.10</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -275,6 +275,28 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v3.10 – endringer fra v3.09 (2 punkter – begge funnet AV sporingspanelet):
+
+   Panelet gjorde jobben sin med en gang. To feil som ellers ville tatt flere forsok:
+
+   1. "SKIFT" VAR IKKE ALLTID NOYAKTIG "SKIFT". Koding-funnet forsvant pa Kia EV22806, og
+      panelet viste at DET_LYSKASTER_KODING ikke sto der I DET HELE TATT – ingen sperre hadde
+      tatt den, den ble aldri produsert. Arsak: filteret krevde d.tiltak === 'Skift', mens Kia-en
+      forer lyskasteren som "Skift Brukt reservedel". Samme strenge likhetstest fantes FIRE
+      steder (bakdor-sjekken to steder, klipssett, og skade-pa-N-del-filteret) – alle fire er
+      lost opp til "starter med skift". Denne gangen ble alle forekomstene sokt opp forst.
+
+   2. SPERREN TOK FEIL DIAGNOSE. Panelet viste at FORDOR_DIAGNOSE_AIRBAG ble fjernet med
+      begrunnelsen "slette feilkoder star allerede i taksten". Men AIRBAG-diagnose er en helt
+      annen jobb enn a slette feilkoder etter at en stotfanger har vaert demontert. Sperren
+      matchet pa ordet "diagnose" alene. Na kreves at funnet faktisk handler om feilkoder, og
+      airbag er eksplisitt unntatt.
+
+   OGSA: sporingen dekket bare punkter som hadde vaert innom publiseringen, sa deterministiske
+   regler som ALDRI fyrer var usynlige. Kalibrering- og kodingreglene spores na ogsa nar de IKKE
+   produseres, med begrunnelse.
+*/
 
 /* AutoPell v3.09 – endringer fra v3.08 (1 punkt – verktoy, ingen regelendring):
 
@@ -4523,7 +4545,7 @@ function takstSammendrag(t){
   const erTesla=t.bil&&t.bil.modell&&/tesla/i.test(t.bil.modell)&&/model\s*y/i.test(t.bil.modell);
   if(erTesla){
     const harBakdørLakk=t.lakkspes.some(d=>!d.tillegg&&(d.optype==='N'||d.optype==='G')&&!d.tilstøtende&&d.navn&&/bakdør/i.test(d.navn));
-    const harBakdørSkift=t.karosseri_skift.some(d=>/bakdør/i.test(d.navn)&&d.tiltak==='Skift');
+    const harBakdørSkift=t.karosseri_skift.some(d=>/bakdør/i.test(d.navn)&&/^skift\b/i.test((d.tiltak||'').trim()));
     if(harBakdørLakk||harBakdørSkift){
       s+=`  Tesla bakdør (N eller G): JA\n`;
       s+=`     → Folie/tape-montering 50p (Tesla-regel) – håndteres automatisk av koden\n`;
@@ -5297,7 +5319,7 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
         // derfor likevel, med generisk ordlyd i stedet for Tesla-varianten. Nå deler begge
         // sjekkene nøyaktig samme "er dette Tesla bakdør + er folie allerede nevnt"-vilkår.
         const teslaBakdørPF=erTesla&&((parserData.lakkspes||[]).some(d=>!d.tillegg&&(d.optype==='N'||d.optype==='G')&&!d.tilstøtende&&d.navn&&/bakdør/i.test(d.navn))
-          ||(parserData.karosseri_skift||[]).some(d=>/bakdør/i.test(d.navn)&&d.tiltak==='Skift'));
+          ||(parserData.karosseri_skift||[]).some(d=>/bakdør/i.test(d.navn)&&/^skift\b/i.test((d.tiltak||'').trim())));
         const folieAlleredeFørtPF=/(?:folie|tape[- ]?monter)/i.test(parserData.raw||'');
         if(teslaBakdørPF&&!folieAlleredeFørtPF)injiserDeterministisk('DET_TESLA_BAKDOR_FOLIE',window.REGEL_REGISTRY.DET_TESLA_BAKDOR_FOLIE.mal,'Annetbildet');
         // Flaterette-kostnad finnes men UB ikke ført
@@ -5346,6 +5368,11 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
         }
         const kalibreringFørtPF=(parserData.kalibreringer&&parserData.kalibreringer.length)
           ||finnesIAnnetBildePF(/kalibr|koding|kode\s+lykt|programmer/i);
+        // v3.10: SPORING AV KALIBRERING/KODING. Sporingspanelet viste at DET_LYSKASTER_KODING
+        // ikke sto der I DET HELE TATT pa Kia EV22806 – ingen sperre tok den, den ble aldri
+        // produsert. Panelet dekket bare punkter som hadde vaert innom publiseringen, sa
+        // deterministiske regler som aldri fyrer var usynlige. Na spores ogsa DE.
+        if(kalibreringFørtPF)spor('DET_LYSKASTER_KODING m.fl.','IKKE PRODUSERT','kalibrering/koding regnes som allerede ført i taksten');
         if(!kalibreringFørtPF){
           const erPRadar=n=>/p-?radar|p-?sensor|parkeringssensor|parkerings-?radar/i.test(n);
           const kalibKategorier=[
@@ -5356,10 +5383,16 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           ];
           kalibKategorier.forEach(kat=>{
             const treffNavn=(parserData.karosseri_skift||[])
-              .filter(d=>d.navn&&d.tiltak==='Skift'&&kat.re.test(d.navn)&&!erPRadar(d.navn))
+              // v3.10: tiltak er ikke alltid NOYAKTIG "Skift". Kia EV22806 forer lyskasteren som
+              // "Skift Brukt reservedel", og den strenge likhetstesten droppet den – derfor
+              // forsvant koding-funnet i kveld uten at noen sperre var involvert.
+              .filter(d=>d.navn&&/^skift\b/i.test((d.tiltak||'').trim())&&kat.re.test(d.navn)&&!erPRadar(d.navn))
               .map(d=>'"'+d.navn+'"');
             if(treffNavn.length){
+              spor(kat.id,'PRODUSERT av kode','skiftet del: '+treffNavn.join(', '));
               injiserDeterministisk(kat.id,kat.tekst(treffNavn.join(' og ')),'Arbeidsspesifikasjon');
+            }else{
+              spor(kat.id,'IKKE PRODUSERT','ingen skiftet del matcher mønsteret');
             }
           });
         }
@@ -5589,7 +5622,7 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
         }
         // v2.39 Fase 4: Klips – dør/støtfanger skiftes (N) eller demonteres (D/M), klips ikke nevnt
         const dørStøtfangerSkiftes=(parserData.lakkspes||[]).some(d=>!d.tillegg&&d.optype==='N'&&!d.tilstøtende&&d.navn&&/fordør|bakdør|støtfanger/i.test(d.navn))
-          ||(parserData.karosseri_skift||[]).some(d=>d.navn&&d.tiltak==='Skift'&&/dør|støtfanger/i.test(d.navn))
+          ||(parserData.karosseri_skift||[]).some(d=>d.navn&&/^skift\b/i.test((d.tiltak||'').trim())&&/dør|støtfanger/i.test(d.navn))
           ||(parserData.dm_av||[]).some(d=>/dør|støtfanger/i.test(d.navn||''));
         if(dørStøtfangerSkiftes&&!/klips/i.test(parserData.raw||'')){
           injiserDeterministisk('DET_KLIPS','Vurder å ta med klipssett i annetbildet – dør/støtfanger skiftes eller demonteres','Annetbildet');
@@ -6215,7 +6248,7 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
         const lakkerteFlater=/panser|dør|skjerm|\btak\b|takplate|bakluke|støtfanger|kanal|stolpe|karosseriside|sideplate/i;
         const nDeler=[]
           .concat((parserData.lakkspes||[]).filter(d=>d.optype==='N'&&d.navn).map(d=>d.navn))
-          .concat((parserData.karosseri_skift||[]).filter(d=>d.tiltak==='Skift'&&d.navn).map(d=>d.navn))
+          .concat((parserData.karosseri_skift||[]).filter(d=>/^skift\b/i.test((d.tiltak||'').trim())&&d.navn).map(d=>d.navn))
           .map(n=>n.toLowerCase().replace(/^[vh]\s+/,'').replace(/\s+[vh]$/,'').trim())
           .filter(n=>n.length>3);
         const spørOmSpylere=(parsed.sammendrag&&Array.isArray(parsed.sammendrag.dbs_handlinger)?parsed.sammendrag.dbs_handlinger:[])
@@ -6259,7 +6292,16 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           // diagnose-forslag i stillhet – mistenkt på Kia Soul EV EV22806, der punktet sto som
           // "foreslått" i sjekklista uten å nå boksen. Nå kreves en formulering som faktisk
           // beskriver jobben.
-          if(/diagnose|slette feilkoder/.test(t)&&/slette\s+feilkoder|feilkoder\s+slettes|diagnose[^\n]{0,30}(?:feilkode|slett)|feilkode[^\n]{0,30}diagnose/i.test(parserData.raw||''))
+          // v3.10: SPERREN TOK FEIL DIAGNOSE. Sporingspanelet viste at FORDOR_DIAGNOSE_AIRBAG
+          // ble fjernet med begrunnelsen "slette feilkoder star allerede i taksten" pa Kia
+          // EV22806. Men AIRBAG-diagnose er en HELT ANNEN jobb enn a slette feilkoder etter at
+          // en stotfanger har vaert demontert. Sperren matchet pa ordet "diagnose" alene og traff
+          // dermed alt som heter diagnose.
+          // Na kreves at funnet faktisk handler om feilkode-diagnosen, og airbag nevnes aldri
+          // sammen med den.
+          if(/airbag/.test(t))return null;
+          if(/(?:slette\s+feilkoder|diagnose[^\n]{0,40}feilkode|feilkode[^\n]{0,40}diagnose)/.test(t)
+             &&/slette\s+feilkoder|feilkoder\s+slettes|diagnose[^\n]{0,30}(?:feilkode|slett)|feilkode[^\n]{0,30}diagnose/i.test(parserData.raw||''))
             return 'diagnose/slette feilkoder står allerede i taksten';
 
           // (5) FRITEKST SOM SIER AT DEN IKKE KAN AVGJØRE. Samme prinsipp som for de ID-bærende
