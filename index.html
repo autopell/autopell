@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v3.04 – Smart kontroll av takster</title>
+<title>AutoPell v3.05 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v3.04</div>
+    <div class="version-badge">v3.05</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -275,6 +275,22 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v3.05 – endringer fra v3.04 (1 punkt – retter v3.04):
+
+   UB-KANDIDATENE BEREGNES TO STEDER, og v3.04 rettet bare den ene. Kia Soul EV EV22806 mistet
+   riktignok bade spylervaeske-funnet og "flaterette glemt", men beholdt UB pa "Luke (G),
+   Ramme grill (G)" – begge plast. Materialfiksen la i HURTIGFAKTA-lista; selve funnet lages av
+   en egen, identisk liste i post-filteret (ubRelevantePF).
+
+   Sjuende gang samme felle i dette prosjektet, og tredje gang jeg gar i den selv – i en versjon
+   der jeg skrev kommentarer om nettopp den. Denne gangen ble ALLE fire forekomstene av
+   unntakslista sokt opp FOR endringen: UB i HURTIGFAKTA, UB i post-filteret, rustNDeler og
+   flaterette-kandidatene. Alle bruker na den samme positive lista over karosseriflater.
+
+   LAERDOM VERDT A GJENTA: sok opp alle forekomster av monsteret for du endrer den forste.
+   "Jeg rettet regelen" betyr ingenting hvis regelen finnes fire steder.
+*/
 
 /* AutoPell v3.04 – endringer fra v3.03 (7 punkter):
 
@@ -5246,8 +5262,13 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           if(!d.optype||(d.optype!=='N'&&d.optype!=='G'))return false;
           const mat=(d.materialhint||'').toLowerCase();
           if(mat.includes('plast'))return false;
+          // v3.04b: SAMME POSITIVE LISTE SOM I HURTIGFAKTA. UB-kandidatene beregnes TO steder,
+          // og v3.04 rettet bare den ene – funnet du ser lages her. Kia Soul EV EV22806 beholdt
+          // derfor UB pa "Luke" og "Ramme grill". Sjuende gang samme felle i prosjektet, og
+          // tredje gang jeg gar i den selv. Denne gangen ble ALLE forekomster sokt opp forst.
           const navn=(d.navn||'').toLowerCase();
-          if(/støtfanger|hengsel|lokk|håndtak|spoiler|spyledyse|p-list|gitter|liste|speil/.test(navn))return false;
+          if(!/\bpanser\b|\bfordør\b|\bbakdør\b|\bdør\b|\bforskjerm\b|\bbakskjerm\b|\bskjerm\b|\btak\b|\btakplate\b|\bbakluke\b|\bkanal\b|\bterskel\b|\bstolpe\b|\bkarosseriside\b|\bsideplate\b|\bskyvedør\b|\blastdør\b/.test(navn))return false;
+          if(/støtfanger|hengsel|lokk|håndtak|spoiler|spyledyse|p-list|gitter|\blist(?:e|er)?\b|speil|grill|ramme|deksel|utbygger|skjørt/.test(navn))return false;
           return true;
         }).map(d=>`${d.navn} (${d.optype})`);
         if(ubRelevantePF.length&&!(parserData.sammenstilling&&parserData.sammenstilling.ub_kr)&&!brukteIDer.has('DET_UB_VED_FLATERETTE')){
@@ -5428,7 +5449,9 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           });
         }
         const rustNDeler=(parserData.lakkspes||[]).filter(d=>!d.tillegg&&!d.tilstøtende&&d.optype==='N'
-          &&!/plast/i.test((d.materialhint||''))&&!/støtfanger|hengsel|lokk|håndtak|spoiler|spyledyse|p-list|gitter|liste|speil/i.test((d.navn||''))
+          &&!/plast/i.test((d.materialhint||''))
+          &&/\bpanser\b|\bfordør\b|\bbakdør\b|\bdør\b|\bforskjerm\b|\bbakskjerm\b|\bskjerm\b|\btak\b|\btakplate\b|\bbakluke\b|\bkanal\b|\bterskel\b|\bstolpe\b|\bkarosseriside\b|\bsideplate\b|\bskyvedør\b|\blastdør\b/.test((d.navn||''))
+          &&!/støtfanger|hengsel|lokk|håndtak|spoiler|spyledyse|p-list|gitter|\blist(?:e|er)?\b|speil|grill|ramme|deksel|utbygger|skjørt/.test((d.navn||''))
         ).map(d=>d);
         const rustGDelerMedGrunn=[],muligGlemtFlaterette=[];
         (parserData.lakkspes||[]).filter(d=>!d.tillegg&&!d.tilstøtende&&d.optype==='G'
