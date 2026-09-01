@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v3.11 – Smart kontroll av takster</title>
+<title>AutoPell v3.12 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v3.11</div>
+    <div class="version-badge">v3.12</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -275,6 +275,19 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v3.12 – endringer fra v3.11 (1 punkt – ett falskt funn fra v3.11-testrunden):
+   1. BRUKT DEL MATCHET PÅ ORDOVERLAPP OG TRAFF FEIL DEL. Kia EV22806: da v3.11 gjorde de fire
+      brukte delene synlige, koblet DET_BRUKT_DEL_SOM_N brukt "Deformasjonselement støtfanger
+      foran EV" til lakk-linja "Støtfanger foran" – to felles ord holdt – og foreslo N→G på
+      støtfangeren. Hoveddelsnavnet inne i et delnavn er en PLASSERING, ikke delen.
+      Hyundai EB49828 viser regelen i ekte data: "H P-list bakdør" (1 323 kr) er p-lista,
+      "H Bakdør p-list" (21 232 kr) er bakdøra. Hodeordet står først.
+      Testen er derfor byttet til hodeord + side, med navneparene (v3.02) som fallback når DBS
+      bruker ulike ord i arbeids- og lakkseksjonen. Innstrammingen kan bare FJERNE forslag.
+      Lagt i ÉN global hjelper som begge stedene kaller – HURTIGFAKTA og post-filteret hadde
+      hver sin kopi av samme test, akkurat mønsteret bak v2.62-saken.
+*/
 
 /* AutoPell v3.11 – endringer fra v3.10 (1 punkt – den EKTE arsaken bak koding-funnet):
 
@@ -3650,6 +3663,50 @@ function ekstraModellSynonymer(modell){
   if(/proace\s*city/i.test(modell||''))ut.push({fra:/\bskyvedør\b/g,til:'bakdør'});
   return ut;
 }
+// v3.12: HODEORDET AVGJØR HVILKEN DEL ET NAVN GJELDER. Bekreftet mot ekte data på
+// Hyundai EB49828, der reservedelslista fører BEGGE disse rett under hverandre:
+//     "H P-list bakdør"   1 323 kr   → selve p-lista
+//     "H Bakdør p-list"  21 232 kr   → selve bakdøra (fotnote: brukt del)
+// Samme ord, motsatt rekkefølge, to helt forskjellige deler. Hodeordet står FØRST; resten av
+// navnet forteller bare HVOR delen hører hjemme – samme innsikt som "bakskjerm bak".
+// Brukt-del-regelen matchet tidligere på MINST TO FELLES ORD, og på Kia EV22806 koblet den
+// derfor brukt "Deformasjonselement støtfanger foran EV" til lakk-linja "Støtfanger foran"
+// og foreslo N→G på støtfangeren. Deformasjonselementet er ikke støtfangeren.
+// Denne hjelperen er GLOBAL med vilje: både HURTIGFAKTA og post-filteret gjør nøyaktig samme
+// vurdering, og den skal aldri kunne rette seg ett sted og ikke det andre (v2.62-lærdommen).
+function hodeordDel(navn,modell){
+  let s=(navn||'')
+    .replace(/\blastdør\s*,?\s*(bakre|øvre)(\s*\/\s*(bakre|øvre))*/gi,'bakluke')
+    .replace(/\bsideplate\b/gi,'karosseriside')
+    .replace(/\bterskel\b/gi,'kanal');
+  ekstraModellSynonymer(modell||'').forEach(syn=>{s=s.replace(new RegExp(syn.fra.source,'gi'),syn.til);});
+  s=s.split('/')[0];
+  s=s.replace(/\(.*?\)/g,'').replace(/,.*$/,'').replace(/\s+\d+\s*$/,'').trim();
+  let n=s.toLowerCase().replace(/\s+/g,' ').trim();
+  let side='';
+  const mF=n.match(/^([hv])\s+/); if(mF){side=mF[1];n=n.replace(/^([hv])\s+/,'');}
+  const mE=n.match(/\s+([hv])$/); if(mE){side=side||mE[1];n=n.replace(/\s+([hv])$/,'');}
+  // samme kanonisering som normaliserHoveddelPF: "Skjerm foran V" og "V Forskjerm" er én del
+  n=n.replace(/^dør\s+(?:frem(?:re)?|foran|fr\.?|fre\.?)$/,'fordør').replace(/^dør\s+(?:bak(?:re|r)?|bk\.?)$/,'bakdør')
+     .replace(/^skjerm\s+(?:frem(?:re)?|foran|fr\.?|fre\.?)$/,'forskjerm').replace(/^skjerm\s+(?:bak(?:re|r)?|bk\.?)$/,'bakskjerm');
+  n=/^tak(plate)?\b/.test(n)?'tak':n.split(' ')[0];
+  return {kjerne:n,side:side};
+}
+// Er disse to navnene samme fysiske del? Krever LIKT hodeord, og sider som ikke kolliderer.
+// NAVNEPARENE SPØRRES NÅR HODEORDENE ER ULIKE: DBS skriver samme del med ulike ord i
+// arbeids- og lakkseksjonen, og parene er lært av taksten selv (v3.02). Uten dette leddet
+// ville innstrammingen kunne miste et EKTE funn i stedet for å fjerne et falskt.
+function sammeDelHodeord(navnA,navnB,modell,navnepar){
+  const a=hodeordDel(navnA,modell),b=hodeordDel(navnB,modell);
+  if(!a.kjerne||a.kjerne.length<3)return false;
+  const sideOk=(!a.side||!b.side||a.side===b.side);
+  if(!sideOk)return false;
+  if(a.kjerne===b.kjerne)return true;
+  return (navnepar||[]).some(par=>{
+    const pa=hodeordDel(par.arbeid,modell).kjerne,pl=hodeordDel(par.lakk,modell).kjerne;
+    return (pa===a.kjerne&&pl===b.kjerne)||(pl===a.kjerne&&pa===b.kjerne);
+  });
+}
 // v2.92: JSON-PARSING TÅLER PROSA RUNDT SVARET. En fersk takst døde 25.08 på
 // "Unexpected non-whitespace character after JSON at position 868" og ga INGEN resultater –
 // hele kjøringen tapt fordi det lå noe etter JSON-objektet. Å stripe ```-merker holder ikke.
@@ -4541,15 +4598,14 @@ function takstSammendrag(t){
   if(bruktDeler.length){
     s+=`  BRUKTE DELER (skal lakkes som gammel flate G): ${bruktDeler.map(d=>d.navn).join(', ')}\n`;
     bruktDeler.forEach(bd=>{
-      // Kjerne-ord-match mot lakkspes: del navnene i ord, ignorer side-bokstav V/H alene
-      const norm=s2=>s2.toLowerCase().replace(/[^a-zæøå0-9\s]/g,' ').split(/\s+/).filter(w=>w&&w.length>1&&!/^(v|h)$/.test(w));
-      const bdOrd=norm(bd.navn);
+      // v3.12: HODEORD, IKKE ORDOVERLAPP. Den gamle testen krevde minst to felles ord, og
+      // "Deformasjonselement støtfanger foran EV" delte både "støtfanger" og "foran" med
+      // lakk-linja "Støtfanger foran" – to forskjellige deler, ett falskt N→G-forslag.
+      // Felles hjelper med post-filteret, se hodeordDel/sammeDelHodeord.
+      const modellHF=(t.bil&&t.bil.modell)||'';
       const treff=t.lakkspes.find(d=>{
         if(d.tillegg||!d.navn)return false;
-        const lOrd=norm(d.navn);
-        // minst 2 felles kjerneord
-        const felles=bdOrd.filter(w=>lOrd.includes(w));
-        return felles.length>=2;
+        return sammeDelHodeord(bd.navn,d.navn,modellHF,t.navnepar);
       });
       if(treff){
         if(treff.optype==='N'){
@@ -5325,12 +5381,11 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
         // v3.06: samme monster som i HURTIGFAKTA – begge kilder, alle tre skrivematene.
         const bruktMonsterPF=/brukt\s*(?:reservedel|del)|bruktdel/i;
         (parserData.karosseri_skift||[]).filter(bd=>bruktMonsterPF.test(((bd.tiltak||'')+' '+(bd.kommentar||'')+' '+(bd.navn||'')))).forEach(bd=>{
-          const norm=s2=>s2.toLowerCase().replace(/[^a-zæøå0-9\s]/g,' ').split(/\s+/).filter(w=>w&&w.length>1&&!/^(v|h)$/.test(w));
-          const bdOrd=norm(bd.navn);
+          // v3.12: samme hodeord-test som i HURTIGFAKTA – én felles hjelper, aldri to kopier.
+          const modellPF=(parserData.bil&&parserData.bil.modell)||'';
           const treff=(parserData.lakkspes||[]).find(d=>{
             if(d.tillegg||!d.navn)return false;
-            const lOrd=norm(d.navn);
-            return bdOrd.filter(w=>lOrd.includes(w)).length>=2;
+            return sammeDelHodeord(bd.navn,d.navn,modellPF,parserData.navnepar);
           });
           if(treff&&treff.optype==='N'){
             injiserDeterministisk('DET_BRUKT_DEL_SOM_N',`Vurder å endre lakk-linjen "${treff.navn}" fra N til G – "${bd.navn}" er brukt reservedel og skal lakkes som gammel flate`,'Lakkspesifikasjon');
