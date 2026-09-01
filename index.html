@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v3.10 – Smart kontroll av takster</title>
+<title>AutoPell v3.11 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v3.10</div>
+    <div class="version-badge">v3.11</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -275,6 +275,27 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v3.11 – endringer fra v3.10 (1 punkt – den EKTE arsaken bak koding-funnet):
+
+   FIRE DELER BLE ALDRI PARSET. Sporingspanelet sa "ingen skiftet del matcher monsteret" for
+   DET_LYSKASTER_KODING, og JSON-fanen forklarte hvorfor: karosseri_skift inneholdt bare TRE av
+   syv deler pa Kia EV22806. De fire som manglet var nettopp de som star som
+   "Skift Brukt reservedel" – blant dem "H Lyskaster EV".
+
+   Robot-layout-parseren (v2.46) godtar en tiltakslinje som star ALENE for delnavnet, men krevde
+   at linja var NOYAKTIG "Skift" eller "De/Mo". "Skift Brukt reservedel" traff ikke, og delene
+   forsvant for noen regel i det hele tatt fikk se dem.
+
+   Min v3.10-fiks (los opp d.tiltak==='Skift') var altsa riktig, men irrelevant – radene fantes
+   ikke. To lag av samme feil: forst parsingen, sa filteret. Sporingen fant det forste, JSON-fanen
+   det andre.
+
+   Na godtas kjente tillegg pa tiltakslinja: "Brukt reservedel", "Brukt del", "Justert pris",
+   "Manuelt prissatt". Hele linja lagres som kommentar, slik at brukt-del-deteksjonen fra v3.06
+   ogsa finner den. Verifisert mot Kia-ens faktiske arbeidsspesifikasjon: alle syv deler parses
+   na, og fire av dem er merket brukt.
+*/
 
 /* AutoPell v3.10 – endringer fra v3.09 (2 punkter – begge funnet AV sporingspanelet):
 
@@ -3153,11 +3174,17 @@ function parseTakst(text){
         // Dette er ren TILLEGGS-dekning: en linje som er nøyaktig "Skift"/"De/Mo" kan
         // aldri treffe regexen over (den krever tekst + mellomrom + tiltak på samme linje),
         // så ingen takst som parses riktig i dag kan bli påvirket.
-        const alene=line.trim().match(/^(Skift|De\/Mo)$/i);
+        // v3.11: TILTAKSLINJA KAN HA ET TILLEGG. Kia Soul EV EV22806 skriver
+        // "Skift Brukt reservedel" alene pa linja for delnavnet, og den strenge testen pa
+        // NOYAKTIG "Skift" droppet fire deler – blant dem "H Lyskaster EV". Derfor forsvant
+        // koding-funnet uten at noen sperre var involvert; sporingspanelet viste "ingen skiftet
+        // del matcher monsteret", og JSON-fanen viste at delene aldri kom inn i karosseri_skift.
+        // Kjent tillegg som "Brukt reservedel"/"Justert pris" godtas na.
+        const alene=line.trim().match(/^(Skift|De\/Mo)(?:\s+(?:Brukt\s+(?:reservedel|del)|Justert\s+pris|Manuelt\s+prissatt))?$/i);
         if(alene){
           const neste=(lines[li+1]||'').trim();
           const gyldigNavn=neste
-            &&!/^(Skift|De\/Mo)$/i.test(neste)
+            &&!/^(Skift|De\/Mo)(?:\s+\w+)*$/i.test(neste)
             &&!/^\d+([.,]\d+)?$/.test(neste)
             &&!/^Sum/i.test(neste)
             &&!/^D\/M av/i.test(neste)
@@ -3165,7 +3192,8 @@ function parseTakst(text){
             &&neste.length>2;
           if(gyldigNavn){
             const tiltak=/^skift$/i.test(alene[1])?'Skift':'De/Mo';
-            result.karosseri_skift.push({navn:neste,tiltak:tiltak,kommentar:''});
+            // hele linja tas vare pa som kommentar, slik at brukt-del-deteksjonen finner den
+            result.karosseri_skift.push({navn:neste,tiltak:tiltak,kommentar:line.trim()});
             console.log('[PARSER v2.46] Fanget robot-layout: "'+tiltak+'" alene på linje → delnavn "'+neste+'"');
           }
         }
