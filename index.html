@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v3.12 – Smart kontroll av takster</title>
+<title>AutoPell v3.13 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v3.12</div>
+    <div class="version-badge">v3.13</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -275,6 +275,19 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v3.13 – endringer fra v3.12 (2 punkter, begge på samme funn):
+   1. NAVNEPAR-FALLBACKEN FJERNET. v3.12 la den inn som sikkerhetsnett, men parene er et
+      KRYSSPRODUKT innenfor én Pos-blokk, og blokken inneholder hoveddelen sammen med delene
+      bak den. Kia EV22806 gikk derfor fra ETT falskt forslag (v3.11) til TRE (v3.12).
+      Parene er riktige for det de ble laget til – å finne hvilken lakk-linje som DEKKER en
+      arbeidslinje – men de kan ikke avgjøre om to navn er samme del.
+   2. STØTFANGERDEKSEL = STØTFANGER. Uten dette ville punkt 1 alene fjernet et EKTE funn:
+      den brukte delen på EV22806 ER støtfangeren, ført som "Støtfangerdeksel foran parkassist
+      EV". Martin: "det heter støtfangerdeksel. det er hovedelen som skal lakkes."
+      Deformasjonselement og støtfangerbjelke beholder sine egne hodeord og faller ut av seg
+      selv – ingen ekskluderingsliste.
+*/
 
 /* AutoPell v3.12 – endringer fra v3.11 (1 punkt – ett falskt funn fra v3.11-testrunden):
    1. BRUKT DEL MATCHET PÅ ORDOVERLAPP OG TRAFF FEIL DEL. Kia EV22806: da v3.11 gjorde de fire
@@ -3678,7 +3691,16 @@ function hodeordDel(navn,modell){
   let s=(navn||'')
     .replace(/\blastdør\s*,?\s*(bakre|øvre)(\s*\/\s*(bakre|øvre))*/gi,'bakluke')
     .replace(/\bsideplate\b/gi,'karosseriside')
-    .replace(/\bterskel\b/gi,'kanal');
+    .replace(/\bterskel\b/gi,'kanal')
+    // v3.13: DEKSELET ER STØTFANGEREN. Martin: "det heter støtfangerdeksel. det er hovedelen
+    // som skal lakkes." Lakk-linja skriver bare "Støtfanger foran", mens reservedelslista
+    // skriver "Støtfangerdeksel foran parkassist EV" – samme fysiske flate. Delene BAK dekselet
+    // (deformasjonselement, støtfangerbjelke, forsterkning) lakkeres aldri, og de beholder sitt
+    // eget hodeord, så de faller ut av seg selv. Ingen ekskluderingsliste – étt navn som betyr
+    // hoveddelen. Samme kobling finnes allerede i navnematcherne (harLakkPost/harLakkPost2).
+    // MERK: "Feste støtfangerdeksel bak" er en brakett, men hodeordet er "feste" – den treffer
+    // derfor ikke, i motsetning til i de eldre synonymbaserte sjekkene.
+    .replace(/\bstøtfangerdeksel\b/gi,'støtfanger');
   ekstraModellSynonymer(modell||'').forEach(syn=>{s=s.replace(new RegExp(syn.fra.source,'gi'),syn.til);});
   s=s.split('/')[0];
   s=s.replace(/\(.*?\)/g,'').replace(/,.*$/,'').replace(/\s+\d+\s*$/,'').trim();
@@ -3693,19 +3715,19 @@ function hodeordDel(navn,modell){
   return {kjerne:n,side:side};
 }
 // Er disse to navnene samme fysiske del? Krever LIKT hodeord, og sider som ikke kolliderer.
-// NAVNEPARENE SPØRRES NÅR HODEORDENE ER ULIKE: DBS skriver samme del med ulike ord i
-// arbeids- og lakkseksjonen, og parene er lært av taksten selv (v3.02). Uten dette leddet
-// ville innstrammingen kunne miste et EKTE funn i stedet for å fjerne et falskt.
-function sammeDelHodeord(navnA,navnB,modell,navnepar){
+// v3.13: NAVNEPAR-FALLBACKEN ER FJERNET IGJEN – den svarte på feil spørsmål. Parene bygges som
+// KRYSSPRODUKT av alle arbeidslinjer × alle lakklinjer i én Pos-blokk, og en Pos-blokk holder
+// hoveddelen SAMMEN MED delene bak den. På Kia EV22806 ga det tre par som alle påsto å være
+// støtfangeren, og v3.12 publiserte tre falske N→G-forslag i stedet for v3.11s ene.
+// Navneparene svarer "hvilken lakk-linje D E K K E R denne arbeidslinja" – helt riktig for
+// dekningsspørsmålet de ble laget for (v3.02), men de kan ikke avgjøre om to navn er SAMME del.
+// Ulike ord for samme del håndteres av kanoniseringen over (skjerm foran = forskjerm,
+// støtfangerdeksel = støtfanger), ikke av parene.
+function sammeDelHodeord(navnA,navnB,modell){
   const a=hodeordDel(navnA,modell),b=hodeordDel(navnB,modell);
   if(!a.kjerne||a.kjerne.length<3)return false;
-  const sideOk=(!a.side||!b.side||a.side===b.side);
-  if(!sideOk)return false;
-  if(a.kjerne===b.kjerne)return true;
-  return (navnepar||[]).some(par=>{
-    const pa=hodeordDel(par.arbeid,modell).kjerne,pl=hodeordDel(par.lakk,modell).kjerne;
-    return (pa===a.kjerne&&pl===b.kjerne)||(pl===a.kjerne&&pa===b.kjerne);
-  });
+  if(a.side&&b.side&&a.side!==b.side)return false;
+  return a.kjerne===b.kjerne;
 }
 // v2.92: JSON-PARSING TÅLER PROSA RUNDT SVARET. En fersk takst døde 25.08 på
 // "Unexpected non-whitespace character after JSON at position 868" og ga INGEN resultater –
@@ -4605,7 +4627,7 @@ function takstSammendrag(t){
       const modellHF=(t.bil&&t.bil.modell)||'';
       const treff=t.lakkspes.find(d=>{
         if(d.tillegg||!d.navn)return false;
-        return sammeDelHodeord(bd.navn,d.navn,modellHF,t.navnepar);
+        return sammeDelHodeord(bd.navn,d.navn,modellHF);
       });
       if(treff){
         if(treff.optype==='N'){
@@ -5385,7 +5407,7 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           const modellPF=(parserData.bil&&parserData.bil.modell)||'';
           const treff=(parserData.lakkspes||[]).find(d=>{
             if(d.tillegg||!d.navn)return false;
-            return sammeDelHodeord(bd.navn,d.navn,modellPF,parserData.navnepar);
+            return sammeDelHodeord(bd.navn,d.navn,modellPF);
           });
           if(treff&&treff.optype==='N'){
             injiserDeterministisk('DET_BRUKT_DEL_SOM_N',`Vurder å endre lakk-linjen "${treff.navn}" fra N til G – "${bd.navn}" er brukt reservedel og skal lakkes som gammel flate`,'Lakkspesifikasjon');
