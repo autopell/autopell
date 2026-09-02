@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v3.15 – Smart kontroll av takster</title>
+<title>AutoPell v3.16 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v3.15</div>
+    <div class="version-badge">v3.16</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -275,6 +275,20 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v3.16 – endringer fra v3.15 (1 punkt – REGELEN v3.14/v3.15 la grunnlaget for):
+   1. INNVENDIG LAKK PÅ SKIFTET DØR. Martin: "hvis en dør skiftes enten N eller brukt del skal
+      disse alltid lakkes innvendig." Volvo V90 SV88920 har begge dører som "Skift Brukt
+      reservedel", men bare fordøra har innvendig lakk-post – et ekte, tapt funn.
+      TO STYRKEGRADER: BRUKT dør slår fast at posten mangler; NY dør spør i stedet, fordi
+      innvendig kan INNGÅ i utvendig-posten på enkelte modeller og "Inngår i utvendig lakk"
+      finnes bare på DBS-skjermen, ikke i PDF-en. Vi kan ikke se forskjell på "inkludert" og
+      "glemt" for en ny dør, og da skal vi ikke påstå noe.
+      SPERRE MOT PARSE-MISS: regelen fyrer bare når overskriften "Innvendig lakk" faktisk finnes
+      i råteksten. Mangler den, gjøres ingen vurdering – tom skjerm slår svak informasjon.
+      Matching går via hodeordDel/sammeDelHodeord (v3.12/v3.13), så "H Bakdør for p-list" er
+      bakdøra og "Dør fremre H, Sidedør fremre" kanoniseres til fordør H.
+*/
 
 /* AutoPell v3.15 – endringer fra v3.14 (2 punkter, begge fra råteksten på Volvo V90 SV88920):
    1. LAKKTYPE LESTE FEIL VERDI. Raden "041, Tilbud Tryg Bergen 1 2 1 040,00" gir lakktype 2,
@@ -3804,6 +3818,47 @@ function hodeordDel(navn,modell){
   n=/^tak(plate)?\b/.test(n)?'tak':n.split(' ')[0];
   return {kjerne:n,side:side};
 }
+// v3.16: HVILKE SKIFTEDE DØRER MANGLER INNVENDIG LAKK?
+// Martin (fagmann): "hvis en dør skiftes enten N eller brukt del skal disse alltid lakkes
+// innvendig." Funnet på Volvo V90 SV88920, der BEGGE dører er "Skift Brukt reservedel" men bare
+// fordoera har innvendig lakk – bakdoera manglet, og AutoPell kunne ikke si fra fordi tabellen
+// ikke ble lest (rettet i v3.14/v3.15).
+//
+// TO STYRKEGRADER, med vilje forskjellige:
+//   BRUKT dør  → SLÅR FAST at innvendig lakk mangler. Martin er sikker her.
+//   NY dør     → SPØR. Innvendig kan INNGÅ i utvendig-posten på enkelte modeller, og teksten
+//                "Inngår i utvendig lakk" vises bare på skjerm i DBS – den finnes ikke i PDF-en.
+//                Vi kan altså ikke se forskjell på "inkludert" og "glemt", og da skal vi ikke
+//                påstå noe. Martin har selv sagt at han ikke vet hvordan det skilles.
+//
+// SPERRE MOT PARSE-MISS: fyrer bare når overskriften "Innvendig lakk" faktisk finnes i råteksten.
+// Uten den vet vi ikke om taksten mangler innsiden eller om vi bare ikke fant tabellen, og
+// "tom skjerm slår svak informasjon". Mangler overskriften, logges det i stedet for å gjette.
+function dorerUtenInnvendigLakk(data){
+  if(!data)return [];
+  const raw=data.raw||'';
+  if(!/^\s*Kode\s+Område\s+Innvendig lakk/im.test(raw))return null;   // null = kan ikke vurderes
+  const modell=(data.bil&&data.bil.modell)||'';
+  const bruktM=/brukt\s*(?:reservedel|del)|bruktdel/i;
+  const ut=[];
+  (data.karosseri_skift||[]).forEach(d=>{
+    if(!d.navn||!/^skift\b/i.test((d.tiltak||'').trim()))return;
+    const k=hodeordDel(d.navn,modell);
+    if(k.kjerne!=='fordør'&&k.kjerne!=='bakdør')return;                  // kun dører
+    const harInnvendig=(data.innvendig_lakk||[]).some(i=>sammeDelHodeord(d.navn,i.navn,modell));
+    if(harInnvendig)return;
+    if(ut.some(x=>x.kjerne===k.kjerne&&x.side===k.side))return;           // én linje per dør
+    ut.push({navn:d.navn,kjerne:k.kjerne,side:k.side,
+             brukt:bruktM.test((d.tiltak||'')+' '+(d.kommentar||'')+' '+(d.navn||''))});
+  });
+  return ut;
+}
+// Vis døra slik takstmannen kjenner den igjen: "H Bakdør", ikke "H Bakdør for p-list".
+function dorEtikett(d){
+  const navn=d.kjerne==='fordør'?'Fordør':'Bakdør';
+  return (d.side?d.side.toUpperCase()+' ':'')+navn;
+}
+
 // Er disse to navnene samme fysiske del? Krever LIKT hodeord, og sider som ikke kolliderer.
 // v3.13: NAVNEPAR-FALLBACKEN ER FJERNET IGJEN – den svarte på feil spørsmål. Parene bygges som
 // KRYSSPRODUKT av alle arbeidslinjer × alle lakklinjer i én Pos-blokk, og en Pos-blokk holder
@@ -4080,6 +4135,7 @@ function takstSammendrag(t){
     DET_UB_MANGLER:{deterministisk:true,navn:'UB mangler',mal:'',farge:'rød'},
     DET_RUSTBESKYTTELSE:{deterministisk:true,navn:'Rustbeskyttelse mangler',mal:'',farge:'rød'},
     DET_KLIPS:{deterministisk:true,navn:'Klipssett',mal:'',farge:'gul'},
+    DET_INNVENDIG_LAKK_DOR:{deterministisk:true,navn:'Innvendig lakk dør',mal:'',farge:'gul'},
     DET_BESKYTTELSESFOLIE:{deterministisk:true,navn:'Beskyttelsesfolie',mal:'',farge:'gul'},
     DET_MULIG_GLEMT_FLATERETTE:{deterministisk:true,navn:'Mulig glemt flaterette',mal:'',farge:'gul'},
     DET_TREKKETARN:{deterministisk:true,navn:'Trekketårn/rigging',mal:'',farge:'gul'},
@@ -4733,6 +4789,18 @@ function takstSammendrag(t){
         s+=`     (Fant ingen matchende lakk-linje for brukt del "${bd.navn}".)\n`;
       }
     });
+  }
+  // v3.16: Innvendig lakk på skiftede dører. Linja er ren opplysning til Claude – selve
+  // forslaget injiseres av post-filteret, som alltid når koden kan avgjøre saken selv.
+  {
+    const innvMangler=dorerUtenInnvendigLakk(t);
+    if(innvMangler===null){
+      s+=`  Innvendig lakk: tabellen finnes ikke i denne taksten – IKKE vurder innvendig lakk.\n`;
+    }else if(innvMangler.length){
+      s+=`  INNVENDIG LAKK MANGLER for skiftet dør: ${innvMangler.map(d=>dorEtikett(d)+(d.brukt?' (brukt del)':' (ny del)')).join(', ')} (Håndteres automatisk av koden – ikke skriv eget forslag.)\n`;
+    }else{
+      s+=`  Innvendig lakk: OK – alle skiftede dører har innvendig lakk-post.\n`;
+    }
   }
   // v2.6: Tesla-bakdør (N eller G) → folie/tape-montering 50p
   // v2.88: KUN MODEL Y. Regelen var lagret uten modellbegrensning og fyrte fra KODE på hver
@@ -5821,6 +5889,20 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           ||(parserData.dm_av||[]).some(d=>/dør|støtfanger/i.test(d.navn||''));
         if(dørStøtfangerSkiftes&&!/klips/i.test(parserData.raw||'')){
           injiserDeterministisk('DET_KLIPS','Vurder å ta med klipssett i annetbildet – dør/støtfanger skiftes eller demonteres','Annetbildet');
+        }
+        // v3.16: Innvendig lakk mangler på skiftet dør. Én linje per dør, brukt slår fast, ny spør.
+        const innvManglerPF=dorerUtenInnvendigLakk(parserData);
+        if(innvManglerPF===null){
+          console.log('[v3.16] Innvendig lakk-tabellen ikke funnet i råteksten – ingen vurdering gjort');
+        }else{
+          innvManglerPF.forEach(d=>{
+            const etikett=dorEtikett(d);
+            if(d.brukt){
+              injiserDeterministisk('DET_INNVENDIG_LAKK_DOR',`Innvendig lakk mangler for ${etikett} – døra er skiftet med brukt reservedel, og en skiftet dør skal alltid lakkes innvendig. Huk av for innvendig lakkering.`,'Lakkspesifikasjon');
+            }else{
+              injiserDeterministisk('DET_INNVENDIG_LAKK_DOR',`Sjekk om innvendig lakk er ført for ${etikett} – døra er skiftet. Innvendig kan inngå i utvendig-posten på enkelte modeller, så kontroller i DBS før du legger den til.`,'Lakkspesifikasjon');
+            }
+          });
         }
         // v2.39 Fase 4: Beskyttelsesfolie – folie nevnt i taksten og deler lakkes
         const harNGdelerPF=(parserData.lakkspes||[]).some(d=>!d.tillegg&&(d.optype==='N'||d.optype==='G')&&!d.tilstøtende);
