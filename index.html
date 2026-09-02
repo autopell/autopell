@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v3.13 – Smart kontroll av takster</title>
+<title>AutoPell v3.14 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v3.13</div>
+    <div class="version-badge">v3.14</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -275,6 +275,18 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v3.14 – endringer fra v3.13 (1 punkt, PARSER BARE – ingen nye funn):
+   1. INNVENDIG LAKK LESES NÅ INN. Tabellen har aldri vært parset: lakkspes-løkka satte
+      inLakk=false på linja "Innvendig lakk", og radene under forsvant. Volvo V90 SV88920 har
+      begge dører skiftet med brukt del, men bare én innside-post – AutoPell kunne ikke si fra,
+      fordi dataen ikke fantes i JSON.
+      Regelen Martin vil ha (BRUKT dør ⇒ innvendig lakkering skal alltid hukes av; NY dør ⇒
+      spørsmålsform, siden innsiden kan INNGÅ i utvendig-posten på enkelte modeller) bygges
+      FØRST NÅR formatet er verifisert på ekte takster. Derfor holdes innvendig_lakk med vilje
+      utenfor HURTIGFAKTA i denne versjonen: Claude ser den ikke, og kan ikke lage forslag av den.
+      Utdata er identisk med v3.13 på alle takster – kun JSON-fanen har fått et nytt felt.
+*/
 
 /* AutoPell v3.13 – endringer fra v3.12 (2 punkter, begge på samme funn):
    1. NAVNEPAR-FALLBACKEN FJERNET. v3.12 la den inn som sikkerhetsnett, men parene er et
@@ -3060,6 +3072,7 @@ function parseTakst(text){
     kalibreringer:[],       // v2.4: Kalibreringer ført i arbeidsspes (Kalibr./programmere)
     dm_av:[],               // v2.6: Deler med D/M-hake (demonteres fra bil i De/Mo-fanen)
     lakkspes:[],            // Lakkspesifikasjon-tabellen (alle rader)
+    innvendig_lakk:[],      // v3.14: Innvendig lakk-tabellen. LESES KUN – ingen regel bruker den ennå.
     lakkmateriell_annet:[], // HTT, polere flikk, grunning topplakk osv.
     tiltak:[],              // "1) Maskering av plast" etc.
     plastspes:null,         // Plastspesifikasjon med skadetype, flate, grunning
@@ -3368,6 +3381,43 @@ function parseTakst(text){
       }
     }
   }
+
+  // ----- INNVENDIG LAKK (v3.14) -----
+  // Parseren har ALDRI lest denne tabellen. Lakkspes-løkka over setter inLakk=false når linja
+  // "Innvendig lakk" dukker opp, og radene under havnet dermed ingen steder – de fantes ikke i
+  // JSON i det hele tatt. Funnet på Volvo V90 SV88920, der begge dørene er skiftet med brukt del
+  // men bare den ene har innside-post. AutoPell kunne ikke si fra, fordi dataen manglet.
+  //
+  // DENNE VERSJONEN LESER BARE – INGEN NY REGEL, INGEN NYE FUNN. Innvendig lakk holdes med vilje
+  // UTENFOR HURTIGFAKTA, slik at Claude ikke begynner å lage forslag av data vi ikke har verifisert
+  // formatet på ennå. Kontroller innholdet i JSON-fanen først; regelen bygges etterpå.
+  //
+  // Format (fra DBS-skjermbildet): "Kode Område Innvendig lakk Tid", deretter rader som
+  //   "220 G Løs Dør fremre V, Sidedør fremre 5 108"   (kode, område, materialhint, navn, fotnote, tid)
+  // Innvendig har INGEN dm²-kolonne – bare tid. Navnet kan inneholde komma, og det kan stå null
+  // eller flere fotnotetall før tida, så alle tall på slutten fanges og SISTE tas som tid.
+  // "Sum venstre side"/"Sum høyre side" er delsummer midt i tabellen og skal hoppes over, ikke
+  // avslutte lesningen – bare "Sum Innvendig" avslutter.
+  let inInnv=false;
+  for(const line of lines){
+    if(line.match(/^Kode\s+Område\s+Innvendig lakk/)){inInnv=true;continue;}
+    if(inInnv){
+      if(/^Sum Innvendig/i.test(line))break;
+      if(/^Sum\s/i.test(line))continue;
+      const m=line.match(/^(\d{3,4})\s+([NGT])\s+(Plast,Løs|Plast|Løs|)\s*(.+?)((?:\s+\d+)+)$/);
+      if(m){
+        const tall=m[5].trim().split(/\s+/);
+        result.innvendig_lakk.push({
+          kode:m[1],
+          optype:m[2],
+          materialhint:m[3]||'',
+          navn:m[4].trim(),
+          tid:parseInt(tall[tall.length-1])
+        });
+      }
+    }
+  }
+  if(result.innvendig_lakk.length)console.log('[PARSER v3.14] Innvendig lakk lest: '+result.innvendig_lakk.map(d=>d.navn+' '+d.tid+'p').join(' | '));
 
   // ----- LAKKMATERIELL ANNET -----
   // Format kan være ulikt grunnet PDF-text-fragmentering:
