@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v3.14 – Smart kontroll av takster</title>
+<title>AutoPell v3.15 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -124,7 +124,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v3.14</div>
+    <div class="version-badge">v3.15</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -275,6 +275,21 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v3.15 – endringer fra v3.14 (2 punkter, begge fra råteksten på Volvo V90 SV88920):
+   1. LAKKTYPE LESTE FEIL VERDI. Raden "041, Tilbud Tryg Bergen 1 2 1 040,00" gir lakktype 2,
+      men v2.47-regexen tok første siffer og leste 1 – tallet hører til selskapsnavnet.
+      Grådig regex hjelper ikke (da tas tusentallet i rate-beløpet). Løsningen forankrer i
+      mottagerstrengen fra sidehodet og leser sifferet som står igjen når den fjernes.
+      KONSEKVENSEN VAR REELL: kun Lakktype 3 er 3-sjikt, så en feillest verdi filtrerer bort
+      3-sjikt-tilstøtende-IDene og funnene forsvinner uten spor. Kjennes ikke formatet igjen,
+      settes lakktype IKKE – da beholdes ID-ene, som er den trygge siden å bomme på.
+   2. INNVENDIG LAKK: TID-FELTET FJERNET. Råteksten viser at raden ikke har tid i det hele tatt
+      ("220 G Løs Dør fremre H, Sidedør fremre 5" – 5 er fotnoten; tida 108 står bare på
+      "Sum høyre side"). v3.14 lagret fotnoten som tid. Et felt som er stille feil er verre enn
+      et som mangler, og regelen trenger bare navnene.
+   Ingen nye funn i denne versjonen heller – innvendig_lakk er fortsatt utenfor HURTIGFAKTA.
+*/
 
 /* AutoPell v3.14 – endringer fra v3.13 (1 punkt, PARSER BARE – ingen nye funn):
    1. INNVENDIG LAKK LESES NÅ INN. Tabellen har aldri vært parset: lakkspes-løkka satte
@@ -3072,7 +3087,7 @@ function parseTakst(text){
     kalibreringer:[],       // v2.4: Kalibreringer ført i arbeidsspes (Kalibr./programmere)
     dm_av:[],               // v2.6: Deler med D/M-hake (demonteres fra bil i De/Mo-fanen)
     lakkspes:[],            // Lakkspesifikasjon-tabellen (alle rader)
-    innvendig_lakk:[],      // v3.14: Innvendig lakk-tabellen. LESES KUN – ingen regel bruker den ennå.
+    innvendig_lakk:[],      // v3.14: Innvendig lakk-tabellen. LESES KUN – ingen regel bruker den ennå. Uten tid (se v3.15).
     lakkmateriell_annet:[], // HTT, polere flikk, grunning topplakk osv.
     tiltak:[],              // "1) Maskering av plast" etc.
     plastspes:null,         // Plastspesifikasjon med skadetype, flate, grunning
@@ -3131,9 +3146,32 @@ function parseTakst(text){
     }
   }
   if(!result.bil.lakktype){
-    // Lakktype er ett siffer (1-4) rett etter forsikringsselskapets navn, foran rate-beløpet
-    const ltKolonne=text.match(/Forsikringsselskap\s+Lakktype\s+Rate,?\s*lakkmateriale\s+Deb\.?faktor\s+lakk\s*\n[^\n]*?\s(\d)\s+[\d.,\s]+,\d{2}/i);
-    if(ltKolonne)result.bil.lakktype=parseInt(ltKolonne[1]);
+    // v3.15: LAKKTYPE LESTE FEIL NÅR SELSKAPSNAVNET SLUTTER PÅ ET TALL.
+    // Volvo V90 SV88920: raden er "041, Tilbud Tryg Bergen 1 2 1 040,00" – lakktype er 2, men
+    // v2.47-regexen tok første siffer den fant og leste 1 (som hører til selskapsnavnet).
+    // Å gjøre regexen grådig hjelper ikke: da tar den tusentallet i "1 040,00" i stedet.
+    // Feilen er ikke harmløs – KUN Lakktype 3 er 3-sjikt, og leses den som noe annet, filtreres
+    // 3-sjikt-tilstøtende-IDene bort og ekte funn forsvinner uten spor.
+    //
+    // Anker i stedet på noe taksten SELV oppgir: mottagerstrengen står ordrett i sidehodet
+    // ("Arbeidsordre nr. Mottager Skadenr." + "041, Tilbud Tryg Bergen 1 N1451832").
+    // Fjernes den fra lakk-raden, står lakktypen først i det som er igjen: "2 1 040,00".
+    // Det løser også tvetydigheten "3 800,00" (lakktype 3 + rate 800 vs. rate 3800).
+    //
+    // Kjenner vi ikke igjen formatet, eller starter ikke raden med mottagerstrengen, settes
+    // lakktype IKKE – da beholder koden tilstøtende-IDene, som er den trygge siden å bomme på
+    // (samme unntak som v2.47: parse-miss skal aldri undertrykke funn).
+    const ltHode=text.match(/Arbeidsordre nr\.\s+Mottager\s+Skadenr\.\s*\n([^\n]+)/i);
+    const ltRad=text.match(/Forsikringsselskap\s+Lakktype\s+Rate,?\s*lakkmateriale\s+Deb\.?faktor\s+lakk\s*\n([^\n]+)/i);
+    if(ltHode&&ltRad){
+      const mottager=ltHode[1].trim().replace(/\s+[A-ZÆØÅ]?\d{4,}\s*$/,'').trim();  // skadenr står bakerst
+      const rad=ltRad[1].trim();
+      if(mottager&&rad.indexOf(mottager)===0){
+        const rest=rad.slice(mottager.length).trim().match(/^([1-4])\b/);
+        if(rest)result.bil.lakktype=parseInt(rest[1]);
+      }
+    }
+    if(!result.bil.lakktype)console.log('[PARSER v3.15] Lakktype ikke lest ut – tilstøtende-ID-ene beholdes');
   }
   // Chassisnr
   const chassisMatch=text.match(/Chassisnr\.?\s*\n?\s*([A-Z0-9]{17})/);
@@ -3392,10 +3430,14 @@ function parseTakst(text){
   // UTENFOR HURTIGFAKTA, slik at Claude ikke begynner å lage forslag av data vi ikke har verifisert
   // formatet på ennå. Kontroller innholdet i JSON-fanen først; regelen bygges etterpå.
   //
-  // Format (fra DBS-skjermbildet): "Kode Område Innvendig lakk Tid", deretter rader som
-  //   "220 G Løs Dør fremre V, Sidedør fremre 5 108"   (kode, område, materialhint, navn, fotnote, tid)
-  // Innvendig har INGEN dm²-kolonne – bare tid. Navnet kan inneholde komma, og det kan stå null
-  // eller flere fotnotetall før tida, så alle tall på slutten fanges og SISTE tas som tid.
+  // FORMATET, VERIFISERT MOT EKTE RÅTEKST (SV88920) – ikke som DBS-skjermbildet antydet:
+  //   "Kode Område Innvendig lakk Fotnoter Tid"
+  //   "220 G Løs Dør fremre H, Sidedør fremre 5"    ← INGEN tid på raden; "5" er FOTNOTEN
+  //   "Sum høyre side 108"                          ← tida står bare her
+  // v3.15: TID LAGRES DERFOR IKKE. Den første utgaven leste fotnoten som tid (5 i stedet for 108),
+  // og et felt som er stille feil er verre enn et felt som mangler – en senere regel ville bygget
+  // på det. Regelen trenger uansett bare å vite HVILKE deler som har innvendig post.
+  // Navnet er riktig lest, og det er nok.
   // "Sum venstre side"/"Sum høyre side" er delsummer midt i tabellen og skal hoppes over, ikke
   // avslutte lesningen – bare "Sum Innvendig" avslutter.
   let inInnv=false;
@@ -3406,18 +3448,16 @@ function parseTakst(text){
       if(/^Sum\s/i.test(line))continue;
       const m=line.match(/^(\d{3,4})\s+([NGT])\s+(Plast,Løs|Plast|Løs|)\s*(.+?)((?:\s+\d+)+)$/);
       if(m){
-        const tall=m[5].trim().split(/\s+/);
         result.innvendig_lakk.push({
           kode:m[1],
           optype:m[2],
           materialhint:m[3]||'',
-          navn:m[4].trim(),
-          tid:parseInt(tall[tall.length-1])
+          navn:m[4].trim()
         });
       }
     }
   }
-  if(result.innvendig_lakk.length)console.log('[PARSER v3.14] Innvendig lakk lest: '+result.innvendig_lakk.map(d=>d.navn+' '+d.tid+'p').join(' | '));
+  if(result.innvendig_lakk.length)console.log('[PARSER v3.15] Innvendig lakk lest: '+result.innvendig_lakk.map(d=>d.navn).join(' | '));
 
   // ----- LAKKMATERIELL ANNET -----
   // Format kan være ulikt grunnet PDF-text-fragmentering:
