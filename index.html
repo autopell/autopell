@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v3.16 – Smart kontroll av takster</title>
+<title>AutoPell v3.17 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -48,6 +48,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .upload-name{font-size:13px;font-weight:500;color:#333}
 .upload-sub{font-size:11px;color:#aaa;margin-top:3px}
 .file-chip{display:inline-flex;align-items:center;gap:5px;background:#EAF3DE;border:1px solid #C0DD97;border-radius:20px;padding:3px 10px;font-size:11px;color:#27500A;margin-top:6px}
+/* v3.17: miniatyrer av bilbildene i stedet for filnavn-brikker */
+.bilde-mini{position:relative;width:56px;height:56px;border-radius:6px;overflow:hidden;border:1px solid #C0DD97;background:#EAF3DE}
+.bilde-mini img{width:100%;height:100%;object-fit:cover;display:block}
+.bilde-mini .fjern-bilde{position:absolute;top:2px;right:2px;width:18px;height:18px;border:none;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;font-size:11px;line-height:1;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center}
+.bilde-mini .fjern-bilde:hover{background:rgba(0,0,0,.85)}
+.bilde-mini .fjern-bilde:focus-visible{outline:2px solid #fff;outline-offset:-2px}
 .btn{padding:9px 18px;border-radius:7px;border:1px solid #ccc;background:#fff;cursor:pointer;font-size:13px;color:#333;transition:all .15s;font-family:inherit}
 .btn:hover{background:#f5f5f3}
 .btn-primary{background:#8B1A1A;color:#fff;border-color:#8B1A1A;font-weight:500}
@@ -124,7 +130,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v3.16</div>
+    <div class="version-badge">v3.17</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -275,6 +281,18 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v3.17 – endringer fra v3.16 (1 punkt, kun visning – ingen regler rørt):
+   1. MINIATYRER AV BILBILDENE. Bildene ble vist som filnavn-brikker ("IMG_4821.jpg"), som ikke
+      sier noe om hvilken bil eller skade man ser på – særlig ubrukelig ved Gmail-import, der
+      man ikke har valgt filene selv. Nå vises de som 56px-ruter med krysset oppe i høyre
+      hjørne; filnavnet ligger i title, så det kommer fram når musa holdes over.
+      Markupen ble tegnet TRE steder (handleCarImages, removeCarImage, sendGmailToVeil) med hver
+      sin kopi – samlet i én tegnBildeminiatyrer() som alle tre kaller.
+      Objekt-URL-ene frigjøres ved hver ny tegning, så verken fjerning eller ny opplasting
+      lekker minne gjennom en arbeidsdag med mange takster.
+      Ingen endring i hva som sendes til API-et – carImages brukes som før.
+*/
 
 /* AutoPell v3.16 – endringer fra v3.15 (1 punkt – REGELEN v3.14/v3.15 la grunnlaget for):
    1. INNVENDIG LAKK PÅ SKIFTET DØR. Martin: "hvis en dør skiftes enten N eller brukt del skal
@@ -2940,24 +2958,39 @@ function closeModal(){document.getElementById('api-modal').classList.remove('ope
 function updateApiStatus(){const el=document.getElementById('api-status');if(getApiKey()){el.className='api-indicator api-ok';el.textContent='API-nøkkel OK';}else{el.className='api-indicator api-missing';el.textContent='Ingen API-nøkkel – klikk her';}}
 function initKalibTags(){const c=document.getElementById('kalib-tags');if(c)c.innerHTML=KALIB_PARTS.map(p=>`<span class="tag">${p}</span>`).join('');}
 function handleFile(e,key){const f=e.target.files[0];if(!f)return;files[key]=f;const chip=document.getElementById(key+'-chip');if(chip)chip.innerHTML=`<div class="file-chip">📎 ${f.name}</div>`;}
+// v3.17: MINIATYRER I STEDET FOR FILNAVN. Martin: "når jeg overfører en takst fra g-mail går
+// det ann å få mini bilder slik at jeg ser bildene?" – filnavn som IMG_4821.jpg sier ingenting
+// om hvilken bil eller hvilken skade man ser på.
+// SAMME TEGNING BLE GJORT TRE STEDER (handleCarImages, removeCarImage og sendGmailToVeil), med
+// hver sin kopi av markupen. Her er den samlet i ÉN funksjon som alle tre kaller – v2.62-lærdommen.
+//
+// URL-ene må ryddes: createObjectURL holder på hele bildet i minnet til den frigjøres, og en
+// arbeidsdag med mange takster ville ellers hope dem opp. Vi frigjør ALLE gamle URL-er hver gang
+// listen tegnes på nytt, og lager dem ferske – da kan verken fjerning eller ny opplasting lekke.
+let bildeURLer=[];
+function tegnBildeminiatyrer(){
+  const container=document.getElementById('car-images-chips');
+  bildeURLer.forEach(u=>URL.revokeObjectURL(u));
+  bildeURLer=[];
+  if(!container)return;
+  container.innerHTML=carImages.map((f,i)=>{
+    const url=URL.createObjectURL(f);
+    bildeURLer.push(url);
+    const navn=(f.name||'bilde').replace(/"/g,'&quot;');
+    return `<div class="bilde-mini" title="${navn}">
+      <img src="${url}" alt="${navn}">
+      <button class="fjern-bilde" onclick="removeCarImage(${i})" title="Fjern bildet" aria-label="Fjern ${navn}">✕</button>
+    </div>`;
+  }).join('');
+}
 function handleCarImages(e){
   const newFiles=Array.from(e.target.files);
   carImages=[...carImages,...newFiles].slice(0,10);
-  const container=document.getElementById('car-images-chips');
-  if(container){
-    container.innerHTML=carImages.map((f,i)=>
-      `<div class="file-chip" style="cursor:pointer" onclick="removeCarImage(${i})">📷 ${f.name} ✕</div>`
-    ).join('');
-  }
+  tegnBildeminiatyrer();
 }
 function removeCarImage(idx){
   carImages.splice(idx,1);
-  const container=document.getElementById('car-images-chips');
-  if(container){
-    container.innerHTML=carImages.map((f,i)=>
-      `<div class="file-chip" style="cursor:pointer" onclick="removeCarImage(${i})">📷 ${f.name} ✕</div>`
-    ).join('');
-  }
+  tegnBildeminiatyrer();
 }
 function switchTab(t,btn){document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));document.querySelectorAll('.panel').forEach(el=>el.classList.remove('active'));btn.classList.add('active');document.getElementById('tab-'+t).classList.add('active');document.getElementById('topbar-title').textContent=titles[t];if(t==='inst')document.getElementById('stats-row').style.display='none';}
 function lagreRegler(){localStorage.setItem('ap_regler',document.getElementById('mine-regler').value);const el=document.getElementById('lagre-status');el.style.display='block';setTimeout(()=>el.style.display='none',2500);}
@@ -7179,10 +7212,7 @@ function sendGmailToVeil() {
   document.getElementById('veil-takst-chip').innerHTML = `<span class="file-chip">✓ ${file.name}</span>`;
   if (selectedGmailAttachment.images && selectedGmailAttachment.images.length > 0) {
     carImages = selectedGmailAttachment.images.slice(0, 10);
-    const container = document.getElementById('car-images-chips');
-    if (container) container.innerHTML = carImages.map((f,i) =>
-      `<div class="file-chip" style="cursor:pointer" onclick="removeCarImage(${i})">📷 ${f.name} ✕</div>`
-    ).join('');
+    tegnBildeminiatyrer();   // v3.17: felles tegning – samme visning som ved manuell opplasting
   }
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
