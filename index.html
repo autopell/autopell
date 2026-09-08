@@ -283,21 +283,18 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
 
 /* AutoPell v3.20 – endringer fra v3.19 (1 sak – funnet av Martin på Hyundai EB49828):
-   TILSTØTENDE FLATER FIKK INGEN LAKK-PROSESSER I DET HELE TATT. DELSTATUS-byggeren hoppet over
-   enhver T-rad (`if(d.tillegg||d.tilstøtende||d.optype==='T'||!d.navn)return;`) FØR noen regel
-   så den. "H Bakskjerm, over begrensning" er ført T, og polere flikk ble derfor aldri vurdert
-   – enda reglene finnes for både N og G.
-   Martins prinsipp: "så lenge flaten skal lakkes enten det er gammel eller tilstøtende må jo
-   prosessene være de samme." Flaten LAKKERES, altså følger lakk-prosessene med.
-   SPERREN ER IKKE FJERNET – den er fortsatt riktig for UB (aldri på tilstøtende) og for
-   tilstøtende-mot-naboflate-forslag (meningsløst på en flate som allerede er T). T-rader
-   slipper inn, men kun ID-er merket `gjelderTilstotende` tilbys: polere flikk og løftetape.
-   HTT på tilstøtende smådeler var allerede dekket (v3.07) og er ikke rørt.
-   DUPLIKATSPERRE: har hoveddelen allerede en N- eller G-rad i samme takst, hoppes T-raden over
-   – ellers ville samme punkt kommet to ganger på samme del.
-   Egen etikett i DELSTATUS sier eksplisitt at flaten lakkes men ikke er skadet, så Claude ikke
-   begynner å foreslå skadeavhengige punkter der.
-   Samme feilklasse som HTT-korreksjonen 1.09: én bred sperre som tok med seg for mye.
+   TILSTØTENDE FLATER FIKK INGEN LAKK-PROSESSER. DELSTATUS-byggeren hoppet over enhver T-rad
+   (`if(d.tillegg||d.tilstøtende||d.optype==='T'||!d.navn)return;`) FØR noen regel så den.
+   "H Bakskjerm, over begrensning" er ført T, så polere flikk ble aldri vurdert – enda reglene
+   finnes for både N og G.
+   Martin: "så lenge flaten skal lakkes enten det er gammel eller tilstøtende må jo prosessene
+   være de samme." Flaten lakkeres, altså følger lakk-prosessene med.
+   T-rader slipper inn, men KUN ID-er merket gjelderTilstotende tilbys: polere flikk og
+   løftetape. UB og tilstøtende-mot-naboflate er fortsatt ute. HTT på tilstøtende smådeler var
+   allerede dekket (v3.07) og er urørt.
+   DUPLIKATSPERRE: har hoveddelen allerede en N- eller G-rad i takstene, hoppes T-raden over.
+   Egen DELSTATUS-etikett sier at flaten lakkes men ikke er skadet, så Claude ikke foreslår
+   skadeavhengige punkter der.
 */
 
 /* AutoPell v3.19 – endringer fra v3.18 (1 sak, tre steder – de siste falske funnene på
@@ -4311,12 +4308,36 @@ function takstSammendrag(t){
     // skjedd. Sier vi i stedet hva vi VET – flaten er gammel – og lar årsaken stå åpen.
     return brukt?'SKIFTET MED BRUKT DEL – gammel flate, IKKE rettet':'GAMMEL FLATE – rettet, eller skiftet med brukt del';
   }
+  // v3.20: egen etikett for tilstøtende, med presiseringen Claude trenger – flaten lakkes,
+  // men den er ikke skadet, så bare lakk-prosessene gjelder.
+  function optypeEtikett(d){
+    if(d.optype==='T')return 'TILSTØTENDE FLATE – lakkes, men er ikke skadet selv. Kun lakk-prosesser vurderes her; IKKE UB, IKKE tilstøtende mot andre flater';
+    return gEtikett(d);
+  }
   const delstatusLinjer=[];
   window.DELSTATUS_GYLDIGE_IDER=new Set(); // v2.40: sikkerhetsnett mot at Claude finner opp hele del-blokker
   window.DELSTATUS_GYLDIGE_DELNAVN=new Set(); // v2.45: samme prinsipp for HELE del-blokker uten ID
   t.lakkspes.forEach(d=>{
-    if(d.tillegg||d.tilstøtende||d.optype==='T'||!d.navn)return;
-    if(d.optype!=='N'&&d.optype!=='G')return;
+    if(d.tillegg||!d.navn)return;
+    // v3.20: TILSTØTENDE FLATER SLIPPER INN, MEN BARE FOR LAKK-PROSESSENE.
+    // Sperren her hoppet før over ENHVER T-rad, så en tilstøtende flate fikk ingen sjekkliste
+    // i det hele tatt. På Hyundai EB49828 er "H Bakskjerm, over begrensning" ført T, og polere
+    // flikk ble derfor aldri vurdert – enda reglene finnes for både N og G.
+    // Martin: "så lenge flaten skal lakkes enten det er gammel eller tilstøtende må jo
+    // prosessene være de samme." Flaten LAKKERES, og da følger lakk-prosessene med.
+    // Sperren er ikke fjernet i prinsippet: den er fortsatt riktig for UB (aldri på tilstøtende)
+    // og for tilstøtende-mot-naboflate-forslag (meningsløst på en flate som allerede er T).
+    // Derfor tilbys KUN ID-er merket gjelderTilstotende på en T-rad – se filteret lenger ned.
+    // Samme feilklasse som HTT-korreksjonen: én bred sperre som tok med seg for mye.
+    if(d.optype!=='N'&&d.optype!=='G'&&d.optype!=='T')return;
+    if(d.optype==='T'){
+      // Har hoveddelen allerede en N- eller G-rad i samme takst, er lakk-prosessene vurdert
+      // der. Uten denne sperren ville samme punkt kommet to ganger på samme del.
+      const modellT=(t.bil&&t.bil.modell)||'';
+      const dekketAvNG=t.lakkspes.some(a=>a!==d&&!a.tillegg&&a.navn
+        &&(a.optype==='N'||a.optype==='G')&&sammeDelHodeord(d.navn,a.navn,modellT));
+      if(dekketAvNG)return;
+    }
     // v2.87: en SMÅDEL navngitt etter plassering er ikke hoveddelen og skal ikke ha egen
     // sjekkliste. Mercedes E-Vito TV99491: "List H støtfanger bak (50%)" fikk HELE støtfanger-
     // lista – 7 av kjøringens 30 punkter brukt på en pyntelist. Martin: "nei den trenger vel
@@ -4514,12 +4535,15 @@ function takstSammendrag(t){
         }
         // ingen blokk funnet → ID beholdes, ingen antakelse gjort
       }
+      // v3.20: på en tilstøtende rad tilbys KUN ID-er merket gjelderTilstotende. Uten dette
+      // ville hele bakskjerm-lista (UB, rust, tilstøtende mot naboflater) fulgt med.
+      if(d.optype==='T'&&!r.gjelderTilstotende)return false;
       return r.kat.test(d.navn)&&r.optype.includes(d.optype);
     });
     if(idListe.length){
       idListe.forEach(id=>window.DELSTATUS_GYLDIGE_IDER.add(id));
       window.DELSTATUS_GYLDIGE_DELNAVN.add(d.navn.toLowerCase().trim());
-      delstatusLinjer.push(`  • ${d.navn} [${d.optype} = ${gEtikett(d)}] – bruk disse ID-ene: ${idListe.join(', ')}`);
+      delstatusLinjer.push(`  • ${d.navn} [${d.optype} = ${optypeEtikett(d)}] – bruk disse ID-ene: ${idListe.join(', ')}`);
       return;
     }
     // Fallback til gammel prose-peker for ikke-migrerte deltyper
