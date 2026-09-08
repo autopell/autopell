@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v3.19 – Smart kontroll av takster</title>
+<title>AutoPell v3.20 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -130,7 +130,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v3.19</div>
+    <div class="version-badge">v3.20</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -281,6 +281,24 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v3.20 – endringer fra v3.19 (1 sak – funnet av Martin på Hyundai EB49828):
+   TILSTØTENDE FLATER FIKK INGEN LAKK-PROSESSER I DET HELE TATT. DELSTATUS-byggeren hoppet over
+   enhver T-rad (`if(d.tillegg||d.tilstøtende||d.optype==='T'||!d.navn)return;`) FØR noen regel
+   så den. "H Bakskjerm, over begrensning" er ført T, og polere flikk ble derfor aldri vurdert
+   – enda reglene finnes for både N og G.
+   Martins prinsipp: "så lenge flaten skal lakkes enten det er gammel eller tilstøtende må jo
+   prosessene være de samme." Flaten LAKKERES, altså følger lakk-prosessene med.
+   SPERREN ER IKKE FJERNET – den er fortsatt riktig for UB (aldri på tilstøtende) og for
+   tilstøtende-mot-naboflate-forslag (meningsløst på en flate som allerede er T). T-rader
+   slipper inn, men kun ID-er merket `gjelderTilstotende` tilbys: polere flikk og løftetape.
+   HTT på tilstøtende smådeler var allerede dekket (v3.07) og er ikke rørt.
+   DUPLIKATSPERRE: har hoveddelen allerede en N- eller G-rad i samme takst, hoppes T-raden over
+   – ellers ville samme punkt kommet to ganger på samme del.
+   Egen etikett i DELSTATUS sier eksplisitt at flaten lakkes men ikke er skadet, så Claude ikke
+   begynner å foreslå skadeavhengige punkter der.
+   Samme feilklasse som HTT-korreksjonen 1.09: én bred sperre som tok med seg for mye.
+*/
 
 /* AutoPell v3.19 – endringer fra v3.18 (1 sak, tre steder – de siste falske funnene på
    Fiat 500E EH43425):
@@ -4214,8 +4232,8 @@ function takstSammendrag(t){
     BAKSKJERM_G_TILST_BAKDOR:{kat:/bakskjerm/i,optype:['G'],ikkeVedSvart:true,navn:'Tilstøtende bakdør',mal:'Spør om tilstøtende mot bakdør er aktuelt',intern:'SKADEMARKERING STYRER SIDEN: takstmannen markerer skaden i bildene med røde firkanter/piler. FINN BILENS RETNING FØRST. Ikke anta at venstre i bildet er fremover – det avhenger av hvilken side av bilen som er fotografert. Faste holdepunkter: sidespeilet sitter alltid i FREMRE ende av fordøra. Frontrute og vindusviskere står mot FRONTEN; bakrute og eventuell takspoiler mot HEKKEN. Hjulbuen foran en fordør er FORhjulet; hjulbuen bak en bakdør er BAKhjulet. Dørhåndtak sitter i BAKRE halvdel av sin egen dør. Tanklokk sitter alltid på bakskjermen. B-stolpen er den brede stolpen mellom fordør og bakdør. Klarer du ikke å fastslå retningen ut fra minst ETT slikt holdepunkt, skal posisjonsvurderingen under IKKE brukes – sett \"usikker\". ÉN LINJE VED UKJENT RETNING: klarer du ikke å fastslå retningen, skal du IKKE skrive et eget forslag per naboflate. Skriv ÉN linje som ber takstmannen vurdere tilstøtende mot den flaten skaden ligger nærmest, og la de øvrige tilstøtende-punktene stå som \"usikker\" UTEN egen forslagstekst. To nesten like linjer om samme vurdering er støy. Naboflaten for denne ID-en er bakdøra (FREMRE kant av bakskjermen). Ligger skaden nærmest DENNE flaten, er den aktuell. Ligger den tydelig i motsatt ende av delen, er den lite aktuell. Sitter markeringen midt på delen, regn den mot den NÆRMESTE kanten framfor å utelukke begge. VIKTIG: bruk ALDRI "ikke relevant" på grunn av tvil om plassering – tvil gir "usikker" (v2.43-regelen). "ikke relevant" er kun for tilfeller der flaten åpenbart ikke er berørt, eller der en annen regel utelukker den (svart bil, tilstøtende-post, delen allerede i lakkspes). Unngå å foreslå BEGGE naboflatene på samme del med mindre skaden faktisk strekker seg over hele delen.',farge:'gul'},
     BAKSKJERM_G_HJULBUELISTE:{kat:/bakskjerm/i,optype:['G'],sjekkNevntIRaw:'hjulbueliste',navn:'HTT hjulbueliste',mal:'Sjekk om bakskjerm har lakkerbar hjulbueliste',farge:'gul'},
     BAKSKJERM_G_TANKLUKE:{kat:/bakskjerm/i,optype:['G'],sjekkAlleredeForLakkspes:['tankluk','ladeluk','bensinluk','strøminntak','dekklokk'],skjulHvisDetaljIkkeFunnet:['tankluk','ladeluk','bensinluk','dekklokk'],navn:'Tankluke',mal:'Sjekk om tankluken på bakskjerm bør vurderes som tilstøtende',farge:'gul'},
-    BAKSKJERM_G_LOFTETAPE:{ikkeVedModell:[/tesla.*model\s*y/i,/tesla.*model\s*s/i,/nissan.*leaf/i],poeng:20,kat:/bakskjerm/i,optype:['G'],sjekkAlleredeForLakkspes:['løftetape','loftetape'],navn:'Løftetape',mal:'Sjekk om det finnes en synlig rute mot bakskjerm som krever løftetape (20p).',intern:'Løftetape løfter pakningen rundt ruten, ikke knyttet til rettearbeidet. Kun personbil, ikke varebil. Nesten alle stasjonsvogner/kombi og de fleste SUV har rute i bakskjerm. KJENTE UNNTAK uten rute i bakskjerm: Tesla Model Y og Nissan Leaf – der gjelder løftetape ALDRI. Ved tvil: status="usikker", ALDRI "ikke relevant" (v2.43).',farge:'gul'},
-    BAKSKJERM_G_POLERE_FLIKK:{ikkeVedModell:[/tesla.*model\s*[y3s]/i],poeng:20,kat:/bakskjerm/i,optype:['G'],navn:'Polere flikk',mal:'Vurder polere flikk 20p hvis takstolpe ikke lakkes helt ut',farge:'gul'},
+    BAKSKJERM_G_LOFTETAPE:{ikkeVedModell:[/tesla.*model\s*y/i,/tesla.*model\s*s/i,/nissan.*leaf/i],poeng:20,kat:/bakskjerm/i,optype:['G','T'],gjelderTilstotende:true,sjekkAlleredeForLakkspes:['løftetape','loftetape'],navn:'Løftetape',mal:'Sjekk om det finnes en synlig rute mot bakskjerm som krever løftetape (20p).',intern:'Løftetape løfter pakningen rundt ruten, ikke knyttet til rettearbeidet. Kun personbil, ikke varebil. Nesten alle stasjonsvogner/kombi og de fleste SUV har rute i bakskjerm. KJENTE UNNTAK uten rute i bakskjerm: Tesla Model Y og Nissan Leaf – der gjelder løftetape ALDRI. Ved tvil: status="usikker", ALDRI "ikke relevant" (v2.43).',farge:'gul'},
+    BAKSKJERM_G_POLERE_FLIKK:{ikkeVedModell:[/tesla.*model\s*[y3s]/i],poeng:20,kat:/bakskjerm/i,optype:['G','T'],gjelderTilstotende:true,navn:'Polere flikk',mal:'Vurder polere flikk 20p hvis takstolpe ikke lakkes helt ut',farge:'gul'},
 
     BAKSKJERM_N_RUST:{deterministisk:true,navn:'Rustbeskyttelse',mal:'',farge:'rød'},
     BAKSKJERM_N_UB:{deterministisk:true,navn:'UB',mal:'',farge:'rød'},
@@ -4510,7 +4528,7 @@ function takstSammendrag(t){
       const seksjon=d.optype==='N'?match.N:match.G;
       if(seksjon){
         window.DELSTATUS_GYLDIGE_DELNAVN.add(d.navn.toLowerCase().trim());
-        delstatusLinjer.push(`  • ${d.navn} [${d.optype} = ${gEtikett(d)}] → sjekk avsnittet "${seksjon}" i reglene (IKKE ID-migrert ennå – bruk fritekst-punkt/avsnitt-format)`);
+        delstatusLinjer.push(`  • ${d.navn} [${d.optype} = ${optypeEtikett(d)}] → sjekk avsnittet "${seksjon}" i reglene (IKKE ID-migrert ennå – bruk fritekst-punkt/avsnitt-format)`);
       }
     }
   });
