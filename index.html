@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v3.17 – Smart kontroll av takster</title>
+<title>AutoPell v3.18 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -51,7 +51,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 /* v3.17: miniatyrer av bilbildene i stedet for filnavn-brikker */
 .bilde-mini{position:relative;width:56px;height:56px;border-radius:6px;overflow:hidden;border:1px solid #C0DD97;background:#EAF3DE}
 .bilde-mini img{width:100%;height:100%;object-fit:cover;display:block}
-.bilde-mini .fjern-bilde{position:absolute;top:2px;right:2px;width:18px;height:18px;border:none;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;font-size:11px;line-height:1;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center}
+.bilde-mini .fjern-bilde{position:absolute;top:1px;right:1px;width:15px;height:15px;border:none;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;font-size:9px;line-height:1;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center}
 .bilde-mini .fjern-bilde:hover{background:rgba(0,0,0,.85)}
 .bilde-mini .fjern-bilde:focus-visible{outline:2px solid #fff;outline-offset:-2px}
 .btn{padding:9px 18px;border-radius:7px;border:1px solid #ccc;background:#fff;cursor:pointer;font-size:13px;color:#333;transition:all .15s;font-family:inherit}
@@ -130,7 +130,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v3.17</div>
+    <div class="version-badge">v3.18</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -281,6 +281,22 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v3.18 – endringer fra v3.17 (fra Fiat 500E EH43425, der Martin gikk gjennom alle
+   ni funn – FEM var falske):
+   1. PLASTSPESIFIKASJONEN: DETALJLINJER BLE LEST SOM EGNE DELER. Gruppe 2 inneholder
+      "V Lyskaster projeksjon 88 1 016,40" og under den "Antall festeanordninger 3".
+      Den gamle regexen godtok "navn + ett tall", så festeanordningene ble en egen "reparert
+      del" som til og med arvet lyskasterens 88p. Skillet er at en del har BÅDE tid OG beløp;
+      detaljlinjene har bare ett tall, i Tiltak-kolonnen. Detaljene lagres nå på delen
+      (aktivDel.detaljer) i stedet for å forsvinne.
+   2. PANSER_DEMO (pansermatte) FJERNET på Martins beskjed. DBS gir automatisk tid for
+      innvendige detaljer ved flateretting, så forslaget gjaldt noe systemet legger inn selv.
+   3. Krysset på bildeminiatyrene krympet fra 18 til 15 px – det dekket for mye av motivet.
+   IKKE MED I DENNE: lakk-post-gaten på grunning og skadetype. Den avhenger av om
+   harLakkPost2 allerede regner "V Lyskaster projeksjon" som lakkert, og det må leses av ekte
+   parserdata før regelen skrives – ellers bygger vi en sperre som ikke fyrer.
+*/
 
 /* AutoPell v3.17 – endringer fra v3.16 (1 punkt, kun visning – ingen regler rørt):
    1. MINIATYRER AV BILBILDENE. Bildene ble vist som filnavn-brikker ("IMG_4821.jpg"), som ikke
@@ -3619,17 +3635,33 @@ function parseTakst(text){
       const grMatch=l.match(/Grunning for topplakk\s+([\d,]+)\s*dm/i);
       if(grMatch){p.grunning_topplakk_dm2=parseFloat(grMatch[1].replace(',','.'));continue;}
 
-      // Delnavn-linje: "delnavn TID" eller "delnavn TID BELØP"
+      // Delnavn-linje: "delnavn TID BELØP"
       if(l.match(/^(Tiltak\s+Tid|Kode|Område|Kostnad|Reparasjon|Reservedelspris)/i))continue;
-      const delMatch=l.match(/^(.+?)\s+\d+(\s+[\d\s,\.]+)?$/);
+      // v3.18: EN DEL HAR BÅDE TID OG BELØP. DETALJLINJER HAR BARE ETT TALL, I TILTAK-KOLONNEN.
+      // Fiat 500E EH43425, Gruppe 2:
+      //     "V Lyskaster projeksjon        88   1 016,40"   <- delen
+      //     "Antall festeanordninger        3"              <- en DETALJ om delen, ikke en del
+      // Den gamle regexen godtok "navn + ett tall", så "Antall festeanordninger" ble lest som
+      // egen reparert del – og arvet lyskasterens 88p da den ble vist i funnene. Det ga to
+      // falske forslag (skadetype og grunning) om noe som bare er festene til lykta.
+      // Tabellen har kolonnene Tiltak/Tid/Beløp, og beløpet med desimaler er det som skiller
+      // en priset reparasjonsrad fra en opplysningslinje under den.
+      const delMatch=l.match(/^(.+?)\s+(\d+)\s+(\d{1,3}(?:[\s.]\d{3})*,\d{2})$/);
       if(delMatch){
         const kandidat=delMatch[1].trim();
         if(kandidat.length>=3&&!/^Sum\s/i.test(kandidat)){
           // Ny del – push gammel hvis den finnes
           if(aktivDel)p.deler.push(aktivDel);
-          aktivDel={del:kandidat,skadetype:null,reparert_flate_cm2:null,tid:parseInt(delMatch[0].match(/\s(\d+)/)[1])};
+          aktivDel={del:kandidat,skadetype:null,reparert_flate_cm2:null,tid:parseInt(delMatch[2]),detaljer:[]};
           if(!p.del)p.del=kandidat; // legacy: behold første del
         }
+        continue;
+      }
+      // Linje med ett enkelt tall under en del: en detalj (antall festeanordninger o.l.).
+      // Beholdes på delen så informasjonen ikke går tapt, men den er ALDRI en egen del.
+      const detaljMatch=l.match(/^(.+?)\s+(\d+)$/);
+      if(detaljMatch&&aktivDel&&detaljMatch[1].trim().length>=3&&!/^Sum\s/i.test(detaljMatch[1])){
+        aktivDel.detaljer.push({tekst:detaljMatch[1].trim(),verdi:parseInt(detaljMatch[2])});
       }
     }
     if(aktivDel)p.deler.push(aktivDel);
@@ -4089,7 +4121,12 @@ function takstSammendrag(t){
     FORSKJERM_N_HTT_LOSE:{kat:/forskjerm/i,optype:['N'],navn:'HTT løse deler',mal:'Sjekk løse deler på forskjerm i lakklisten for manglende HTT',farge:'gul'},
 
     PANSER_RUST:{deterministisk:true,navn:'Rustbeskyttelse',mal:'',farge:'rød'},
-    PANSER_DEMO:{kat:/\bpanser\b/i,optype:['N','G'],navn:'De/Mo innvendige detaljer',mal:'Vurder å legge til De/Mo innvendige detaljer (pansermatte)',farge:'rød'},
+    // v3.18: PANSER_DEMO FJERNET. Martin, om funnet på Fiat 500E EH43425: "nei vi trenger ikke
+    // denne" – og på spørsmål om regelen skulle bort helt: "ja og ja regelen skal bort."
+    // Støttes av DBS-dokumentasjonen lenger opp i denne fila: systemet gir AUTOMATISK tid for
+    // innvendige detaljer ved flateretting, pansermatte ved panser inkludert – vi foreslo altså
+    // noe DBS legger inn selv. Reglene for tak, dør og bakskjerm står urørt; Martin uttalte
+    // seg kun om panser.
     PANSER_TILST_ASTOLPE:{kat:/\bpanser\b/i,optype:['N','G'],navn:'Tilstøtende A-stolpe',mal:'Vurder å ta med tilstøtende flate mot A-stolpe begge sider (fargeavhengig)',intern:'SKADEMARKERING STYRER SIDEN: takstmannen markerer skaden i bildene med røde firkanter/piler. FINN BILENS RETNING FØRST. Ikke anta at venstre i bildet er fremover – det avhenger av hvilken side av bilen som er fotografert. Faste holdepunkter: sidespeilet sitter alltid i FREMRE ende av fordøra. Frontrute og vindusviskere står mot FRONTEN; bakrute og eventuell takspoiler mot HEKKEN. Hjulbuen foran en fordør er FORhjulet; hjulbuen bak en bakdør er BAKhjulet. Dørhåndtak sitter i BAKRE halvdel av sin egen dør. Tanklokk sitter alltid på bakskjermen. B-stolpen er den brede stolpen mellom fordør og bakdør. Klarer du ikke å fastslå retningen ut fra minst ETT slikt holdepunkt, skal posisjonsvurderingen under IKKE brukes – sett \"usikker\". ÉN LINJE VED UKJENT RETNING: klarer du ikke å fastslå retningen, skal du IKKE skrive et eget forslag per naboflate. Skriv ÉN linje som ber takstmannen vurdere tilstøtende mot den flaten skaden ligger nærmest, og la de øvrige tilstøtende-punktene stå som \"usikker\" UTEN egen forslagstekst. To nesten like linjer om samme vurdering er støy. Naboflaten for denne ID-en er A-stolpen (BAKRE kant av panseret). Ligger skaden nærmest DENNE flaten, er den aktuell. Ligger den tydelig i motsatt ende av delen, er den lite aktuell. Sitter markeringen midt på delen, regn den mot den NÆRMESTE kanten framfor å utelukke begge. VIKTIG: bruk ALDRI "ikke relevant" på grunn av tvil om plassering – tvil gir "usikker" (v2.43-regelen). "ikke relevant" er kun for tilfeller der flaten åpenbart ikke er berørt, eller der en annen regel utelukker den (svart bil, tilstøtende-post, delen allerede i lakkspes). Unngå å foreslå BEGGE naboflatene på samme del med mindre skaden faktisk strekker seg over hele delen.',farge:'gul'},
     PANSER_TILST_FORSKJERM:{kat:/\bpanser\b/i,optype:['N','G'],ikkeVedSvart:true,navn:'Tilstøtende forskjerm',mal:'Vurder å ta med tilstøtende flate mot forskjerm begge sider (fargeavhengig)',intern:'SKADEMARKERING STYRER SIDEN: takstmannen markerer skaden i bildene med røde firkanter/piler. FINN BILENS RETNING FØRST. Ikke anta at venstre i bildet er fremover – det avhenger av hvilken side av bilen som er fotografert. Faste holdepunkter: sidespeilet sitter alltid i FREMRE ende av fordøra. Frontrute og vindusviskere står mot FRONTEN; bakrute og eventuell takspoiler mot HEKKEN. Hjulbuen foran en fordør er FORhjulet; hjulbuen bak en bakdør er BAKhjulet. Dørhåndtak sitter i BAKRE halvdel av sin egen dør. Tanklokk sitter alltid på bakskjermen. B-stolpen er den brede stolpen mellom fordør og bakdør. Klarer du ikke å fastslå retningen ut fra minst ETT slikt holdepunkt, skal posisjonsvurderingen under IKKE brukes – sett \"usikker\". ÉN LINJE VED UKJENT RETNING: klarer du ikke å fastslå retningen, skal du IKKE skrive et eget forslag per naboflate. Skriv ÉN linje som ber takstmannen vurdere tilstøtende mot den flaten skaden ligger nærmest, og la de øvrige tilstøtende-punktene stå som \"usikker\" UTEN egen forslagstekst. To nesten like linjer om samme vurdering er støy. Naboflaten for denne ID-en er forskjermen (SIDEKANT av panseret). Ligger skaden nærmest DENNE flaten, er den aktuell. Ligger den tydelig i motsatt ende av delen, er den lite aktuell. Sitter markeringen midt på delen, regn den mot den NÆRMESTE kanten framfor å utelukke begge. VIKTIG: bruk ALDRI "ikke relevant" på grunn av tvil om plassering – tvil gir "usikker" (v2.43-regelen). "ikke relevant" er kun for tilfeller der flaten åpenbart ikke er berørt, eller der en annen regel utelukker den (svart bil, tilstøtende-post, delen allerede i lakkspes). Unngå å foreslå BEGGE naboflatene på samme del med mindre skaden faktisk strekker seg over hele delen.',farge:'gul'},
     // v3.00: BAKLUKE FÅR EGNE ID-ER. Bakluke var ingen hoveddel i registeret, så Claude fikk
