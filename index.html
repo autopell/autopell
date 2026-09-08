@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v3.18 – Smart kontroll av takster</title>
+<title>AutoPell v3.19 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -130,7 +130,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v3.18</div>
+    <div class="version-badge">v3.19</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -281,6 +281,24 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v3.19 – endringer fra v3.18 (1 sak, tre steder – de siste falske funnene på
+   Fiat 500E EH43425):
+   GRUPPENUMMERET I PLASTSPESIFIKASJONEN ER EN LAKK-MARKERING. DBS-dialogen sier det ordrett:
+   Gruppe 1 = "Detaljer som krever lakk/struktur etter reparasjon", Gruppe 2 = "Detaljer som
+   IKKE krever lakk/struktur etter reparasjon". Martin foreslo dette 5.09; jeg avviste det som
+   "bare DBS' inndeling av reparasjonstype" og tok feil.
+   "V Lyskaster projeksjon" ligger i Gruppe 2 – arbeidet er reparasjon av tre festeanordninger,
+   og hovedlykta lakkeres aldri. AutoPell ga likevel TRE falske funn om samme del: skadetype,
+   grunning for topplakk, og KRITISK MANGEL for manglende lakk-post.
+   Parseren lagret gruppa GLOBALT (siste gruppe vant), så deler kunne ikke skilles. Nå får hver
+   del sin egen gruppe, og én felles hjelper (kreverLakkEtterRep) gater alle tre stedene:
+   konsistens-sjekken, grunning-sjekken og – via HURTIGFAKTA og prompten – skadetypen.
+   Ukjent gruppe behandles som "krever lakk", så en parse-miss kan bare gi stillhet, aldri et
+   falskt funn. Gruppe 2-deler som hoppes over logges til konsollen.
+   Merk forskjellen fra Opel EH90038: der var det LAKK AV LYKTEGLASSET (spraymetoden), som
+   skulle ha lakk-post. Samme del, ulikt arbeid – gruppa skiller dem, delnavnet gjør det ikke.
+*/
 
 /* AutoPell v3.18 – endringer fra v3.17 (fra Fiat 500E EH43425, der Martin gikk gjennom alle
    ni funn – FEM var falske):
@@ -3599,10 +3617,18 @@ function parseTakst(text){
     // eller når Sum Gruppe X kommer.
     let aktivDel=null;
     let gruppeAktiv=false;
+    let gjeldendeGruppe=null;   // v3.19: hvilken gruppe delene under hører til
     for(let i=plastspesIdx;i<lines.length;i++){
       const l=lines[i];
-      if(l.startsWith('Gruppe 1')){p.aktivert=true;p.gruppe=1;gruppeAktiv=true;continue;}
-      if(l.startsWith('Gruppe 2')){p.aktivert=true;p.gruppe=2;gruppeAktiv=true;continue;}
+      // v3.19: GRUPPENUMMERET ER EN LAKK-MARKERING, og det står ordrett i DBS-dialogen:
+      //   Gruppe 1 = "Detaljer som KREVER lakk/struktur etter reparasjon"
+      //   Gruppe 2 = "Detaljer som IKKE krever lakk/struktur etter reparasjon"
+      // Martin foreslo dette selv; jeg avviste det som "bare DBS' inndeling av reparasjonstype"
+      // og tok feil. Skjermbildet fra Fiat 500E EH43425 viser etiketten svart på hvitt.
+      // p.gruppe var GLOBAL for hele plastspesifikasjonen (siste gruppe vant), så en takst med
+      // både Gruppe 1 og Gruppe 2 kunne ikke skilles per del. Nå får hver del sin egen.
+      if(l.startsWith('Gruppe 1')){p.aktivert=true;p.gruppe=1;gjeldendeGruppe=1;gruppeAktiv=true;continue;}
+      if(l.startsWith('Gruppe 2')){p.aktivert=true;p.gruppe=2;gjeldendeGruppe=2;gruppeAktiv=true;continue;}
       if(!gruppeAktiv)continue;
 
       // Sum Gruppe markerer slutt på gruppe-blokken
@@ -3652,7 +3678,7 @@ function parseTakst(text){
         if(kandidat.length>=3&&!/^Sum\s/i.test(kandidat)){
           // Ny del – push gammel hvis den finnes
           if(aktivDel)p.deler.push(aktivDel);
-          aktivDel={del:kandidat,skadetype:null,reparert_flate_cm2:null,tid:parseInt(delMatch[2]),detaljer:[]};
+          aktivDel={del:kandidat,gruppe:gjeldendeGruppe,skadetype:null,reparert_flate_cm2:null,tid:parseInt(delMatch[2]),detaljer:[]};
           if(!p.del)p.del=kandidat; // legacy: behold første del
         }
         continue;
@@ -3924,6 +3950,27 @@ function dorEtikett(d){
   return (d.side?d.side.toUpperCase()+' ':'')+navn;
 }
 
+// v3.19: KREVER DENNE PLASTREP-DELEN LAKK ETTER REPARASJON?
+// Svaret er DBS' eget: Gruppe 2 = "Detaljer som IKKE krever lakk/struktur etter reparasjon".
+// På Fiat 500E EH43425 ligger "V Lyskaster projeksjon" i Gruppe 2 – arbeidet er reparasjon av
+// tre festeanordninger, og hovedlykta lakkeres ikke i det hele tatt. AutoPell foreslo likevel
+// grunning, skadetype OG et KRITISK-flagg for manglende lakk-post: tre falske funn om samme del.
+// Merk forskjellen fra Opel EH90038, der lykta hadde LAKK AV LYKTEGLASSET (spraymetoden) og
+// skulle ha lakk-post – samme del, ulikt arbeid. Gruppa skiller dem; delnavnet gjør det ikke.
+// Ukjent gruppe gir TRUE (behandles som lakkert), så en parse-miss aldri undertrykker et funn.
+function kreverLakkEtterRep(navn,data){
+  if(!navn||!data||!data.plastspes)return true;
+  const deler=Array.isArray(data.plastspes.deler)?data.plastspes.deler:[];
+  const modell=(data.bil&&data.bil.modell)||'';
+  const treff=deler.find(d=>d&&typeof d==='object'&&d.del&&sammeDelHodeord(navn,d.del,modell));
+  if(!treff||treff.gruppe==null)return true;
+  if(treff.gruppe===2){
+    console.log('[v3.19] "'+navn+'" ligger i Gruppe 2 (krever ikke lakk) – hoppet over');
+    return false;
+  }
+  return true;
+}
+
 // Er disse to navnene samme fysiske del? Krever LIKT hodeord, og sider som ikke kolliderer.
 // v3.13: NAVNEPAR-FALLBACKEN ER FJERNET IGJEN – den svarte på feil spørsmål. Parene bygges som
 // KRYSSPRODUKT av alle arbeidslinjer × alle lakklinjer i én Pos-blokk, og en Pos-blokk holder
@@ -4063,7 +4110,13 @@ function takstSammendrag(t){
     if(t.plastspes.deler&&t.plastspes.deler.length>1){
       s+=`  Antall plastrep-deler: ${t.plastspes.deler.length}\n`;
       t.plastspes.deler.forEach((d,i)=>{
-        s+=`    ${i+1}. ${d.del} – Skadetype: ${d.skadetype||'⚠️ IKKE VALGT'}, ${d.reparert_flate_cm2||'?'} cm², ${d.tid||'?'}p\n`;
+        // v3.19: si eksplisitt hva gruppa BETYR, ikke bare nummeret. Claude foreslo skadetype
+        // for Gruppe 2-deler selv om prompten allerede sa "Gruppe 1", fordi nummeret alene
+        // ikke sier noe om lakk.
+        const gr=d.gruppe===2?' [GRUPPE 2 – KREVER IKKE LAKK: ikke foreslå skadetype, grunning eller lakk-post for denne]'
+                :d.gruppe===1?' [Gruppe 1 – krever lakk etter reparasjon]':'';
+        const skadetypeTekst=d.gruppe===2?'ikke relevant':(d.skadetype||'⚠️ IKKE VALGT');
+        s+=`    ${i+1}. ${d.del} – Skadetype: ${skadetypeTekst}, ${d.reparert_flate_cm2||'?'} cm², ${d.tid||'?'}p${gr}\n`;
       });
     }else{
       s+=`  Del: ${t.plastspes.del||'⚠️ IKKE IDENTIFISERT FRA PDF'}\n`;
@@ -5315,7 +5368,7 @@ Dette er en av de viktigste regelene. ALDRI hopp over en del som er reparert ute
 8. Diagnose støtfanger – kun som spørsmål (gul) når støtfanger eksplisitt demonteres. Etter 2014: 100p, før 2014: 50p.
 9. Sveisemateriell plastrep 300kr – KUN hvis "Ut og innvendig skade" er eksplisitt huket av i plastspesifikasjonens Gruppe 1. ALDRI ved "Skrapeskade", "Utvendig skade" alene, eller hvis ingen underkategori er huket av. Hvis underkategori MANGLER → flagg det som rød mangel i stedet, IKKE foreslå 300kr.
 10. ALDRI foreslå UB på plastdeler. Støtfanger = plast. UB gjelder kun stål og aluminium.
-11. Plastrep Gruppe 1 uten huket av skadetype → flagges som rød mangel (takstmannen må velge skadeomfang for korrekt tidsberegning).
+11. Plastrep Gruppe 1 uten huket av skadetype → flagges som rød mangel (takstmannen må velge skadeomfang for korrekt tidsberegning). GJELDER KUN GRUPPE 1. Gruppe 2 betyr "detaljer som IKKE krever lakk/struktur etter reparasjon" – for slike deler skal du ALDRI foreslå skadetype, grunning for topplakk eller manglende lakk-post. En hovedlykt der festeanordninger repareres er et typisk Gruppe 2-tilfelle: lykta lakkeres ikke.
 
 === BILSPESIFIKKE REGLER ===
 - Nissan Leaf: ALDRI HTT håndtak – alltid krom, lakkes aldri
@@ -6819,6 +6872,8 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
       }
       const manglendeLakk=[];
       parserData.plastreparasjon.forEach(p=>{
+        // v3.19: Gruppe 2-deler skal ikke lakkes, så manglende lakk-post er ikke en mangel.
+        if(!kreverLakkEtterRep(p.del,parserData))return;
         if(!harLakkPost2(p.del))manglendeLakk.push({del:p.del,type:'plastreparasjon'});
       });
       parserData.karosseri_flaterett.forEach(p=>{
@@ -6841,6 +6896,7 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
         :[];
       plastspesDeler.forEach(delNavn=>{
         if(!delNavn)return;
+        if(!kreverLakkEtterRep(delNavn,parserData))return;   // v3.19
         if(!harLakkPost2(delNavn)){
           if(!manglendeLakk.some(m=>m.del.toLowerCase().includes(delNavn.toLowerCase().substring(0,15)))){
             manglendeLakk.push({del:delNavn,type:'plastreparasjon (plastspes aktivert)'});
@@ -6871,6 +6927,8 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
       if(!claudeAlleredeForeslo){
       plastspesDeler.forEach(delNavn=>{
         if(!delNavn)return;
+        // v3.19: grunning for topplakk følger LAKKEN. Gruppe 2 lakkeres ikke, altså ingen grunning.
+        if(!kreverLakkEtterRep(delNavn,parserData))return;
         const harGrunningForDenne=parserData.lakkmateriell_annet.some(m=>{
           const navn=(m.navn||'').toLowerCase();
           // v2.96: SAMME TOLERANSE SOM SAMMENDRAGSLINJA. HURTIGFAKTA godtar "grunning for"
