@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v3.23 – Smart kontroll av takster</title>
+<title>AutoPell v3.24 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -130,7 +130,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v3.23</div>
+    <div class="version-badge">v3.24</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -281,6 +281,22 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v3.24 – endringer fra v3.23 (1 sak, men en som kunne gi GALE FUNN):
+   FORRIGE KJØRING HANG IGJEN NÅR EN NY TAKST BLE LASTET. Martin, om Gmail-lista: "når jeg finner
+   en ny takst jeg skal kontrollere i fra mail listen ligger den gamle sjekken fortsatt under."
+   Verre enn et gammelt resultatpanel: sendGmailToVeil satte carImages BARE hvis den nye
+   e-posten hadde bilder, uten else-gren. Hadde den nye taksten ingen bilder, sto BILDENE FRA
+   FORRIGE BIL igjen – på skjermbildet var taksten en Nissan Ariya mens miniatyrene viste en
+   blå Volvo. Claude ville da vurdert skade ut fra feil bil.
+   Per-kjøring-state (SPOR, POENG_FUNN, KODE_OVERSTYRT, DATAGODKJENT) nullstilles ved START av
+   en kjøring, så sporingspanelet viste også forrige takst helt til neste kontroll ble kjørt.
+   NÅ: én felles nullstillForrigeKjoring() kalles fra alle innganger – Gmail-overføring til
+   begge faner og manuell filopplasting. Den tømmer resultat-diven, debug-panelet, tellerne og
+   (for takst-kontrollen) bildene, med URL-frigjøring via tegnBildeminiatyrer.
+   Én funksjon fra alle innganger med vilje: samme sjekk i to kopier ryker i utakt – det er
+   mønsteret bak flere av kveldene i denne fila.
+*/
 
 /* AutoPell v3.23 – endringer fra v3.22 (kun ordlyd – ingen regelendring):
    DE/MO-FORSLAGET SA FOR MYE. Ordlyden fra v3.22 endte med "– håndtak, speil, lister eller
@@ -3054,7 +3070,40 @@ function openModal(){document.getElementById('api-input').value=getApiKey();docu
 function closeModal(){document.getElementById('api-modal').classList.remove('open');}
 function updateApiStatus(){const el=document.getElementById('api-status');if(getApiKey()){el.className='api-indicator api-ok';el.textContent='API-nøkkel OK';}else{el.className='api-indicator api-missing';el.textContent='Ingen API-nøkkel – klikk her';}}
 function initKalibTags(){const c=document.getElementById('kalib-tags');if(c)c.innerHTML=KALIB_PARTS.map(p=>`<span class="tag">${p}</span>`).join('');}
-function handleFile(e,key){const f=e.target.files[0];if(!f)return;files[key]=f;const chip=document.getElementById(key+'-chip');if(chip)chip.innerHTML=`<div class="file-chip">📎 ${f.name}</div>`;}
+// v3.24: NULLSTILL FORRIGE KJØRING NÅR EN NY TAKST LASTES.
+// Martin fant det på en Gmail-overføring: "når jeg finner en ny takst jeg skal kontrollere i
+// fra mail listen ligger den gamle sjekken fortsatt under." Det var verre enn et gammelt
+// resultatpanel: sendGmailToVeil satte carImages BARE hvis den nye e-posten hadde bilder, uten
+// else-gren. Hadde den nye taksten ingen bilder, sto BILDENE FRA FORRIGE BIL igjen – på
+// skjermbildet var taksten en Nissan Ariya mens miniatyrene viste en blå Volvo. Claude ville
+// da vurdert skade ut fra feil bil, og et bildeavhengig funn kan ikke bli riktigere enn bildet.
+// Per-kjoering-state (SPOR/POENG_FUNN/KODE_OVERSTYRT/DATAGODKJENT) nullstilles ved START av en
+// kjoering, så sporingspanelet viste også forrige takst helt til neste kontroll ble kjørt.
+// ÉN funksjon brukes fra alle innganger – Gmail og manuell opplasting – nettopp fordi den
+// samme sjekken ellers havner i to kopier som ryker i utakt.
+function nullstillForrigeKjoring(hvilken){
+  const resultatId=hvilken==='pakk'?'pakk-results':'veil-results';
+  const el=document.getElementById(resultatId);
+  if(el)el.innerHTML='';
+  // Debug-utdata ("Vis hva parser leser") rendres i samme div som resultatet, så den
+  // tømmes av linja over – ingen egen container finnes.
+  window.SPOR=[];window.POENG_FUNN=[];
+  window.KODE_OVERSTYRT=new Set();window.DATAGODKJENT=new Set();
+  if(hvilken!=='pakk'){
+    carImages=[];
+    tegnBildeminiatyrer();   // frigjør objekt-URL-ene og tømmer miniatyrene
+  }
+}
+function handleFile(e,key){
+  const f=e.target.files[0];if(!f)return;
+  // v3.24: en ny takstfil betyr ny sak – rydd bort forrige. Bildene beholdes når det er
+  // BILDENE som lastes opp (key='car-images' går via handleCarImages, ikke hit).
+  if(key==='veil-takst')nullstillForrigeKjoring('veil');
+  if(key==='takst')nullstillForrigeKjoring('pakk');
+  files[key]=f;
+  const chip=document.getElementById(key+'-chip');
+  if(chip)chip.innerHTML=`<div class="file-chip">📎 ${f.name}</div>`;
+}
 // v3.17: MINIATYRER I STEDET FOR FILNAVN. Martin: "når jeg overfører en takst fra g-mail går
 // det ann å få mini bilder slik at jeg ser bildene?" – filnavn som IMG_4821.jpg sier ingenting
 // om hvilken bil eller hvilken skade man ser på.
@@ -7501,8 +7550,11 @@ function sendGmailToVeil() {
   if (!selectedGmailAttachment) return;
   const blob = b64ToBlob(selectedGmailAttachment.b64, 'application/pdf');
   const file = new File([blob], selectedGmailAttachment.name, { type: 'application/pdf' });
+  nullstillForrigeKjoring('veil');   // v3.24: bilder, resultat og tellere fra forrige takst bort
   files['veil-takst'] = file;
   document.getElementById('veil-takst-chip').innerHTML = `<span class="file-chip">✓ ${file.name}</span>`;
+  // v3.24: MERK at det ikke lenger finnes en "behold gamle bilder"-vei. Har den nye e-posten
+  // ingen bilder, skal miniatyrene være tomme – ikke vise forrige bil.
   if (selectedGmailAttachment.images && selectedGmailAttachment.images.length > 0) {
     carImages = selectedGmailAttachment.images.slice(0, 10);
     tegnBildeminiatyrer();   // v3.17: felles tegning – samme visning som ved manuell opplasting
@@ -7518,6 +7570,7 @@ function sendGmailToPakk() {
   if (!selectedGmailAttachment) return;
   const blob = b64ToBlob(selectedGmailAttachment.b64, 'application/pdf');
   const file = new File([blob], selectedGmailAttachment.name, { type: 'application/pdf' });
+  nullstillForrigeKjoring('pakk');   // v3.24
   files['takst'] = file;
   document.getElementById('takst-chip').innerHTML = `<span class="file-chip">✓ ${file.name}</span>`;
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
