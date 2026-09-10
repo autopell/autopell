@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v3.25 – Smart kontroll av takster</title>
+<title>AutoPell v3.26 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -130,7 +130,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v3.25</div>
+    <div class="version-badge">v3.26</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -281,6 +281,22 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v3.26 – endringer fra v3.25 (KANAL FIKK ENDELIG EN SJEKKLISTE):
+   Kanal fantes IKKE som kategori i REGEL_REGISTRY. På VW Caddy SX17548 er V Kanal ført N med
+   33,9 dm² og 124p, men fikk ingen DELSTATUS-blokk – og ingen av punktene Martin går gjennom
+   ble sjekket. Den ene kanal-linja som fantes lå som PROSA i HURTIGFAKTA: koden hadde regnet
+   ut funnet, men lot Claude publisere det, og Claude droppet det. Funnet gikk tapt.
+   Martins liste, nå seks deterministiske ID-er: tilstøtende A-stolpe/B-stolpe/bakskjerm, POLERE
+   FLIKK PÅ HVER av de tilstøtende delene, karosserilim, innhenting av dokumentasjon, propper
+   (skjules hvis "propp" står i taksten – da er de alt ført), og struktur.
+   STRUKTUR LESES AV PDF-EN, ikke av DBS-vinduet: avhukingen vises som en linje med ordet
+   struktur under "Annet" ("Rest av min.verdi struktur 12"), mens Struktur-boksen i Lakk-fanen
+   kan se tom ut likevel.
+   UB gjentas ikke – den dekkes av UB-sjekken fra før.
+   IKKE RØRT: "Innvendig rustbeskyttelseslakkering" er en egen PDF-seksjon parseren ikke leser,
+   men Martin: "den varierer. ikke tenk på den."
+*/
 
 /* AutoPell v3.25 – endringer fra v3.24 (1 sak – tredje gang samme mønster):
    HÅNDTAK VED DØRSKIFT ER NÅ DETERMINISTISK. Volvo EX30 EN34747 har bakdøra ført N, men
@@ -4167,6 +4183,44 @@ function dorEtikettKort(d){
   return (d.side?d.side.toUpperCase()+' ':'')+(d.kjerne==='fordør'?'Fordør':'Bakdør');
 }
 
+// v3.26: KANAL-SJEKKLISTA. Kanal fantes IKKE som kategori i REGEL_REGISTRY i det hele tatt –
+// kategoriene var bakdør, bakluke, fordør, panser, tak, bakskjerm, forskjerm og støtfanger.
+// På VW Caddy SX17548 er V Kanal ført N med 33,9 dm² og 124p, men fikk ingen DELSTATUS-blokk,
+// og INGEN av punktene Martin går gjennom ble sjekket. Den ene kanal-linja som fantes lå som
+// PROSA i HURTIGFAKTA – koden hadde regnet ut funnet, men lot Claude publisere det, og Claude
+// droppet det. Derfor injiseres alt dette nå av koden.
+// Martins liste: "ja tilstøtende a stolpe, b stolpe og bakskjerm med polering av flikker på
+// hver del. + karosserilim og innhenting av dokumentasjon. + vurdere å skifte proppene i kanal
+// hvis disse finnes. også at det er huket av for struktur. + UB"
+// UB dekkes fra før av UB-sjekken, så den gjentas ikke her.
+function kanalFunn(data){
+  if(!data||!Array.isArray(data.lakkspes))return null;
+  const rad=data.lakkspes.find(d=>!d.tillegg&&d.navn&&/\bkanal\b/i.test(d.navn)
+    &&(d.optype==='N'||d.optype==='G'||d.optype==='T')&&!erSmadelPaaHoveddel(d.navn));
+  if(!rad)return null;
+  const raw=data.raw||'';
+  const alleredeT=n=>(data.lakkspes||[]).some(d=>(d.optype==='T'||d.tilstøtende)&&d.navn
+    &&new RegExp('\\b'+n+'\\b','i').test(d.navn));
+  // Naboflatene: A-/B-stolpe kun ved SKIFT (samme prinsipp som tilstøtende A-stolpe ellers),
+  // bakskjerm ved både skift og retting.
+  const naboer=[];
+  if(rad.optype==='N'){
+    if(!alleredeT('a-?stolpe'))naboer.push('A-stolpe');
+    if(!alleredeT('b-?stolpe'))naboer.push('B-stolpe');
+  }
+  if(!alleredeT('bakskjerm'))naboer.push('bakskjerm');
+  return {
+    navn:rad.navn, optype:rad.optype, naboer,
+    // Ordet står i taksten om posten alt er ført – samme mønster som skjulHvisIRaw.
+    harKarosserilim:/karosserilim|blanderør/i.test(raw),
+    harDokumentasjon:/dokumentasjon/i.test(raw),
+    harPropp:/\bpropp/i.test(raw),
+    // Struktur vises i PDF-en som en linje med ordet struktur under "Annet", f.eks.
+    // "Rest av min.verdi struktur 12". DBS-vinduets Struktur-boks kan se tom ut likevel.
+    harStruktur:/struktur/i.test(raw)
+  };
+}
+
 const HOVEDDELER=['fordør','bakdør','bakluke','panser','tak','forskjerm','bakskjerm','støtfanger','kanal','karosseriside'];
 function hoveddelerUtenDetaljer(data){
   if(!data||!Array.isArray(data.lakkspes))return [];
@@ -4491,6 +4545,12 @@ function takstSammendrag(t){
     DET_INNVENDIG_LAKK_DOR:{deterministisk:true,navn:'Innvendig lakk dør',mal:'',farge:'gul'},
     DET_DEMO_LAKK_TOM:{deterministisk:true,navn:'De/Mo innvendige detaljer',mal:'',farge:'gul'},
     DET_HTT_HANDTAK_SKIFT:{deterministisk:true,poeng:15,navn:'HTT dørhåndtak ved skift',mal:'',farge:'gul'},
+    DET_KANAL_TILST_NABOER:{deterministisk:true,navn:'Kanal – tilstøtende naboflater',mal:'',farge:'gul'},
+    DET_KANAL_POLERE_FLIKK:{deterministisk:true,poeng:20,navn:'Kanal – polere flikk på naboflate',mal:'',farge:'gul'},
+    DET_KANAL_KAROSSERILIM:{deterministisk:true,navn:'Kanal – karosserilim',mal:'',farge:'gul'},
+    DET_KANAL_DOKUMENTASJON:{deterministisk:true,navn:'Kanal – innhenting av dokumentasjon',mal:'',farge:'gul'},
+    DET_KANAL_PROPPER:{deterministisk:true,navn:'Kanal – propper',mal:'',farge:'gul'},
+    DET_KANAL_STRUKTUR:{deterministisk:true,navn:'Kanal – struktur',mal:'',farge:'gul'},
     DET_BESKYTTELSESFOLIE:{deterministisk:true,navn:'Beskyttelsesfolie',mal:'',farge:'gul'},
     DET_MULIG_GLEMT_FLATERETTE:{deterministisk:true,navn:'Mulig glemt flaterette',mal:'',farge:'gul'},
     DET_TREKKETARN:{deterministisk:true,navn:'Trekketårn/rigging',mal:'',farge:'gul'},
@@ -5135,10 +5195,13 @@ function takstSammendrag(t){
       if(!alleredeT('b-?stolpe'))mangler.push('B-stolpe');
     }
     if(!alleredeT('bakskjerm'))mangler.push('bakskjerm');
+    // v3.26: linja er ren OPPLYSNING nå. Før sto det "→ Vurder ..." her, og Claude skulle
+    // publisere funnet selv – på VW Caddy SX17548 gjorde han det ikke, og funnet gikk tapt.
+    // Hele kanal-sjekklista injiseres av post-filteret.
     if(mangler.length){
-      s+=`  Kanal lakkeres (${kanalOptype}) – tilstøtende ikke ført for: ${mangler.join(', ')}\n`;
-      s+=`     → Vurder tilstøtende flate (arealavhengig) mot ${mangler.join(', ')} ved kanalskift/-retting. Legg eventuelt til i lakkspes.\n`;
+      s+=`  Kanal lakkeres (${kanalOptype}) – tilstøtende ikke ført for: ${mangler.join(', ')} (Håndteres automatisk av koden – ikke skriv eget forslag.)\n`;
     }
+    s+=`  KANAL-SJEKKLISTA (karosserilim, dokumentasjon, propper, struktur, tilstøtende + polere flikk) håndteres automatisk av koden – ikke skriv egne forslag om disse.\n`;
   }
   // v3.21: De/Mo lakk – hva som ER huket av, og hvilke lakkerte deler som mangler det.
   // Linja er opplysning til Claude; selve forslaget injiseres av post-filteret.
@@ -6313,6 +6376,32 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
           ||(parserData.dm_av||[]).some(d=>/dør|støtfanger/i.test(d.navn||''));
         if(dørStøtfangerSkiftes&&!/klips/i.test(parserData.raw||'')){
           injiserDeterministisk('DET_KLIPS','Vurder å ta med klipssett i annetbildet – dør/støtfanger skiftes eller demonteres','Annetbildet');
+        }
+        // v3.26: kanal-sjekklista. Alt her er lesbart fra taksten, så koden injiserer det.
+        {
+          const kf=kanalFunn(parserData);
+          if(kf){
+            const kanalNavn=kf.navn.replace(/,.*$/,'').trim();
+            if(kf.naboer.length){
+              injiserDeterministisk('DET_KANAL_TILST_NABOER',`${kanalNavn} lakkeres (${kf.optype}). Vurder tilstøtende flate (arealavhengig) mot ${kf.naboer.join(', ')} – ikke ført i lakkspesifikasjonen.`,'Lakkspesifikasjon');
+              // Polere flikk på HVER naboflate – Martin: "med polering av flikker på hver del".
+              kf.naboer.forEach(n=>{
+                injiserDeterministisk('DET_KANAL_POLERE_FLIKK',`Tas ${n} med som tilstøtende ved kanalarbeidet, skal den også ha polere flikk 20p i annetbildet.`,'Annetbildet');
+              });
+            }
+            if(!kf.harKarosserilim){
+              injiserDeterministisk('DET_KANAL_KAROSSERILIM',`${kanalNavn} lakkeres (${kf.optype}), men karosserilim er ikke ført i taksten. Vurder å legge det til.`,'Annetbildet');
+            }
+            if(!kf.harDokumentasjon){
+              injiserDeterministisk('DET_KANAL_DOKUMENTASJON',`${kanalNavn} lakkeres (${kf.optype}). Vurder å legge til innhenting av dokumentasjon.`,'Annetbildet');
+            }
+            if(!kf.harPropp){
+              injiserDeterministisk('DET_KANAL_PROPPER',`Sjekk om ${kanalNavn} har propper – i så fall vurder å skifte dem. Ingen propper er ført i taksten.`,'Reservedeler');
+            }
+            if(!kf.harStruktur){
+              injiserDeterministisk('DET_KANAL_STRUKTUR',`Sjekk om det skal hukes av for struktur på ${kanalNavn} – ingen struktur-post er ført i taksten.`,'Lakkspesifikasjon');
+            }
+          }
         }
         // v3.25: håndtak ved dørSKIFT – alltid, ingen bildevurdering. Ved RETTING (G) beholder
         // Claude det reaktive spørsmålet, som faktisk avhenger av hva bildet viser.
