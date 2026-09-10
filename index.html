@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v3.22 – Smart kontroll av takster</title>
+<title>AutoPell v3.23 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -130,7 +130,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v3.22</div>
+    <div class="version-badge">v3.23</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -281,6 +281,17 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v3.23 – endringer fra v3.22 (kun ordlyd – ingen regelendring):
+   DE/MO-FORSLAGET SA FOR MYE. Ordlyden fra v3.22 endte med "– håndtak, speil, lister eller
+   liknende", eksempler hentet fra en dør. På Hyundai EB49828 traff linja en BAKSKJERM, og da
+   ble eksemplene feil: det er ikke håndtak på en bakskjerm. Martin: "det hadde holdt å skrive
+   det slik. sånn som du sier så er det ikke håndtak på bakskjerm..."
+   Regelen VET ikke hva som skal demonteres – bare at ingenting er ført – og skal derfor ikke
+   antyde det. Eksemplene er fjernet.
+   Delnavnet kortes ned til hoveddelen: "H Bakskjerm" i stedet for "H Bakskjerm, over
+   begrensning". Halen betyr ingenting for spørsmålet.
+*/
 
 /* AutoPell v3.22 – endringer fra v3.21 (retter v3.21s eget punkt 1, fra Nissan Ariya EN56957):
    DE/MO AV INNVENDIGE DETALJER – DETALJSPESIFIKASJONEN ER FASITEN.
@@ -4043,6 +4054,19 @@ function kreverLakkEtterRep(navn,data){
 // Gjelder ALLE hoveddeler som lakkeres, N, G ELLER T. Smådeler hoppes over: de har aldri egen
 // Pos.-blokk. Er detaljspesifikasjonen ikke parset i det hele tatt, gjøres INGEN vurdering – vi
 // kan ikke bevise et fravær vi ikke har data på (samme fallback-prinsipp som resten av v2.4x).
+// v3.23: kort delnavn til forslagsteksten – "H Bakskjerm", ikke "H Bakskjerm, over begrensning".
+function demoKortNavn(d){
+  const navn={'fordør':'Fordør','bakdør':'Bakdør','bakluke':'Bakluke','panser':'Panser','tak':'Tak',
+              'forskjerm':'Forskjerm','bakskjerm':'Bakskjerm','støtfanger':'Støtfanger','kanal':'Kanal',
+              'karosseriside':'Karosseriside'}[d.kjerne];
+  if(!navn)return d.navn;
+  // Behold foran/bak der det skiller to deler av samme slag – en støtfanger foran er ikke
+  // en støtfanger bak. Uten dette ble "Støtfanger foran øvre (50%)" bare "Støtfanger".
+  let ende='';
+  if(/\bforan\b/i.test(d.navn||''))ende=' foran';
+  else if(/\bbak(re)?\b/i.test(d.navn||'')&&!/^bak(dør|luke|skjerm)$/.test(d.kjerne))ende=' bak';
+  return (d.side?d.side.toUpperCase()+' ':'')+navn+ende;
+}
 const HOVEDDELER=['fordør','bakdør','bakluke','panser','tak','forskjerm','bakskjerm','støtfanger','kanal','karosseriside'];
 function hoveddelerUtenDetaljer(data){
   if(!data||!Array.isArray(data.lakkspes))return [];
@@ -6180,7 +6204,12 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
         // Vi vet at blokken er tom, men ikke om det ER noe som skulle stått der – det er
         // takstmannens vurdering.
         hoveddelerUtenDetaljer(parserData).forEach(d=>{
-          injiserDeterministisk('DET_DEMO_LAKK_TOM',`${d.navn} lakkeres (${d.optype}), men det er ikke ført noen detaljer på den i detaljspesifikasjonen. Sjekk om noe skal demonteres for lakkeringen – håndtak, speil, lister eller liknende.`,'Detaljspesifikasjon');
+          // v3.23: KORTERE OG UTEN EKSEMPLER. Martin om den forrige ordlyden: "det hadde holdt
+          // å skrive det slik. sånn som du sier så er det ikke håndtak på bakskjerm..." –
+          // eksemplene (håndtak, speil, lister) var hentet fra en dør og ble direkte feil på en
+          // bakskjerm. Delnavnet kortes òg ned: "over begrensning" betyr ingenting for
+          // spørsmålet. Regelen vet ikke HVA som skal demonteres, og skal derfor ikke antyde det.
+          injiserDeterministisk('DET_DEMO_LAKK_TOM',`${demoKortNavn(d)} lakkeres (${d.optype}), men det er ikke ført noen detaljer på den i detaljspesifikasjonen. Sjekk om noe skal demonteres for lakkeringen.`,'Detaljspesifikasjon');
         });
         // v3.16: Innvendig lakk mangler på skiftet dør. Én linje per dør, brukt slår fast, ny spør.
         const innvManglerPF=dorerUtenInnvendigLakk(parserData);
