@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v3.20 – Smart kontroll av takster</title>
+<title>AutoPell v3.21 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -130,7 +130,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v3.20</div>
+    <div class="version-badge">v3.21</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -281,6 +281,26 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v3.21 – endringer fra v3.20 (2 punkter, begge fra Nissan Ariya EN56957):
+   1. DE/MO AV INNVENDIGE DETALJER IKKE HUKET AV. DBS har en egen De/Mo Lakk-liste per del
+      (håndtak, p-list, tetningslist, skjermutbyggere, dekklokk, pyntelist ...). På EN56957
+      lakkeres bakdøra under begrensning – 96,7 dm², 245p – med hele lista tom.
+      Martin: "dette gjelder dører, bakluke og panser. gi beskjed hvis ingen demontering er
+      huket av. du må foreslå å ta det med."
+      Avhukingen synes i PDF-en: er noe huket av, skriver arbeidsspesifikasjonen "De/Mo lakk
+      <del>" under "De/Mo i sammenheng med lakkering". Parseren leser dette nå (demo_lakk), og
+      en ny deterministisk regel varsler når en dør, bakluke eller panser er ført N, G ELLER T
+      i lakkspesifikasjonen uten en slik linje. Regelen gjetter ikke HVILKE detaljer som mangler.
+      Dette henter panser tilbake etter at PANSER_DEMO ble fjernet i v3.18 – men i ny form: den
+      gamle foreslo pansermatte konkret (feil, DBS gir tida automatisk), den nye sier bare at
+      ingenting er huket av.
+   2. STATUSTEKST FOR POLERE FLIKK. På EN56957 sto STOTFANGER_50_POLERE_FLIKK som "foreslått"
+      mens punktet KORREKT ble holdt utenfor forslagsboksen – polere flikk var alt ført i
+      annetbildet. Statusen løy om en riktig vurdering. HURTIGFAKTA sier nå for HVILKEN del
+      polere flikk er ført, så statusen kan bli "allerede ført". Ingen endring i selve
+      forslagslogikken – kun i det Claude vet.
+*/
 
 /* AutoPell v3.20 – endringer fra v3.19 (1 sak – funnet av Martin på Hyundai EB49828):
    TILSTØTENDE FLATER FIKK INGEN LAKK-PROSESSER. DELSTATUS-byggeren hoppet over enhver T-rad
@@ -3182,6 +3202,7 @@ function parseTakst(text){
     rustbeskyttelse:[],     // Deler med rustbeskyttelse
     kalibreringer:[],       // v2.4: Kalibreringer ført i arbeidsspes (Kalibr./programmere)
     dm_av:[],               // v2.6: Deler med D/M-hake (demonteres fra bil i De/Mo-fanen)
+    demo_lakk:[],           // v3.21: "De/Mo lakk <del>" – innvendige detaljer demonteres for lakkering
     lakkspes:[],            // Lakkspesifikasjon-tabellen (alle rader)
     innvendig_lakk:[],      // v3.14: Innvendig lakk-tabellen. LESES KUN – ingen regel bruker den ennå. Uten tid (se v3.15).
     lakkmateriell_annet:[], // HTT, polere flikk, grunning topplakk osv.
@@ -3386,6 +3407,17 @@ function parseTakst(text){
       const dmMatch=line.match(/^D\/M av\s+(.+?)(\s+\d+)?$/i);
       if(dmMatch){
         result.dm_av.push({navn:dmMatch[1].trim()});
+      }
+      // v3.21: "De/Mo lakk <del>" – avhukingen i DBS' De/Mo Lakk-liste.
+      // DBS har en egen liste per del (håndtak, p-list, tetningslist, skjermutbyggere,
+      // dekklokk, pyntelist ...) som takstmannen huker av når detaljene demonteres for
+      // lakkering. Er noe huket av, skriver arbeidsspesifikasjonen det ut under
+      // "De/Mo i sammenheng med lakkering": "De/Mo lakk Skjerm foran H" (SV88920),
+      // "De/Mo lakk Dør fremre H" (EB49828). Finnes ingen slik linje for en del som
+      // lakkeres, er lista tom – og det er nettopp funnet Martin vil ha.
+      const demoMatch=line.match(/^De\/Mo lakk\s+(.+?)(\s+\d+)?$/i);
+      if(demoMatch){
+        result.demo_lakk.push({navn:demoMatch[1].trim()});
       }
     }
   }
@@ -3986,6 +4018,39 @@ function kreverLakkEtterRep(navn,data){
   return true;
 }
 
+// v3.21: HVILKE LAKKERTE DØRER/BAKLUKER/PANSER MANGLER DE/MO AV INNVENDIGE DETALJER?
+// Martin: "dette gjelder dører, bakluke og panser. gi beskjed hvis ingen demontering er huket
+// av. du må foreslå å ta det med." Og om omfanget: "i utgangspunktet alle men du kan jo
+// hvertfall gi beskjed hvis ingenting er huket av og døren skal lakkes. enten N G eller T."
+// Regelen gjetter altså IKKE hvilke detaljer som mangler – den sier bare at ingen er ført.
+// Funnet på Nissan Ariya EN56957: bakdøra lakkeres under begrensning (96,7 dm², 245p) med hele
+// De/Mo-lista tom.
+// MERK: dette henter panser tilbake etter at PANSER_DEMO ble fjernet i v3.18. Den gamle formen
+// foreslo pansermatte konkret, og var feil fordi DBS gir den tida automatisk. Den nye formen
+// sier bare at ingenting er huket av – et helt annet utsagn.
+// Gjelder N, G OG T: en tilstøtende flate lakkeres også, og da skal detaljene av.
+function delerUtenDemoLakk(data){
+  if(!data||!Array.isArray(data.lakkspes))return [];
+  const modell=(data.bil&&data.bil.modell)||'';
+  const demo=data.demo_lakk||[];
+  const ut=[];
+  data.lakkspes.forEach(d=>{
+    if(d.tillegg||!d.navn)return;
+    if(d.optype!=='N'&&d.optype!=='G'&&d.optype!=='T')return;
+    const k=hodeordDel(d.navn,modell);
+    if(!['fordør','bakdør','bakluke','panser'].includes(k.kjerne))return;
+    if(demo.some(x=>sammeDelHodeord(d.navn,x.navn,modell)))return;
+    if(ut.some(x=>x.kjerne===k.kjerne&&x.side===k.side))return;   // én linje per del
+    ut.push({navn:d.navn,kjerne:k.kjerne,side:k.side,optype:d.optype});
+  });
+  return ut;
+}
+// Navn takstmannen kjenner igjen, uten "under begrensning" og liknende haler.
+function demoDelEtikett(d){
+  const navn={'fordør':'Fordør','bakdør':'Bakdør','bakluke':'Bakluke','panser':'Panser'}[d.kjerne]||d.navn;
+  return (d.side?d.side.toUpperCase()+' ':'')+navn;
+}
+
 // Er disse to navnene samme fysiske del? Krever LIKT hodeord, og sider som ikke kolliderer.
 // v3.13: NAVNEPAR-FALLBACKEN ER FJERNET IGJEN – den svarte på feil spørsmål. Parene bygges som
 // KRYSSPRODUKT av alle arbeidslinjer × alle lakklinjer i én Pos-blokk, og en Pos-blokk holder
@@ -4274,6 +4339,7 @@ function takstSammendrag(t){
     DET_RUSTBESKYTTELSE:{deterministisk:true,navn:'Rustbeskyttelse mangler',mal:'',farge:'rød'},
     DET_KLIPS:{deterministisk:true,navn:'Klipssett',mal:'',farge:'gul'},
     DET_INNVENDIG_LAKK_DOR:{deterministisk:true,navn:'Innvendig lakk dør',mal:'',farge:'gul'},
+    DET_DEMO_LAKK_TOM:{deterministisk:true,navn:'De/Mo lakk ikke huket av',mal:'',farge:'gul'},
     DET_BESKYTTELSESFOLIE:{deterministisk:true,navn:'Beskyttelsesfolie',mal:'',farge:'gul'},
     DET_MULIG_GLEMT_FLATERETTE:{deterministisk:true,navn:'Mulig glemt flaterette',mal:'',farge:'gul'},
     DET_TREKKETARN:{deterministisk:true,navn:'Trekketårn/rigging',mal:'',farge:'gul'},
@@ -4806,6 +4872,24 @@ function takstSammendrag(t){
   s+=`  UB-relevante deler (stål/alu, ikke tilstøtende, ikke plast): ${ubKandidater.length?ubKandidater.join(', '):'INGEN'}\n`;
   s+=`  UB ført i Verksteddata: ${t.sammenstilling.ub_kr?'JA ('+t.sammenstilling.ub_kr+' kr)':'NEI'}\n`;
 
+  // v3.21: HVILKE DELER HAR POLERE FLIKK ALLEREDE FØRT? På Nissan Ariya EN56957 sto
+  // STOTFANGER_50_POLERE_FLIKK som "foreslått" i punkt-for-punkt, mens punktet KORREKT ble
+  // holdt utenfor forslagsboksen – polere flikk var alt ført i annetbildet
+  // ("STØTFANGER FORAN, Støtfanger foran polere flikk"). Statusen løy altså om en riktig
+  // vurdering, og statusen er nettopp det Martin bruker for å se hva som ble vurdert.
+  // Den generelle "Polere flikk ført: JA/NEI" holdt ikke – Claude trenger å vite for HVILKEN
+  // del. Delnavnet står i posten selv, så dette leses av taksten og gjettes ikke.
+  {
+    const polereDeler=[];
+    (t.lakkspes||[]).concat(t.lakkmateriell_annet||[]).forEach(d=>{
+      if(!d.navn||!/polere\s*flikk/i.test(d.navn))return;
+      const uten=d.navn.replace(/,?\s*polere\s*flikk.*$/i,'').trim();
+      if(uten&&!polereDeler.includes(uten))polereDeler.push(uten);
+    });
+    if(polereDeler.length){
+      s+=`  Polere flikk ALLEREDE FØRT for: ${polereDeler.join(', ')} – sett status "allerede ført" på polere flikk-ID-en for disse delene, ikke "foreslått".\n`;
+    }
+  }
   // v2.6: Airbag-diagnose-status: kun fordører med N i lakkspes eller D/M-haket
   const fordørerNSkift=t.lakkspes.filter(d=>!d.tillegg&&d.optype==='N'&&!d.tilstøtende&&d.navn&&/\bfordør\b/i.test(d.navn)).map(d=>d.navn);
   const fordørerDM=(t.dm_av||[]).filter(d=>/dør fremre/i.test(d.navn)).map(d=>d.navn);
@@ -4895,6 +4979,19 @@ function takstSammendrag(t){
     if(mangler.length){
       s+=`  Kanal lakkeres (${kanalOptype}) – tilstøtende ikke ført for: ${mangler.join(', ')}\n`;
       s+=`     → Vurder tilstøtende flate (arealavhengig) mot ${mangler.join(', ')} ved kanalskift/-retting. Legg eventuelt til i lakkspes.\n`;
+    }
+  }
+  // v3.21: De/Mo lakk – hva som ER huket av, og hvilke lakkerte deler som mangler det.
+  // Linja er opplysning til Claude; selve forslaget injiseres av post-filteret.
+  if(t.demo_lakk&&t.demo_lakk.length){
+    s+=`  De/Mo lakk huket av for: ${t.demo_lakk.map(d=>d.navn).join(', ')}\n`;
+  }else{
+    s+=`  De/Mo lakk huket av for: INGEN DELER\n`;
+  }
+  {
+    const utenDemo=delerUtenDemoLakk(t);
+    if(utenDemo.length){
+      s+=`  DE/MO AV INNVENDIGE DETALJER MANGLER for lakkert del: ${utenDemo.map(d=>demoDelEtikett(d)+' ('+d.optype+')').join(', ')} (Håndteres automatisk av koden – ikke skriv eget forslag.)\n`;
     }
   }
   // v2.6: D/M-haker (deler som demonteres fra bilen i De/Mo-fanen)
@@ -6055,6 +6152,10 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
         if(dørStøtfangerSkiftes&&!/klips/i.test(parserData.raw||'')){
           injiserDeterministisk('DET_KLIPS','Vurder å ta med klipssett i annetbildet – dør/støtfanger skiftes eller demonteres','Annetbildet');
         }
+        // v3.21: De/Mo av innvendige detaljer ikke huket av på en del som lakkeres.
+        delerUtenDemoLakk(parserData).forEach(d=>{
+          injiserDeterministisk('DET_DEMO_LAKK_TOM',`Ingen De/Mo av innvendige detaljer er huket av for ${demoDelEtikett(d)}, som lakkeres (${d.optype}). Vurder å ta med demontering av innvendige detaljer i De/Mo Lakk-lista.`,'Lakkspesifikasjon');
+        });
         // v3.16: Innvendig lakk mangler på skiftet dør. Én linje per dør, brukt slår fast, ny spør.
         const innvManglerPF=dorerUtenInnvendigLakk(parserData);
         if(innvManglerPF===null){
