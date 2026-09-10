@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v3.24 – Smart kontroll av takster</title>
+<title>AutoPell v3.25 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -130,7 +130,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v3.24</div>
+    <div class="version-badge">v3.25</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -281,6 +281,20 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v3.25 – endringer fra v3.24 (1 sak – tredje gang samme mønster):
+   HÅNDTAK VED DØRSKIFT ER NÅ DETERMINISTISK. Volvo EX30 EN34747 har bakdøra ført N, men
+   DOR_FELLES_HTT_HANDTAK sto "usikker" og ble holdt utenfor boksen av v3.01-terskelen – mens
+   samme regel spurte proaktivt på Nissan Ariya EN56957. Samme regel, samme situasjon, to ulike
+   svar: nettopp den inkonsistensen Martin sier produktet skal levere mot.
+   Martin: "håndtaket må tas med på N del uansett. som tilstøtende. fjerner man folien blir det
+   feil farge." Ved SKIFT er spørsmålet ikke bildeavhengig – et nytt håndtak kommer ulakkert
+   uansett, også på en foliert bil. Ved RETTING (G) beholder Claude det reaktive spørsmålet.
+   TO KILDER for "skiftet": karosseri_skift OG lakkspes-N. En BRUKT dør føres G i
+   lakkspesifikasjonen (brukt del er alltid G), så optype N alene ville mistet den.
+   Claude-varianten tilbys IKKE på en skiftet dør – ellers kunne begge publisere, og dedupe
+   fanger dem ikke siden ID-ene er ulike.
+*/
 
 /* AutoPell v3.24 – endringer fra v3.23 (1 sak, men en som kunne gi GALE FUNN):
    FORRIGE KJØRING HANG IGJEN NÅR EN NY TAKST BLE LASTET. Martin, om Gmail-lista: "når jeg finner
@@ -4116,6 +4130,43 @@ function demoKortNavn(d){
   else if(/\bbak(re)?\b/i.test(d.navn||'')&&!/^bak(dør|luke|skjerm)$/.test(d.kjerne))ende=' bak';
   return (d.side?d.side.toUpperCase()+' ':'')+navn+ende;
 }
+// v3.25: HVILKE DØRER ER SKIFTET? Brukes til å gjøre håndtak-punktet deterministisk.
+// Martin: "håndtaket må tas med på N del uansett. som tilstøtende. fjerner man folien blir det
+// feil farge." Ved SKIFT er sprørsmålet altså ikke bildeavhengig i det hele tatt – et nytt
+// håndtak kommer ulakkert uansett hva bildene viser, og det gjelder også en foliert bil.
+// Volvo EX30 EN34747: bakdøra er ført N, men DOR_FELLES_HTT_HANDTAK sto "usikker" og ble holdt
+// utenfor boksen av v3.01-terskelen. Samme regel spurte proaktivt på Nissan Ariya EN56957.
+// TREDJE gang terskelen tar et ekte funn fordi et FAKTA-spørsmål ser ut som et BILDE-spørsmål.
+// TO KILDER, med vilje: en BRUKT dør føres G i lakkspesifikasjonen (brukt del er alltid G), så
+// optype N alene ville mistet den. karosseri_skift fanger begge, og lakkspes-N fanger de
+// takstene der skift-linja er skrevet på en form parseren ikke kjente igjen.
+function dorerSkiftet(data){
+  if(!data)return [];
+  const modell=(data.bil&&data.bil.modell)||'';
+  const bruktM=/brukt\s*(?:reservedel|del)|bruktdel/i;
+  const ut=[];
+  const leggTil=(navn,brukt)=>{
+    const k=hodeordDel(navn,modell);
+    if(k.kjerne!=='fordør'&&k.kjerne!=='bakdør')return;
+    const finnes=ut.find(x=>x.kjerne===k.kjerne&&x.side===k.side);
+    if(finnes){if(brukt)finnes.brukt=true;return;}
+    ut.push({navn,kjerne:k.kjerne,side:k.side,brukt:!!brukt});
+  };
+  (data.karosseri_skift||[]).forEach(d=>{
+    if(!d.navn||!/^skift\b/i.test((d.tiltak||'').trim()))return;
+    leggTil(d.navn,bruktM.test((d.tiltak||'')+' '+(d.kommentar||'')+' '+(d.navn||'')));
+  });
+  (data.lakkspes||[]).forEach(d=>{
+    if(d.tillegg||!d.navn||d.optype!=='N')return;
+    if(erSmadelPaaHoveddel(d.navn))return;
+    leggTil(d.navn,false);
+  });
+  return ut;
+}
+function dorEtikettKort(d){
+  return (d.side?d.side.toUpperCase()+' ':'')+(d.kjerne==='fordør'?'Fordør':'Bakdør');
+}
+
 const HOVEDDELER=['fordør','bakdør','bakluke','panser','tak','forskjerm','bakskjerm','støtfanger','kanal','karosseriside'];
 function hoveddelerUtenDetaljer(data){
   if(!data||!Array.isArray(data.lakkspes))return [];
@@ -4439,6 +4490,7 @@ function takstSammendrag(t){
     DET_KLIPS:{deterministisk:true,navn:'Klipssett',mal:'',farge:'gul'},
     DET_INNVENDIG_LAKK_DOR:{deterministisk:true,navn:'Innvendig lakk dør',mal:'',farge:'gul'},
     DET_DEMO_LAKK_TOM:{deterministisk:true,navn:'De/Mo innvendige detaljer',mal:'',farge:'gul'},
+    DET_HTT_HANDTAK_SKIFT:{deterministisk:true,poeng:15,navn:'HTT dørhåndtak ved skift',mal:'',farge:'gul'},
     DET_BESKYTTELSESFOLIE:{deterministisk:true,navn:'Beskyttelsesfolie',mal:'',farge:'gul'},
     DET_MULIG_GLEMT_FLATERETTE:{deterministisk:true,navn:'Mulig glemt flaterette',mal:'',farge:'gul'},
     DET_TREKKETARN:{deterministisk:true,navn:'Trekketårn/rigging',mal:'',farge:'gul'},
@@ -4573,6 +4625,14 @@ function takstSammendrag(t){
       }
       if(r.krevSpylerITakst){
         if(!/lyktespyler|spylerdyse|spyledyse|spyledeksel|hodelyktspyler/i.test(t.raw||''))return false;
+      }
+      // v3.25: på en SKIFTET dør håndteres håndtaket av koden. Uten dette ville Claude-varianten
+      // og det deterministiske punktet begge kunne publisere – to linjer om samme håndtak,
+      // og dedupe fanger dem ikke siden ID-ene er ulike.
+      if(id==='DOR_FELLES_HTT_HANDTAK'){
+        const skiftet=dorerSkiftet(t);
+        const kd=hodeordDel(d.navn,(t.bil&&t.bil.modell)||'');
+        if(skiftet.some(x=>x.kjerne===kd.kjerne&&x.side===kd.side))return false;
       }
       if(r.kunNVedSvart){
         const farge=((t.bil&&t.bil.farge)||'').toLowerCase();
@@ -5083,7 +5143,14 @@ function takstSammendrag(t){
   // v3.21: De/Mo lakk – hva som ER huket av, og hvilke lakkerte deler som mangler det.
   // Linja er opplysning til Claude; selve forslaget injiseres av post-filteret.
   {
-    // v3.22: detaljspesifikasjonen er fasiten for om noe demonteres for lakkeringen.
+    {
+    // v3.25: si eksplisitt at håndtaket på skiftede dører er kodens jobb.
+    const skiftedeDorer=dorerSkiftet(t);
+    if(skiftedeDorer.length){
+      s+=`  HÅNDTAK VED DØRSKIFT håndteres automatisk av koden for: ${skiftedeDorer.map(d=>dorEtikettKort(d)).join(', ')} – ikke skriv eget forslag om håndtak på disse dørene.\n`;
+    }
+  }
+  // v3.22: detaljspesifikasjonen er fasiten for om noe demonteres for lakkeringen.
     const utenDetaljer=hoveddelerUtenDetaljer(t);
     if(utenDetaljer.length){
       s+=`  INGEN DETALJER FØRT i detaljspesifikasjonen for disse lakkerte hoveddelene: ${utenDetaljer.map(d=>d.navn+' ('+d.optype+')').join(', ')} (Håndteres automatisk av koden – ikke skriv eget forslag.)\n`;
@@ -6247,6 +6314,11 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
         if(dørStøtfangerSkiftes&&!/klips/i.test(parserData.raw||'')){
           injiserDeterministisk('DET_KLIPS','Vurder å ta med klipssett i annetbildet – dør/støtfanger skiftes eller demonteres','Annetbildet');
         }
+        // v3.25: håndtak ved dørSKIFT – alltid, ingen bildevurdering. Ved RETTING (G) beholder
+        // Claude det reaktive spørsmålet, som faktisk avhenger av hva bildet viser.
+        dorerSkiftet(parserData).forEach(d=>{
+          injiserDeterministisk('DET_HTT_HANDTAK_SKIFT',`${dorEtikettKort(d)} skiftes${d.brukt?' med brukt reservedel':''}. Håndtaket fra erstatningsdøra matcher normalt ikke bilens farge – ta det med som tilstøtende, og legg til HTT 15p for dørhåndtak i annetbildet.`,'Annetbildet');
+        });
         // v3.21: De/Mo av innvendige detaljer ikke huket av på en del som lakkeres.
         // v3.22: spørrende form, ikke bombastisk. Martin: "bare flagg det som et spørsmål/
         // vurdering. sånn som programmet skal funke. det skal ikke være bombastisk."
