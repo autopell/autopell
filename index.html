@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v3.27 – Smart kontroll av takster</title>
+<title>AutoPell v3.28 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -27,6 +27,29 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .api-ok{background:#EAF3DE;border-color:#C0DD97;color:#27500A}
 .api-missing{background:#FCEBEB;border-color:#F7C1C1;color:#791F1F}
 .content{padding:20px 24px;flex:1;overflow-y:auto}
+/* v3.28: LAYOUT. Innholdet lå venstrestilt i full bredde, så en 320px slippsone sto i et kort
+   på 1400px – det leste som om siden ikke var ferdig lastet. Nå samles alt i én spalte. */
+.spalte{width:100%;max-width:880px;margin:0 auto}
+.sone-full{max-width:none}
+.fil-rad{display:flex;align-items:center;gap:12px;background:#F4F9F6;border:1px solid #CFE0D5;
+  border-radius:8px;padding:12px 14px}
+.fil-rad .fil-ikon{width:32px;height:32px;flex:0 0 32px;border-radius:6px;background:#fff;
+  border:1px solid #D7E4DC;display:flex;align-items:center;justify-content:center;font-size:15px}
+.fil-rad .fil-navn{flex:1;min-width:0;font-weight:600;font-size:13.5px;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.fil-rad .fil-fjern{border:none;background:none;color:#6C6862;font-size:17px;line-height:1;
+  cursor:pointer;padding:4px 6px;border-radius:5px}
+.fil-rad .fil-fjern:hover{background:#E9EFEA;color:#1B1A19}
+.handlingsrad{display:flex;align-items:center;gap:14px;margin-top:16px;padding-top:14px;
+  border-top:1px solid #eeece9}
+.btn-primary:disabled{background:#DCD8D3;border-color:#DCD8D3;color:#8E8A85;cursor:not-allowed}
+.lenkeknapp{background:none;border:none;color:#6C6862;font-size:12.5px;text-decoration:underline;
+  text-underline-offset:3px;cursor:pointer;font-family:inherit;padding:4px 2px}
+.lenkeknapp:hover{color:#1B1A19}
+.mangler-tekst{margin-left:auto;font-size:12.5px;color:#6C6862}
+.delkapittel{font-size:13px;font-weight:600;color:#1B1A19;margin:0 0 3px}
+.delkapittel span{font-weight:400;color:#888}
+.delhjelp{font-size:12.5px;color:#6C6862;margin:0 0 10px}
 .stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
 .stat-card{background:#fff;border-radius:10px;border:1px solid #e8e8e6;padding:14px 16px}
 .stat-label{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
@@ -130,7 +153,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v3.27</div>
+    <div class="version-badge">v3.28</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -178,36 +201,44 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
 
       <!-- VEILEDNINGS PANEL -->
       <div class="panel" id="tab-veil">
-        <div class="card">
-          <div class="card-title">Last opp takst</div>
-          <label class="upload-area" style="max-width:320px">
-            <input type="file" accept=".pdf,image/*" onchange="handleFile(event,'veil-takst')">
-            <div class="upload-icon">📄</div>
-            <div class="upload-name">Takst</div>
-            <div class="upload-sub">PDF eller bilde</div>
+        <div class="spalte">
+          <!-- v3.28: takst og bilder samlet i ETT kort – det er étt steg for brukeren
+               (last opp, kjør), og to rammer med hver sin overskrift gjorde det til to. -->
+          <div class="card">
+            <div class="delkapittel">Takst</div>
+            <p class="delhjelp">PDF fra DBS, eller et bilde av utskriften.</p>
+            <label class="upload-area sone-full" id="veil-takst-sone">
+              <input type="file" accept=".pdf,image/*" onchange="handleFile(event,'veil-takst')">
+              <div class="upload-icon">📄</div>
+              <div class="upload-name">Dra takstfilen hit</div>
+              <div class="upload-sub">eller klikk for å velge fil</div>
+            </label>
             <div id="veil-takst-chip"></div>
-          </label>
+
+            <div style="margin-top:18px">
+              <div class="delkapittel">Bilder av bilen <span>– valgfritt</span></div>
+              <p class="delhjelp">Med bilder kan AutoPell vurdere hvor skaden sitter og hvilke flater som er berørt. Opptil 10.</p>
+              <label class="upload-area sone-full">
+                <input type="file" accept="image/*" multiple onchange="handleCarImages(event)">
+                <div class="upload-icon">🚗</div>
+                <div class="upload-name">Dra bilder hit</div>
+                <div class="upload-sub">eller klikk for å velge</div>
+              </label>
+              <div id="car-images-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
+            </div>
+
+            <!-- v3.28: knappen er AV til det finnes en takst, med en linje som sier hva som
+                 mangler – før så den like klikkbar ut med tom skjerm og ga en feilmelding.
+                 "Vis hva parser leser" er nedgradert til tekstlenke: den er et diagnoseverktøy
+                 for ETTER en kjøring, ikke et alternativ til å starte. -->
+            <div class="handlingsrad">
+              <button class="btn btn-primary" id="veil-start" onclick="runVeilSjekk()" disabled>🔍 Start kontroll</button>
+              <button class="lenkeknapp" onclick="visParserDebug()">Vis hva parser leser</button>
+              <span class="mangler-tekst" id="veil-mangler">Last opp en takst for å starte</span>
+            </div>
+          </div>
+          <div id="veil-results"></div>
         </div>
-        <div class="card">
-          <div class="card-title">Bilder av bilen (valgfritt – opptil 10)</div>
-          <div class="info-box">📸 Last opp bilder av skaden. Claude bruker bildene til å vurdere skadeomfang, deltype og tilgjengelighet.</div>
-          <label class="upload-area" style="max-width:320px">
-            <input type="file" accept="image/*" multiple onchange="handleCarImages(event)">
-            <div class="upload-icon">🚗</div>
-            <div class="upload-name">Legg til bilder</div>
-            <div class="upload-sub">Velg én eller flere (maks 10)</div>
-          </label>
-          <div id="car-images-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
-          <br>
-          <button class="btn btn-primary" onclick="runVeilSjekk()" style="margin-top:4px">🔍 Start kontroll</button>
-          <button class="btn" onclick="visParserDebug()" style="margin-top:4px;background:#f0f0f0;color:#333">🔬 Vis hva parser leser</button>
-        </div>
-        <div class="legend">
-          <div class="legend-item"><div class="legend-dot" style="background:#F7C1C1"></div>Mangler påkrevd tillegg / feil</div>
-          <div class="legend-item"><div class="legend-dot" style="background:#FAC775"></div>Anbefalt tillegg / huskeliste</div>
-          <div class="legend-item"><div class="legend-dot" style="background:#CECBF6"></div>Kalibrering påkrevd</div>
-        </div>
-        <div id="veil-results"></div>
       </div>
 
       <!-- INNSTILLINGER PANEL -->
@@ -281,6 +312,22 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v3.28 – endringer fra v3.27 (KUN LAYOUT på Kontroll av takst – ingen regler rørt):
+   Innholdet lå venstrestilt i full bredde, så en 320px slippsone sto i et kort på 1400px og
+   siden leste som om den ikke var ferdig lastet. Endringene, fra skissen Martin så 2.09:
+   – alt samles i én spalte med maksbredde 880px, og slippsonene fyller bredden
+   – takst og bilder i ETT kort: det er étt steg for brukeren, ikke to
+   – slippsonene sier at man kan dra filer dit ("Dra takstfilen hit")
+   – takstfila vises som filnavn med kryss når den er lastet, i stedet for en brikke under en
+     sone som fortsatt ser tom ut
+   – "Start kontroll" er AV til det finnes en takst, med en linje som sier hva som mangler
+   – "Vis hva parser leser" nedgradert til tekstlenke – den er et diagnoseverktøy for ETTER en
+     kjøring, ikke et likeverdig alternativ til å starte
+   – tegnforklaringen fjernet, som Martin ba om ("denne kan du fjerne")
+   Gmail-overføringen bruker samme filrad, og nullstillingen fra v3.24 oppdaterer knappen.
+   Pakkseddel-fanen er URØRT i denne versjonen.
+*/
 
 /* AutoPell v3.27 – endringer fra v3.26 (2 punkter fra byggelista):
    1. A-STOLPE-SPERREN VAR FOR BRED. Den fjernet ALT som nevnte tilstøtende A-stolpe, uansett
@@ -3140,6 +3187,20 @@ function nullstillForrigeKjoring(hvilken){
   if(hvilken!=='pakk'){
     carImages=[];
     tegnBildeminiatyrer();   // frigjør objekt-URL-ene og tømmer miniatyrene
+    if(typeof oppdaterVeilKnapp==='function')oppdaterVeilKnapp();   // v3.28
+  }
+}
+// v3.28: hold knappen og mangler-teksten i takt med hva som er lastet opp.
+function oppdaterVeilKnapp(){
+  const start=document.getElementById('veil-start');
+  const tekst=document.getElementById('veil-mangler');
+  const sone=document.getElementById('veil-takst-sone');
+  const harTakst=!!files['veil-takst'];
+  if(start)start.disabled=!harTakst;
+  if(sone)sone.style.display=harTakst?'none':'block';
+  if(tekst){
+    tekst.textContent=!harTakst?'Last opp en takst for å starte'
+      :(carImages.length?carImages.length+' bilder lagt til':'Klar – bilder er valgfritt');
   }
 }
 function handleFile(e,key){
@@ -3150,7 +3211,25 @@ function handleFile(e,key){
   if(key==='takst')nullstillForrigeKjoring('pakk');
   files[key]=f;
   const chip=document.getElementById(key+'-chip');
-  if(chip)chip.innerHTML=`<div class="file-chip">📎 ${f.name}</div>`;
+  if(chip){
+    // v3.28: vis filnavn med kryss i stedet for en brikke under en slippsone som fortsatt
+    // ser tom ut – da ser du hva som faktisk er lastet opp.
+    if(key==='veil-takst'){
+      chip.innerHTML=`<div class="fil-rad"><div class="fil-ikon">📄</div>`+
+        `<div class="fil-navn">${f.name.replace(/</g,'&lt;')}</div>`+
+        `<button class="fil-fjern" onclick="fjernVeilTakst()" title="Fjern filen" aria-label="Fjern takstfilen">✕</button></div>`;
+    }else{
+      chip.innerHTML=`<div class="file-chip">📎 ${f.name}</div>`;
+    }
+  }
+  oppdaterVeilKnapp();
+}
+function fjernVeilTakst(){
+  files['veil-takst']=null;
+  const chip=document.getElementById('veil-takst-chip');
+  if(chip)chip.innerHTML='';
+  nullstillForrigeKjoring('veil');
+  oppdaterVeilKnapp();
 }
 // v3.17: MINIATYRER I STEDET FOR FILNAVN. Martin: "når jeg overfører en takst fra g-mail går
 // det ann å få mini bilder slik at jeg ser bildene?" – filnavn som IMG_4821.jpg sier ingenting
@@ -3181,10 +3260,12 @@ function handleCarImages(e){
   const newFiles=Array.from(e.target.files);
   carImages=[...carImages,...newFiles].slice(0,10);
   tegnBildeminiatyrer();
+  oppdaterVeilKnapp();
 }
 function removeCarImage(idx){
   carImages.splice(idx,1);
   tegnBildeminiatyrer();
+  oppdaterVeilKnapp();
 }
 function switchTab(t,btn){document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));document.querySelectorAll('.panel').forEach(el=>el.classList.remove('active'));btn.classList.add('active');document.getElementById('tab-'+t).classList.add('active');document.getElementById('topbar-title').textContent=titles[t];if(t==='inst')document.getElementById('stats-row').style.display='none';}
 function lagreRegler(){localStorage.setItem('ap_regler',document.getElementById('mine-regler').value);const el=document.getElementById('lagre-status');el.style.display='block';setTimeout(()=>el.style.display='none',2500);}
@@ -7775,7 +7856,10 @@ function sendGmailToVeil() {
   const file = new File([blob], selectedGmailAttachment.name, { type: 'application/pdf' });
   nullstillForrigeKjoring('veil');   // v3.24: bilder, resultat og tellere fra forrige takst bort
   files['veil-takst'] = file;
-  document.getElementById('veil-takst-chip').innerHTML = `<span class="file-chip">✓ ${file.name}</span>`;
+  document.getElementById('veil-takst-chip').innerHTML =
+    `<div class="fil-rad"><div class="fil-ikon">📄</div>`+
+    `<div class="fil-navn">${file.name.replace(/</g,'&lt;')}</div>`+
+    `<button class="fil-fjern" onclick="fjernVeilTakst()" title="Fjern filen" aria-label="Fjern takstfilen">✕</button></div>`;
   // v3.24: MERK at det ikke lenger finnes en "behold gamle bilder"-vei. Har den nye e-posten
   // ingen bilder, skal miniatyrene være tomme – ikke vise forrige bil.
   if (selectedGmailAttachment.images && selectedGmailAttachment.images.length > 0) {
@@ -7808,7 +7892,7 @@ function escapeHtml(str) {
 }
 // ============ END GMAIL ============
 
-initKalibTags();updateApiStatus();
+initKalibTags();updateApiStatus();oppdaterVeilKnapp();   // v3.28: beregn knappetilstand ved oppstart
 const savedRegler=localStorage.getItem('ap_regler');if(savedRegler){const el=document.getElementById('mine-regler');if(el)el.value=savedRegler;}
 const innebygdeEl=document.getElementById('innebygde-regler');if(innebygdeEl)innebygdeEl.value=localStorage.getItem('ap_innebygde')||RULES_BUILTIN;
 if(!getApiKey())openModal();
