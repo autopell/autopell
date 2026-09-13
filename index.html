@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v3.28 – Smart kontroll av takster</title>
+<title>AutoPell v3.29 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -153,7 +153,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v3.28</div>
+    <div class="version-badge">v3.29</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -312,6 +312,16 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v3.29 – endringer fra v3.28 (retter v3.28s egen feil):
+   "START KONTROLL" BLE ALDRI SLÅTT PÅ NÅR TAKSTEN KOM FRA GMAIL. v3.28 gjorde knappen
+   tilstandsstyrt og la kallet til oppdaterVeilKnapp() i handleFile, i nullstillForrigeKjoring
+   og i bildehåndteringen – men IKKE i sendGmailToVeil, som setter files['veil-takst'] direkte.
+   Det er nettopp veien Martin bruker mest: filnavnet sto der, men knappen var grå og
+   slippsonen sto fortsatt åpen over filraden.
+   Igjen samme mønster som går gjennom hele denne fila: flere innganger til samme tilstand,
+   og fiksen lagt i bare noen av dem.
+*/
 
 /* AutoPell v3.28 – endringer fra v3.27 (KUN LAYOUT på Kontroll av takst – ingen regler rørt):
    Innholdet lå venstrestilt i full bredde, så en 320px slippsone sto i et kort på 1400px og
@@ -7866,6 +7876,11 @@ function sendGmailToVeil() {
     carImages = selectedGmailAttachment.images.slice(0, 10);
     tegnBildeminiatyrer();   // v3.17: felles tegning – samme visning som ved manuell opplasting
   }
+  // v3.29: KNAPPEN BLE ALDRI SLÅTT PÅ VIA GMAIL-VEIEN. v3.28 la kallet i handleFile, i
+  // nullstillingen og i bildehåndteringen, men ikke her – og Gmail er veien Martin bruker mest.
+  // files ble satt direkte, så knappen sto grå og slippsonen sto åpen over filnavnet.
+  // SAMME MØNSTER SOM RESTEN AV FILA: to innganger til samme tilstand, fiksen lagt i én av dem.
+  oppdaterVeilKnapp();
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.getElementById('tab-veil').classList.add('active');
