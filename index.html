@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AutoPell v3.26 – Smart kontroll av takster</title>
+<title>AutoPell v3.27 – Smart kontroll av takster</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -130,7 +130,7 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
       <div class="nav-item" onclick="switchTab('inst',this)">⚙️ Innstillinger</div>
       <div class="nav-item" onclick="switchTab('gmail',this)">📧 Hent fra Gmail</div>
     </nav>
-    <div class="version-badge">v3.26</div>
+    <div class="version-badge">v3.27</div>
   </div>
   <div class="main">
     <div class="topbar">
@@ -281,6 +281,24 @@ textarea{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:7px;fo
    Testet 3 scenarioer med korrekt simulert brukteIDer-avhengighet: folie allerede ført
    (begge tier), Tesla-bakdør uten folie ført (kun Tesla-varianten fyrer), ikke-Tesla generell
    folie-sak (kun beskyttelsesfolie fyrer, uendret oppførsel).
+
+/* AutoPell v3.27 – endringer fra v3.26 (2 punkter fra byggelista):
+   1. A-STOLPE-SPERREN VAR FOR BRED. Den fjernet ALT som nevnte tilstøtende A-stolpe, uansett
+      hvilken del forslaget gjaldt. På VW Caddy SX17548 tok den begge de nye kanal-punktene:
+      hovedlinja om tilstøtende naboer (setningen inneholder "A-stolpe") og polere flikk for
+      A-stolpe. Martin: ved KANALSKIFT gjelder tilstøtende A-stolpe selv om forskjermen bare
+      rettes – "kun ved N" hører til forskjerm, ikke kanal.
+      fjernForslag tar nå et valgfritt UNNTAKSMØNSTER, og A-stolpe-sperren rører ikke forslag
+      som handler om kanal. Beholdte forslag logges, så unntaket er synlig i sporingen.
+   2. CLAUDE FANT OPP "SKIFTET DEL MANGLER LAKK-POST". Volvo EX30 EH94861 har 0 rader i
+      lakkspesifikasjonen (ingenting der skal lakkes), og Claude skrev KRITISK MANGEL om
+      "Støtfangerdeksel bak nedre del p-radar" – en matt svart del som ikke skal lakkes.
+      Kodens egen sjekk var RIKTIG: støtfanger krever "grunnet" i delnavnet (v2.52), så lista
+      var tom. Claude gikk rundt den og resonnerte fra råteksten, akkurat som i v2.68/v2.79.
+      Post-filteret fjerner nå slik fritekst når koden ikke har funnet noen slik mangel.
+      Martins huskeregel: "hvis det står grunnet og mangler lakkpost da er det et reelt funn."
+      Signalet er delnavnet han har VALGT – reservedelslista har begge varianter.
+*/
 
 /* AutoPell v3.26 – endringer fra v3.25 (KANAL FIKK ENDELIG EN SJEKKLISTE):
    Kanal fantes IKKE som kategori i REGEL_REGISTRY. På VW Caddy SX17548 er V Kanal ført N med
@@ -4898,6 +4916,9 @@ function takstSammendrag(t){
     const finnesILakkspes=lakkspesNavnLower.some(l=>match.re.test(l));
     if(!finnesILakkspes)skiftetUtenLakkspesRad.push(d.navn);
   });
+  // v3.27: gjør kodens konklusjon tilgjengelig for post-filteret, så Claudes fritekst kan
+  // måles mot den. Uten dette måtte filteret gjette på nytt.
+  t._skiftetUtenLakkspesRad=skiftetUtenLakkspesRad.slice();
   if(skiftetUtenLakkspesRad.length){
     s+=`  🚨 KRITISK – HOVEDDEL SKIFTET MEN MANGLER HELT I LAKKSPESIFIKASJONEN: ${skiftetUtenLakkspesRad.join('; ')}\n`;
     s+=`     Disse delene er skiftet (N) i arbeidsspesifikasjonen, men har INGEN post i det hele tatt i lakkspesifikasjonen. Flagg som rød mangel: delen må ha egen lakk-post lagt til.\n`;
@@ -6799,10 +6820,18 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
         });
       }
 
-      function fjernForslag(tekst,grunn){
+      // v3.27: fjernForslag tar nå et valgfritt UNNTAKSMØNSTER. Sperrene her fjerner på
+      // TEKSTMØNSTER, og et mønster treffer alt som nevner ordene – uansett hvilken del
+      // forslaget egentlig gjelder. A-stolpe-sperren tok derfor kanal-funn på VW Caddy SX17548.
+      // Unntaket gjør det mulig å si "denne sperren gjelder ikke når forslaget handler om X".
+      function fjernForslag(tekst,grunn,unnta){
         if(parsed.sammendrag&&Array.isArray(parsed.sammendrag.dbs_handlinger)){
           const before=parsed.sammendrag.dbs_handlinger.length;
           parsed.sammendrag.dbs_handlinger=parsed.sammendrag.dbs_handlinger.filter(d=>{
+            if(unnta&&unnta.test(d.toLowerCase())){
+              console.log(`[POST-FILTER] BEHOLDT: "${d}" – unntatt fra sperren "${grunn}"`);
+              return true;
+            }
             if(tekst.test(d.toLowerCase())){
               console.log(`[POST-FILTER] Fjernet: "${d}" – ${grunn}`);
               spor(finnRegelIdForForslag(d),'FJERNET fra boksen',grunn);
@@ -6814,6 +6843,7 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
         if(Array.isArray(parsed.resultater)){
           parsed.resultater=parsed.resultater.filter(r=>{
             const combinedText=((r.tittel||'')+' '+(r.melding||'')).toLowerCase();
+            if(unnta&&unnta.test(combinedText))return true;   // v3.27
             if(tekst.test(combinedText)){
               console.log(`[POST-FILTER] Fjernet resultat: "${r.tittel}" – ${grunn}`);
               return false;
@@ -6821,6 +6851,28 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
             return true;
           });
         }
+      }
+
+      // v3.27: FANG OG FJERN – Claudes egen fritekst om at en SKIFTET DEL MANGLER LAKK-POST.
+      // Volvo EX30 EH94861: lakkspesifikasjonen har 0 rader (ingenting på taksten skal lakkes),
+      // og Claude skrev "KRITISK MANGEL: Skiftet støtfangerdeksel bak mangler helt
+      // lakkspesifikasjon" med sin egen [Taksten sier]/[Regel]-form. Delen er "Støtfangerdeksel
+      // bak nedre del p-radar" – matt svart, og skal IKKE lakkes.
+      // KODENS EGEN SJEKK VAR ALLEREDE RIKTIG: støtfanger-kategorien har krevGrunnet:true, så
+      // skiftetUtenLakkspesRad var tom. Claude gikk rundt den og resonnerte fra råteksten –
+      // samme mønster som v2.68/v2.79 (å fjerne fristelsen holder ikke, råteksten sendes alltid).
+      // Martins huskeregel: "hvis det står grunnet og mangler lakkpost da er det et reelt funn."
+      // Signalet er DELNAVNET han har valgt – reservedelslista har både grunnet og ugrunnet
+      // variant av samme del, og han velger den ugrunnede når delen ikke skal lakkes.
+      // Derfor: har koden ikke funnet noen slik mangel, fjernes påstanden.
+      // takstSammendrag(t) kalles med parserData, så flagget ligger der – ikke på Claudes svar.
+      const kodenFantSkiftetUtenLakk=Array.isArray(parserData._skiftetUtenLakkspesRad)
+        &&parserData._skiftetUtenLakkspesRad.length>0;
+      if(!kodenFantSkiftetUtenLakk){
+        fjernForslag(
+          /(?:skiftet|skiftes).{0,60}(?:mangler|uten|ingen).{0,30}lakk(?:-?post|spesifikasjon)|mangler.{0,30}lakk(?:-?post|spesifikasjon).{0,60}skift/i,
+          'koden fant ingen skiftet hoveddel uten lakk-post – ugrunnet del skal ofte ikke lakkes'
+        );
       }
 
       // v2.68: FANG OG FJERN – siste forsvarslinje mot Claudes egen fritekst om flaterett-
@@ -6939,7 +6991,17 @@ Når "resultater" og "dbs_handlinger" er ferdig satt sammen: les gjennom HELE li
       });
       // Hvis forskjerm KUN er G (ikke N) → ingen tilstøtende A-stolpe
       if(forskjermRettes&&!forskjermSkiftes){
-        fjernForslag(/tilst[øo]tende.*a[-\s]?stolpe|a[-\s]?stolpe.*tilst[øo]tende/i,'forskjerm rettes (G), ikke skiftes – ingen tilstøtende A-stolpe');
+        // v3.27: SPERREN GJALDT ALT SOM NEVNTE TILSTØTENDE A-STOLPE, uansett hvilken del
+        // forslaget handlet om. På VW Caddy SX17548 fjernet den BEGGE de nye kanal-punktene:
+        // hovedlinja om tilstøtende naboer (fordi setningen inneholder "A-stolpe") og polere
+        // flikk for A-stolpe. Martin bekreftet at VED KANALSKIFT gjelder tilstøtende A-stolpe
+        // SELV OM forskjermen bare rettes – regelen "kun ved N" hører til FORSKJERM, ikke kanal.
+        // Sperren er beholdt, men snevret inn: den rører ikke forslag som handler om kanal.
+        // Sporingen logger nå også hva som ble BEHOLDT, slik at et unntak er synlig.
+        fjernForslag(/tilst[øo]tende.*a[-\s]?stolpe|a[-\s]?stolpe.*tilst[øo]tende/i,'forskjerm rettes (G), ikke skiftes – ingen tilstøtende A-stolpe',/kanal/i);
+        // MERK: unntaket er /kanal/i UTEN ordgrense med vilje. Med /\bkanal\b/i slapp
+        // hovedlinja gjennom, men polere flikk-linja "...ved kanalarbeidet..." ble fortsatt
+        // fjernet – ordgrensen krever slutt etter "kanal". Fanget av enhetstesten.
       }
 
       // 3c. Tilstøtende mot del som allerede er i lakkspes (fordør, bakdør, panser, bakskjerm)
